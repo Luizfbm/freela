@@ -213,17 +213,16 @@ h3 {
   font-family: "Figtree", Arial, sans-serif;
   line-height: 1.04;
   color: var(--ink);
+  letter-spacing: 0;
 }
 
 h1 {
   max-width: 12ch;
-  font-size: clamp(3rem, 8vw, 6.4rem);
-  letter-spacing: -0.03em;
+  font-size: clamp(2.85rem, 6vw, 5.2rem);
 }
 
 h2 {
   font-size: clamp(2rem, 4vw, 4rem);
-  letter-spacing: -0.025em;
 }
 
 h3 {
@@ -309,6 +308,7 @@ h3 {
 }
 
 .hero-visual {
+  align-self: center;
   border: 1px solid var(--line);
   border-radius: 34px;
   background: rgba(255, 255, 255, 0.5);
@@ -318,8 +318,9 @@ h3 {
 
 .hero-visual img {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  height: clamp(420px, 38vw, 540px);
   object-fit: cover;
+  object-position: center;
 }
 
 .section {
@@ -513,6 +514,11 @@ details p {
 
   .hero {
     min-height: auto;
+  }
+
+  .hero-visual img {
+    height: auto;
+    aspect-ratio: 16 / 10;
   }
 
   .service-grid {

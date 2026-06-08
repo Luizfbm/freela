@@ -212,12 +212,12 @@ h3 {
   font-family: "Figtree", Arial, sans-serif;
   color: var(--ink);
   line-height: 1.05;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 h1 {
-  max-width: 13ch;
-  font-size: clamp(2.9rem, 7vw, 6.2rem);
+  max-width: 16ch;
+  font-size: clamp(2.75rem, 4.6vw, 4.2rem);
 }
 
 h2 {
@@ -280,6 +280,7 @@ h3 {
 }
 
 .hero-media {
+  align-self: center;
   border: 2px solid var(--line);
   border-radius: var(--radius);
   background: var(--soft);
@@ -288,8 +289,9 @@ h3 {
 
 .hero-media img {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  height: clamp(380px, 36vw, 500px);
   object-fit: cover;
+  object-position: center;
 }
 
 .section {
@@ -509,6 +511,11 @@ details p {
   .split,
   .contact-grid {
     grid-template-columns: 1fr;
+  }
+
+  .hero-media img {
+    height: auto;
+    aspect-ratio: 16 / 10;
   }
 
   .faq-grid {
