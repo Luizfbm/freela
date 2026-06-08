@@ -150,12 +150,12 @@ Sites demo privados criados para abordagem comercial. Cada pasta representa um l
 
 Rode a partir da raiz do projeto:
 
-    python3 -m http.server 4180
+    python3 -m http.server 4173
 
 Acesse:
 
-- http://localhost:4180/demos/clinica-equilibrio-fisioterapia/
-- http://localhost:4180/demos/coi-odontologia/
+- http://localhost:4173/demos/clinica-equilibrio-fisioterapia/
+- http://localhost:4173/demos/coi-odontologia/
 
 ## Regras de uso
 
@@ -294,18 +294,18 @@ Expected: the demo opens at `/demos/coi-odontologia/`.
 Run from project root:
 
 ```bash
-python3 -m http.server 4180
+python3 -m http.server 4173
 ```
 
-Expected: server serves `http://localhost:4180/`.
+Expected: server serves `http://localhost:4173/`.
 
 - [ ] **Step 2: Validate each page**
 
 Open both URLs in the in-app browser:
 
 ```text
-http://localhost:4180/demos/clinica-equilibrio-fisioterapia/
-http://localhost:4180/demos/coi-odontologia/
+http://localhost:4173/demos/clinica-equilibrio-fisioterapia/
+http://localhost:4173/demos/coi-odontologia/
 ```
 
 Check at widths:
