@@ -14,6 +14,11 @@ Acesse:
 
 - http://localhost:4173/demos/clinica-equilibrio-fisioterapia/
 - http://localhost:4173/demos/coi-odontologia/
+- http://localhost:4173/demos/fisiohealth-clinica-fisioterapia-pilates/
+- http://localhost:4173/demos/espaco-vitta-saude/
+- http://localhost:4173/demos/essencesaude/
+- http://localhost:4173/demos/viva-odontologia/
+- http://localhost:4173/demos/ceo-clinica-especialidades-odontologicas/
 
 ## Regras de uso
 
