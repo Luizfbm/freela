@@ -109,15 +109,15 @@ svg {
 }
 
 .brand-logo {
-  width: 54px;
-  height: 54px;
+  width: 58px;
+  height: 58px;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 999px;
-  background: #fff;
+  background: transparent;
 }
 
 .brand-logo img {
@@ -126,8 +126,8 @@ svg {
   min-height: 0;
   width: 100%;
   height: 100%;
-  padding: 3px;
-  object-fit: contain;
+  padding: 0;
+  object-fit: cover;
 }
 
 .nav-links {
@@ -565,8 +565,8 @@ details p {
   }
 
   .brand-logo {
-    width: 44px;
-    height: 44px;
+    width: 46px;
+    height: 46px;
   }
 
   .nav-shell {
