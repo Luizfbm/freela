@@ -17,6 +17,7 @@
 - Ajudes lists COI Odontologia with services including implantes dentarios, harmonizacao facial, estetica, proteses, ortodontia and endodontia.
 - Ajudes lists the conveniada in Praia do Sua with phone (27) 99610-5491 and Instagram @coiodontovix.
 - Ajudes also displays additional address/contact information in the same page. To avoid mixing records, the demo should avoid an exact street address and use Vitoria/ES plus Praia do Sua.
+- The header logo uses the public COI image shown in the Ajudes listing.
 - Search results show other COI clinics outside Vitoria. The demo must not use content from those unrelated sites.
 
 ## Safe inferences

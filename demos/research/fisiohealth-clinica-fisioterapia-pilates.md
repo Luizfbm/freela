@@ -19,6 +19,7 @@
 - Public directories indicate the business is active and located in Jardim Camburi.
 - Search results and directories mention Instagram or social presence, but no reliable Instagram handle was confirmed.
 - The demo should not invent an Instagram handle or use visual details from an unrelated profile.
+- The header logo was recreated as a local SVG from the public facade/sign image, with no patient or staff photo.
 
 ## Safe inferences
 

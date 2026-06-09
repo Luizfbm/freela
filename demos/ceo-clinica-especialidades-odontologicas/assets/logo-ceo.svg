@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="title">
+  <title>Logo CEO Clinica de Especialidades Odontologicas</title>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a4677"/>
+      <stop offset="0.5" stop-color="#097cad"/>
+      <stop offset="1" stop-color="#14b9d1"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="240" rx="16" fill="url(#bg)"/>
+  <path d="M45 82 120 39l75 43v76l-75 43-75-43Z" fill="none" stroke="#0c294f" stroke-width="24" stroke-linejoin="round"/>
+  <path d="M45 82 120 39l75 43v76l-75 43-75-43Z" fill="none" stroke="#f7fbff" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M143 77H91v86h52" fill="none" stroke="#f7fbff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M91 120h47" fill="none" stroke="#f7fbff" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="155" cy="120" r="10" fill="#f7fbff"/>
+</svg>

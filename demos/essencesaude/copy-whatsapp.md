@@ -1,6 +1,6 @@
 Oi, pessoal da EssenceSaúde. Tudo bem?
 
-Sou Luiz, de Vitória. Encontrei a EssenceSaúde pelo Instagram, agenda pública e parceiros enquanto pesquisava negócios de saúde aqui na região. Vi que vocês já têm uma comunicação forte sobre terapias integrativas e pós-operatório, mas uma página própria poderia organizar melhor serviço, endereço e WhatsApp.
+Sou Luiz, de Vitória. Encontrei a EssenceSaúde pelo Instagram, agenda pública, parceiros e pela página de vocês no Google Sites enquanto pesquisava negócios de saúde aqui na região. Vi que vocês já têm uma comunicação forte sobre terapias integrativas e pós-operatório, e montei uma versão mais direta para organizar serviço, endereço e WhatsApp.
 
 Montei um conceito visual não oficial de como essa página poderia ficar:
 

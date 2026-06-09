@@ -19,6 +19,7 @@
 - Instagram bio mentions "Mais saude, mais longevidade" and pilates for strength, balance and well-being.
 - Instagram highlights include services, testimonials, location, tips, WhatsApp, pregnant patients, scoliosis, doubts and pilates.
 - Public Instagram visuals use orange and purple as the strongest brand colors.
+- The header logo uses the public Espaco Vitta Saude image shown in the Ajudes listing.
 
 ## Safe inferences
 

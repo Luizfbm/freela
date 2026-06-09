@@ -18,6 +18,7 @@
 - TodosNegocios lists phone, address, opening hours and no standalone website.
 - DentMap lists a WhatsApp link and a generic directory procedure list.
 - The demo should not treat directory procedure tags as an official service menu.
+- The header logo was recreated as a local SVG from the user-provided attachment; directory facade photos were not used in the page.
 
 ## Safe inferences
 

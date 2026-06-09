@@ -17,6 +17,7 @@
 - TodosNegocios lists the business as operating in the physiotherapy industry and shows phone (27) 3235-1857.
 - The source data for the exact address is inconsistent across public directories. The demo should avoid using a precise street address until the client confirms it.
 - The spreadsheet classified the lead as `Hot` and `High` because it has public contact data and no clear standalone website.
+- The green movement mark used in the header came from the user-provided logo attachment and should be confirmed by the business before official publication.
 
 ## Safe inferences
 

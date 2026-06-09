@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 180" role="img" aria-labelledby="title">
+  <title>Logo Fisiohealth Clinica de Fisioterapia</title>
+  <rect width="640" height="180" rx="12" fill="#f8fbf8"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="70" cy="30" r="13" fill="#0b6e9b"/>
+    <path d="M70 48v46" stroke="#0b6e9b" stroke-width="13"/>
+    <path d="M28 62 70 92l42-30" stroke="#0b6e9b" stroke-width="13"/>
+    <path d="M70 94 42 148" stroke="#0b6e9b" stroke-width="13"/>
+    <path d="M70 94 105 148" stroke="#0b6e9b" stroke-width="13"/>
+  </g>
+  <text x="132" y="78" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="64" font-weight="900" fill="#61a430">FISIO</text>
+  <text x="132" y="145" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="68" font-weight="900" fill="#61a430">HEALTH</text>
+  <text x="432" y="72" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#0b6e9b">CLINICA DE</text>
+  <text x="432" y="102" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#0b6e9b">FISIOTERAPIA</text>
+</svg>

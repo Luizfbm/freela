@@ -7,7 +7,7 @@ const outputPath = `${outputDir}/leads_saude_vitoria_es_2026-06-05.xlsx`;
 const leads = [
   ["Hot", "Clínica Equilíbrio Fisioterapia", "Fisioterapia/Terapias", "Fisioterapia", "Enseada do Suá", "<=10 km", "Somente social", "Instagram / sem site listado", "(27) 3235-1857", "Clínica ativa com contato e sem site próprio.", "High", "https://br.todosnegocios.com/pt/clinica-equilibrio-fisioterapia-e_1m-27-3235-1857", "Fonte informa Instagram e ausência de site listado.", "Abordar oferecendo site institucional com CTA para WhatsApp."],
   ["Hot", "Espaço Vitta Saúde", "Fisioterapia/Terapias", "Fisioterapia, pilates, saúde integrada", "Jardim da Penha", "<=10 km", "Somente social", "Instagram @vittasaudee", "(27) 2142-1173", "ME ativa, presença pública dependente de Instagram/diretórios.", "High", "https://ajudes.org.br/project/espaco-vitta-saude/", "Confirmado em convênio Ajudes e cadastro CNPJ público.", "Abordar com landing page para serviços e agendamento."],
-  ["Hot", "EssenceSaúde", "Fisioterapia/Terapias", "Terapias integrativas, fisioterapia", "Praia do Suá", "<=10 km", "Portal/booking only", "Setmore + Instagram", "(27) 99779-6437", "Usa agendamento externo, sem site próprio claro.", "High", "https://centrodeterapiasintegrativasemsadeltda.setmore.com/", "Fonte adicional: SindjudES lista Instagram e WhatsApp.", "Oferecer site leve integrado ao botão de reservas."],
+  ["Hot", "EssenceSaúde", "Fisioterapia/Terapias", "Terapias integrativas, fisioterapia", "Praia do Suá", "<=10 km", "Google Sites + booking", "Google Sites + Setmore + Instagram", "(27) 99779-6437", "Tem site em Google Sites e agenda externa; oportunidade de melhorar presença própria.", "High", "https://sites.google.com/view/essencesade", "Fonte adicional: Setmore/SindjudES lista Instagram e WhatsApp.", "Oferecer redesign/landing page integrada ao WhatsApp e reservas."],
   ["Hot", "Fisiohealth Clínica de Fisioterapia e Pilates", "Fisioterapia/Terapias", "Fisioterapia", "Jardim Camburi", "<=10 km", "Somente social", "Instagram como site", "(27) 3014-9801", "Boa presença local, mas sem página própria.", "High", "https://seniorbemestar.com/clinicas-de-fisioterapia/vitoria/fisiohealth-clinica-de-fisioterapia-e-pilates/", "Também aparece em Cylex, BuscaFisio e Solutudo.", "Abordar com site simples para captação por bairro."],
   ["Hot", "Fisio Ativa Clínica de Fisioterapia e Pilates", "Fisioterapia/Terapias", "Fisioterapia", "Praia do Canto", "<=10 km", "Sem site encontrado", "Diretório local", "(27) 3315-5190", "Avaliações e telefone, mas sem domínio próprio encontrado.", "Medium", "https://br.physiofinder.net/pt-br/i/23000-fisio-ativa-clinica-de-fisioterapia-e-pilates/", "Busca exata não retornou domínio próprio confiável.", "Validar Instagram antes do contato e propor site de serviços."],
   ["Hot", "Flexfisio Clínica de Fisioterapia e Pilates", "Fisioterapia/Terapias", "Fisioterapia", "Jardim Camburi", "<=10 km", "Sem site encontrado", "Diretório Fisio.net", "(27) 9873-8348", "Pequena clínica sem site próprio visível.", "Medium", "https://fisio.net.br/sobre/flexfisio-vitoria-es-28420001", "Diretório marca empresa como não reivindicada.", "Abordar com proposta de página local e Google Business."],
@@ -53,12 +53,12 @@ leadSheet.getRange("A1:N1").values = [headers];
 leadSheet.getRange(`A2:N${leads.length + 1}`).values = leads;
 
 summarySheet.getRange("A1:H1").merge();
-summarySheet.getRange("A1:H1").values = [["Leads de saúde sem site próprio - Vitória/ES"]];
+summarySheet.getRange("A1:H1").values = [["Leads de saúde com presença digital fraca - Vitória/ES"]];
 summarySheet.getRange("A3:B8").values = [
   ["Localização", "Vitória, Espírito Santo"],
   ["Raio", "10 km"],
   ["Categorias", "Fisioterapeutas, dentistas, pequenos laboratórios e saúde local"],
-  ["Objetivo", "Leads sem site próprio standalone"],
+  ["Objetivo", "Leads sem site próprio forte ou dependentes de social/booking"],
   ["Data da pesquisa", "2026-06-05"],
   ["Total de leads", ""],
 ];

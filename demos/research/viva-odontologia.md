@@ -16,6 +16,7 @@
 - TodosNegocios lists phone, address, hours and no standalone website.
 - TodosNegocios points to Instagram, but the visible profile opened as a similarly named profile that appears to be from Maceio.
 - The demo must not use the Maceio profile identity for the Vitoria lead.
+- The header logo was recreated as a local SVG from the user-provided attachment because no reliable public logo file for the Vitoria lead was confirmed.
 
 ## Safe inferences
 
@@ -30,7 +31,7 @@
 
 ## Site direction
 
-- Light blue/green dental palette.
+- Navy and light blue dental palette matching the provided logo.
 - Simple phone-first contact path.
 - Conservative service wording.
 - Non-official concept disclaimer.
