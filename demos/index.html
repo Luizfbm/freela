@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Painel local para abrir e revisar demos de prospeccao.">
+  <meta name="theme-color" content="#f7f8f4">
+  <title>Painel local de demos | Luiz FBM</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="gallery.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="../" aria-label="Voltar para o portfolio">Luiz FBM</a>
+    <nav aria-label="Links principais">
+      <a href="../">Portfolio</a>
+      <a href="README.md">README</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Painel local</p>
+        <h1>Demos de prospecção</h1>
+        <p>Abra cada conceito visual, confira screenshots e acesse a mensagem pronta para WhatsApp.</p>
+      </div>
+      <div class="summary" aria-label="Resumo das demos">
+        <div>
+          <strong id="total-count">34</strong>
+          <span>demos</span>
+        </div>
+        <div>
+          <strong id="hot-count">27</strong>
+          <span>Hot</span>
+        </div>
+        <div>
+          <strong id="visible-count">34</strong>
+          <span>visíveis</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="toolbar" aria-label="Controles do painel">
+      <label class="search-box" for="search">
+        <span>Buscar demo</span>
+        <input id="search" type="search" placeholder="Nome, bairro ou segmento" autocomplete="off">
+      </label>
+
+      <div class="filter-group" role="group" aria-label="Filtrar demos">
+        <button class="filter-button is-active" type="button" data-filter="all">Todas</button>
+        <button class="filter-button" type="button" data-filter="hot">Hot</button>
+        <button class="filter-button" type="button" data-filter="fisioterapia">Fisioterapia</button>
+        <button class="filter-button" type="button" data-filter="pilates">Pilates</button>
+        <button class="filter-button" type="button" data-filter="odontologia">Odontologia</button>
+        <button class="filter-button" type="button" data-filter="anteriores">Anteriores</button>
+      </div>
+    </section>
+
+    <section class="result-row" aria-label="Resultado atual">
+      <p id="result-status" aria-live="polite">34 demos encontradas.</p>
+      <label for="sort">
+        <span>Ordenar</span>
+        <select id="sort">
+          <option value="group">Grupo</option>
+          <option value="name">Nome</option>
+          <option value="segment">Segmento</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="demo-grid" id="demo-grid" aria-label="Lista de demos"></section>
+    <p class="empty-state" id="empty-state" hidden>Nenhuma demo encontrada para esse filtro.</p>
+  </main>
+
+  <template id="demo-card-template">
+    <article class="demo-card">
+      <a class="thumb-link" target="_blank" rel="noopener">
+        <img>
+      </a>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="segment-pill"></span>
+          <span class="status-pill"></span>
+        </div>
+        <h2></h2>
+        <p class="demo-location"></p>
+        <div class="card-actions">
+          <a class="button primary demo-link" target="_blank" rel="noopener">Abrir demo</a>
+          <a class="button screenshot-desktop" target="_blank" rel="noopener">Desktop</a>
+          <a class="button screenshot-mobile" target="_blank" rel="noopener">Mobile</a>
+          <a class="button whatsapp-link" target="_blank" rel="noopener">WhatsApp</a>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script src="gallery.js"></script>
+</body>
+</html>
