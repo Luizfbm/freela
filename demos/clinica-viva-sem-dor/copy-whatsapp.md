@@ -2,14 +2,18 @@
 
 Oi, pessoal da Clínica Viva Sem Dor. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei a clínica em pesquisa por fisioterapia em Vila Velha e pensei em uma página própria para juntar localização, WhatsApp e informações iniciais sem a pessoa precisar ficar procurando em vários lugares.
+Sou Luiz, da Grande Vitória. Encontrei a clínica pesquisando fisioterapia em Vila Velha e preparei uma prévia de site para mostrar como vocês poderiam ter uma presença própria mais forte.
 
-Preparei essa primeira ideia:
+Uma página bem organizada ajuda a pessoa que está pesquisando pelo celular a entender onde vocês atendem, qual é o caminho de contato e por que vale chamar a clínica antes de continuar procurando outras opções.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/clinica-viva-sem-dor/
 
-Não é o modelo final. Dá para mudar tudo que precisar: texto, cores, imagens, serviços, sequência das seções e forma de contato.
+Não é o modelo final. É uma proposta visual inicial. Posso ajustar copy, cores, fotos autorizadas, serviços, estrutura e qualquer informação que vocês quiserem destacar.
 
-Usei só dados públicos e imagens neutras. Não usei fotos de pacientes, fotos privadas nem qualquer promessa sobre resultado de tratamento. A intenção é mostrar uma presença online clara para quem chega pelo celular.
+Usei só dados públicos e imagens neutras. Não usei fotos privadas, pacientes ou promessas de resultado. O cuidado aqui foi mostrar valor sem forçar afirmações clínicas que precisam de confirmação.
 
-Se vocês gostarem da direção, estou aberto a conversar sobre a clínica, entender melhor os serviços e ajustar a página com vocês. Se preferirem que eu remova, eu removo sem problema.
+Se vocês gostarem da ideia, posso conversar com vocês e montar uma versão final com a cara da clínica, pensada para transformar visitas em contatos pelo WhatsApp.
+
+Posso te explicar melhor a proposta?

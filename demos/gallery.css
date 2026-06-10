@@ -340,6 +340,12 @@ a:focus-visible {
   color: #ffffff;
 }
 
+.button.whatsapp-link {
+  border-color: #128c7e;
+  background: #128c7e;
+  color: #ffffff;
+}
+
 .empty-state {
   margin: 34px 0 0;
   padding: 28px;

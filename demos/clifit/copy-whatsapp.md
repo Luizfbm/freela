@@ -2,14 +2,18 @@
 
 Oi, pessoal da CLIFIT. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei a CLIFIT enquanto pesquisava negócios de fisioterapia e terapia ocupacional em Vila Velha. Como vocês já têm presença pública, pensei em uma página própria para deixar serviços, região e WhatsApp mais fáceis de encontrar.
+Sou Luiz, da Grande Vitória. Encontrei a CLIFIT pesquisando fisioterapia e terapia ocupacional em Vila Velha e fiz uma prévia de site para mostrar como a clínica poderia aparecer melhor fora das redes sociais.
 
-Montei essa primeira ideia:
+A pessoa que chega pelo celular costuma decidir em poucos segundos se vai chamar ou continuar pesquisando. Um site próprio ajuda a organizar os serviços, a região de atendimento e o WhatsApp em uma experiência mais direta.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/clifit/
 
-Não é o modelo final. Pode ser alterado conforme a CLIFIT quiser: textos, fotos, cores, blocos, ordem das informações e serviços que realmente fazem parte da rotina de vocês.
+Não é o modelo final. É uma primeira proposta visual. Posso ajustar texto, tom, cores, fotos, serviços, prioridades e a ordem das seções junto com vocês.
 
-Usei apenas informações públicas e uma imagem neutra. Não usei fotos de pacientes, imagens privadas ou promessas de resultado. A intenção é mostrar um caminho mais claro para quem chega pelo celular e quer falar com vocês.
+Usei apenas informações públicas e uma imagem neutra. Não usei fotos de pacientes, conteúdo privado ou promessas de resultado. A intenção é vender melhor a primeira impressão da CLIFIT para quem ainda está decidindo se entra em contato.
 
-Se fizer sentido, posso conversar sobre o negócio, entender melhor os atendimentos e ajustar a página com vocês antes de qualquer versão final. Se preferirem que eu tire do ar, sem problema.
+Se fizer sentido, posso conversar com vocês sobre a rotina da clínica e deixar essa página pronta para funcionar como site oficial.
+
+Posso te mostrar como eu faria esses ajustes?

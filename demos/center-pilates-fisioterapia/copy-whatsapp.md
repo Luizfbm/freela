@@ -2,14 +2,18 @@
 
 Oi, pessoal da Center Pilates & Fisioterapia. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei a Center Pilates & Fisioterapia na pesquisa por estúdios de pilates e fisioterapia em Vila Velha. Como a informação pública aparece mais espalhada, montei uma ideia de página simples para organizar o básico: serviço, bairro e WhatsApp.
+Sou Luiz, da Grande Vitória. Encontrei a Center pesquisando pilates e fisioterapia em Vila Velha e montei uma prévia de site para vocês verem.
 
-A demo está aqui:
+Pensei nisso porque muita gente decide pelo celular: abre o Google, olha duas ou três opções e chama quem passa mais confiança mais rápido. Uma página própria ajuda a mostrar que vocês atendem em Ataíde, explicar o básico do serviço e levar a pessoa direto para o WhatsApp.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/center-pilates-fisioterapia/
 
-Não é o modelo final. Dá para alterar estrutura, textos, fotos, cores, serviços, horários e tudo que fizer sentido para o jeito de atendimento de vocês.
+Não é o modelo final. É um ponto de partida para vocês avaliarem. Posso ajustar texto, cores, fotos, serviços, horários e a ordem das informações conforme o funcionamento real da Center.
 
-Não usei imagens do espaço, pacientes ou equipe. Trabalhei com informações públicas e imagem neutra, só para mostrar o formato da página. A proposta é facilitar a vida de quem pesquisa pelo celular e quer entender rapidamente como chamar vocês.
+Usei apenas informações públicas e imagem neutra. Não usei fotos do espaço, alunos, pacientes ou promessa de resultado. A ideia é mostrar como um site simples pode deixar o contato mais fácil e profissional.
 
-Se quiserem, posso conversar sobre o negócio de vocês e ajustar a página para ficar mais fiel antes de pensar em domínio, publicação ou versão definitiva. Se não fizer sentido, também retiro a demo sem problema.
+Se fizer sentido para vocês, posso entender melhor a rotina do estúdio e transformar essa prévia em um site pronto para receber contatos pelo WhatsApp.
+
+Posso te mostrar como ficaria esse processo?

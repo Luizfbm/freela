@@ -2,14 +2,18 @@
 
 Oi, pessoal da Viva Odontologia. Tudo bem?
 
-Sou Luiz, de Vitória. Encontrei a Viva Odontologia em uma listagem pública e preferi montar uma página mais neutra, porque algumas informações de rede social ficaram ambíguas. A ideia foi organizar endereço, WhatsApp e dados básicos sem assumir nada que não esteja confirmado.
+Sou Luiz, de Vitória. Encontrei a Viva em uma listagem pública e preparei uma prévia de site para mostrar como a clínica poderia ter uma presença própria mais clara.
 
-A primeira versão está aqui:
+Como algumas informações de rede social estavam ambíguas, montei uma página neutra, com foco no que importa para quem pesquisa atendimento odontológico: confirmar que é a clínica de Vitória, ver localização e chamar com facilidade.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/viva-odontologia/
 
-Não é o modelo final. Vocês podem alterar textos, fotos, cores, serviços, chamadas e tudo que precisar para representar a Viva Odontologia do jeito correto.
+Não é o modelo final. É uma proposta inicial para vocês revisarem. Posso ajustar textos, fotos autorizadas, serviços, cores, endereço, WhatsApp e qualquer informação que precise ficar correta.
 
-Usei apenas informações públicas e imagem neutra. Não usei fotos de pacientes, imagens privadas, perfil de outra cidade ou promessas de resultado. A página existe só como conceito visual.
+Usei apenas informações públicas e imagem neutra. Não usei fotos de pacientes, conteúdo de outra cidade, antes e depois ou promessas de resultado. A página foi pensada para passar segurança antes do primeiro contato.
 
-Se fizer sentido, posso conversar sobre a clínica, confirmar os dados e ajustar a página antes de qualquer publicação final. Se preferirem que eu remova a demo, removo sem problema.
+Se vocês gostarem da ideia, posso conversar com vocês e transformar essa prévia em um site real para a Viva Odontologia.
+
+Posso te explicar como funcionaria?

@@ -2,14 +2,18 @@
 
 Oi, pessoal da COI. Tudo bem?
 
-Sou Luiz, de Vitória. Encontrei a COI em uma pesquisa por clínicas odontológicas e percebi que uma página própria poderia ajudar a organizar especialidades, contato e WhatsApp em um formato mais fácil para quem está procurando atendimento.
+Sou Luiz, de Vitória. Encontrei a COI pesquisando clínicas odontológicas e preparei uma prévia de site para mostrar como as informações de vocês poderiam ficar mais organizadas e comerciais.
 
-Fiz um conceito visual inicial aqui:
+Para odontologia, a primeira impressão pesa muito. Quem pesquisa pelo celular quer confirmar se a clínica é confiável, entender quais áreas atende e chamar sem perder tempo em diretórios ou perfis soltos.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/coi-odontologia/
 
-Não é o modelo final. A página pode ser alterada com vocês: textos, fotos autorizadas, cores, áreas de atendimento, ordem das informações e qualquer ajuste necessário para refletir melhor a clínica.
+Não é o modelo final. É uma base para conversa. Posso ajustar textos, especialidades confirmadas, fotos autorizadas, cores, endereço, WhatsApp e a ordem das informações com vocês.
 
-Usei somente informações públicas. Não usei fotos de pacientes, imagens privadas nem promessa de resultado odontológico. A ideia é mostrar como a COI poderia ter um site simples, direto e confiável.
+Usei apenas informações públicas. Não usei fotos de pacientes, conteúdo privado, antes e depois ou promessa de resultado odontológico. O objetivo é mostrar uma página própria mais clara, segura e pronta para contato.
 
-Se fizer sentido, posso conversar sobre a clínica e adaptar a proposta antes de qualquer publicação. Se preferirem que eu remova a demonstração, faço isso sem problema.
+Se fizer sentido, posso entender melhor a COI e transformar essa prévia em um site real para fortalecer a presença online da clínica.
+
+Posso te mostrar como eu conduziria isso?

@@ -331,6 +331,14 @@ function setLink(anchor, href) {
   anchor.href = href;
 }
 
+function buildWhatsappHref(demo) {
+  const whatsappData = window.demoWhatsappLinks?.[demo.slug];
+  if (!whatsappData?.phone || !whatsappData?.message) {
+    return `./${demo.slug}/copy-whatsapp.md`;
+  }
+  return `https://wa.me/${whatsappData.phone}?text=${encodeURIComponent(whatsappData.message)}`;
+}
+
 function renderCard(demo) {
   const item = template.content.cloneNode(true);
   const card = item.querySelector(".demo-card");
@@ -356,7 +364,7 @@ function renderCard(demo) {
   setLink(item.querySelector(".demo-link"), demoUrl);
   setLink(item.querySelector(".screenshot-desktop"), `./${demo.slug}/screenshot-desktop.png`);
   setLink(item.querySelector(".screenshot-mobile"), `./${demo.slug}/screenshot-mobile.png`);
-  setLink(item.querySelector(".whatsapp-link"), `./${demo.slug}/copy-whatsapp.md`);
+  setLink(item.querySelector(".whatsapp-link"), buildWhatsappHref(demo));
 
   return item;
 }

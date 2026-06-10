@@ -2,14 +2,18 @@
 
 Oi, pessoal do Dentista do Trabalhador. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei o Dentista do Trabalhador em fontes públicas e pensei que um site simples poderia ajudar quem procura atendimento odontológico na Glória a ver contato, localização e próximos passos com mais facilidade.
+Sou Luiz, da Grande Vitória. Encontrei o Dentista do Trabalhador em canais públicos e montei uma prévia de site pensando em quem procura atendimento odontológico na Glória pelo celular.
 
-Montei uma primeira ideia para vocês olharem:
+Hoje, um site próprio pode fazer diferença na decisão da primeira conversa. Ele mostra o nome da clínica, localização, WhatsApp e informações iniciais sem deixar o paciente depender só de Instagram ou Facebook.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/dentista-do-trabalhador/
 
-Não é o modelo final. Dá para trocar textos, fotos, cores, serviços, chamadas e tudo que o negócio de vocês quiser ou precisar ajustar.
+Não é o modelo final. É uma proposta inicial para vocês avaliarem. Posso ajustar textos, fotos autorizadas, cores, serviços, chamadas e tudo que precisar para representar melhor o consultório.
 
-Usei dados públicos e imagem neutra. Não usei fotos de pacientes, fotos privadas, imagens internas ou promessas de resultado. A página é só uma proposta de organização para facilitar a primeira conversa com o paciente.
+Usei dados públicos e imagem neutra. Não usei fotos privadas, pacientes, antes e depois ou promessas de resultado. A página foi feita para vender clareza e facilitar o contato.
 
-Se fizer sentido, posso conversar sobre o consultório, entender o atendimento e ajustar a página antes de qualquer publicação final. Se preferirem que eu tire a demo, eu tiro sem problema.
+Se vocês gostarem do caminho, posso conversar com vocês e transformar essa ideia em um site real, direto e focado em WhatsApp.
+
+Posso te explicar como seria?

@@ -2,14 +2,18 @@
 
 Oi, pessoal do Espaço Vitta Saúde. Tudo bem?
 
-Sou Luiz, de Vitória. Encontrei o Espaço Vitta Saúde enquanto pesquisava negócios de pilates e saúde em Jardim da Penha. Vi uma oportunidade de organizar pilates, terapias e WhatsApp em uma página própria, simples e fácil de navegar.
+Sou Luiz, de Vitória. Encontrei o Vitta pesquisando pilates, fisioterapia e terapias em Jardim da Penha e fiz uma prévia de site para mostrar uma presença online mais direta.
 
-Fiz esse conceito visual inicial:
+Vocês têm uma proposta que precisa ser entendida rápido: modalidades, localização, rotina de atendimento e caminho para falar. Em vez de deixar isso espalhado, a página organiza tudo para a pessoa chegar ao WhatsApp com mais segurança.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/espaco-vitta-saude/
 
-Não é o modelo final. O visual pode mudar conforme o Espaço Vitta quiser: textos, cores, fotos aprovadas, serviços, ordem das seções e chamadas de contato.
+Não é o modelo final. É uma primeira direção. Posso ajustar textos, fotos autorizadas, cores, serviços, ordem das seções e chamadas para combinar com a identidade do Espaço Vitta.
 
-Usei informações públicas e imagens neutras. Não usei fotos privadas, pacientes ou promessas de resultado. A proposta é mostrar como a experiência de quem procura vocês pelo celular poderia ficar mais clara.
+Usei informações públicas e imagens neutras. Não usei fotos privadas, pacientes ou promessas de resultado. O foco é vender a clareza do atendimento e facilitar a decisão de contato.
 
-Se fizer sentido, posso conversar sobre o negócio, entender melhor as modalidades e ajustar a página antes de qualquer publicação. Se preferirem que eu remova, sem problema.
+Se vocês gostarem da ideia, posso entender melhor as modalidades e transformar essa prévia em um site real, pronto para usar.
+
+Posso te explicar os próximos passos?

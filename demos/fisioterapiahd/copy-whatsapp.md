@@ -2,14 +2,18 @@
 
 Oi, pessoal da FisioterapiaHD. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei a FisioterapiaHD em pesquisa por fisioterapia em Praia de Itaparica e pensei em uma página simples para tirar dúvidas iniciais, mostrar contato público e facilitar o primeiro WhatsApp.
+Sou Luiz, da Grande Vitória. Encontrei a FisioterapiaHD pesquisando fisioterapia em Praia de Itaparica e preparei uma prévia de site para vocês avaliarem.
 
-Montei essa primeira ideia:
+Quem pesquisa pelo celular quer tirar dúvidas iniciais rápido: se atende na região, como entrar em contato e o que precisa saber antes de chamar. Um site próprio organiza isso melhor e deixa o WhatsApp mais evidente.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/fisioterapiahd/
 
-Não é o modelo final. Vocês podem alterar textos, fotos, cores, serviços, seções e a forma de apresentar a FisioterapiaHD do jeito que acharem melhor.
+Não é o modelo final. É uma proposta visual inicial. Posso ajustar textos, fotos, cores, serviços, destaques e a forma de apresentar a FisioterapiaHD.
 
-Usei apenas informações públicas e imagem neutra. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. A página serve como uma proposta visual, não como site oficial.
+Usei apenas informações públicas e imagem neutra. Não usei fotos de pacientes, conteúdo privado ou promessas de resultado. A página foi pensada para dar mais segurança a quem ainda está escolhendo onde chamar.
 
-Se fizer sentido, estou aberto a conversar sobre o negócio, entender melhor o atendimento e ajustar a demo antes de qualquer publicação definitiva. Se preferirem que eu remova, removo sem problema.
+Se vocês gostarem da ideia, posso entender melhor o negócio e montar uma versão final com foco em contato pelo WhatsApp.
+
+Posso te mostrar como funcionaria?

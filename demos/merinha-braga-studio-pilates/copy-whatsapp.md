@@ -2,14 +2,18 @@
 
 Oi, Merinha. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei o Studio Pilates na pesquisa por opções na Praia da Costa e pensei em uma página própria para destacar pilates, localização e WhatsApp sem depender só de rede social.
+Sou Luiz, da Grande Vitória. Encontrei o Studio Pilates pesquisando opções na Praia da Costa e preparei uma prévia de site pensando em quem quer conhecer o espaço e chamar pelo WhatsApp.
 
-Montei essa primeira ideia:
+Pilates é muito visual, mas a pessoa também precisa entender rápido localização, proposta e caminho para falar. Um site próprio organiza isso melhor do que deixar tudo dependendo apenas do Instagram.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/merinha-braga-studio-pilates/
 
-Não é o modelo final. Dá para mudar texto, fotos, cores, serviços, horários, chamadas e tudo que precisar para combinar com o studio.
+Não é o modelo final. É uma proposta inicial. Posso ajustar textos, fotos autorizadas, cores, horários, serviços e qualquer detalhe para combinar melhor com o studio.
 
-Usei informações públicas e imagem neutra. Não usei fotos de alunos, fotos privadas ou promessas de resultado. A demo é apenas um ponto de partida para visualizar como o site poderia ficar.
+Usei informações públicas e imagem neutra. Não usei fotos de alunos, conteúdo privado ou promessas de resultado. A ideia é mostrar como o Studio pode passar mais confiança já no primeiro acesso.
 
-Se fizer sentido, posso conversar contigo sobre o studio, entender melhor a rotina das aulas e ajustar a página antes de qualquer publicação final. Se preferir que eu remova a demo, removo sem problema.
+Se fizer sentido, posso conversar contigo e transformar essa prévia em um site real, com a identidade do Studio e foco em WhatsApp.
+
+Posso te mostrar como ficaria?

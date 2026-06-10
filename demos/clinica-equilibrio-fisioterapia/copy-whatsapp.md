@@ -2,14 +2,18 @@
 
 Oi, pessoal da Clínica Equilíbrio. Tudo bem?
 
-Sou Luiz, de Vitória. Conheci a Clínica Equilíbrio pesquisando serviços locais de fisioterapia e imaginei uma página simples para explicar o foco do atendimento, organizar contato e passar mais confiança para quem está buscando ajuda pelo celular.
+Sou Luiz, de Vitória. Encontrei a Clínica Equilíbrio pesquisando fisioterapia na região e preparei uma prévia de site com foco em clareza, confiança e contato rápido.
 
-Criei uma primeira versão visual aqui:
+Quando alguém procura fisioterapia, principalmente pelo celular, a página precisa responder logo: quem atende, onde fica, como falar e o que a pessoa pode esperar da primeira conversa. Hoje essas informações aparecem de forma mais espalhada.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/clinica-equilibrio-fisioterapia/
 
-Não é o modelo final. Dá para mudar copy, cores, fotos, seções, chamadas e qualquer informação que vocês acharem importante para o perfil da clínica.
+Não é o modelo final. É uma proposta para vocês visualizarem o potencial. Posso ajustar textos, identidade visual, fotos autorizadas, serviços, endereço confirmado e todos os detalhes importantes para a clínica.
 
-Usei informações públicas e imagens neutras, sem fotos de pacientes e sem promessa de resultado. O objetivo é mostrar como a clínica poderia aparecer com uma comunicação mais clara, sem depender de informação solta.
+Usei informações públicas e imagens neutras. Não usei fotos de pacientes, conteúdo privado ou promessas de resultado. A página foi pensada para comunicar com cuidado sem exagerar em promessa clínica.
 
-Se vocês quiserem, posso conversar sobre o negócio, entender melhor os atendimentos e ajustar essa página com calma antes de publicar algo definitivo. Se preferirem a remoção da demo, eu removo.
+Se vocês gostarem da ideia, posso conversar com vocês e transformar essa prévia em um site real, com uma comunicação mais forte e focada em WhatsApp.
+
+Posso te explicar como isso funcionaria?

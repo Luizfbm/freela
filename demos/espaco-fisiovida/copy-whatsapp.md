@@ -2,14 +2,18 @@
 
 Oi, pessoal do Espaço FisioVida. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Cheguei ao Espaço FisioVida pesquisando fisioterapia e pilates em Vila Velha. Como vocês atendem uma busca bem local, pensei em uma página simples para mostrar bairro, serviços principais e WhatsApp logo de cara.
+Sou Luiz, da Grande Vitória. Encontrei o FisioVida pesquisando fisioterapia e pilates em Vila Velha e preparei uma prévia de site para mostrar como o espaço poderia aparecer melhor para quem procura pelo celular.
 
-Preparei essa primeira ideia:
+A pessoa quer entender rápido se o local atende perto dela, quais serviços existem e como chamar. Uma página própria coloca isso em ordem e evita que o contato dependa só de publicações ou diretórios.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/espaco-fisiovida/
 
-Não é o modelo final. Dá para mudar textos, fotos, cores, serviços, destaques e qualquer informação que vocês queiram ajustar.
+Não é o modelo final. É uma proposta inicial. Posso ajustar texto, fotos, cores, serviços, horários, região e os pontos que vocês quiserem destacar.
 
-Usei apenas dados públicos e imagem neutra. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. A demo serve para mostrar como o Espaço FisioVida poderia aparecer melhor para quem procura pelo celular.
+Usei apenas dados públicos e imagem neutra. Não usei fotos de pacientes, alunos, equipe ou promessas de resultado. A ideia é mostrar uma versão mais clara e comercial da presença online do FisioVida.
 
-Se fizer sentido, posso conversar com vocês sobre o negócio, entender melhor a rotina e adaptar tudo antes de qualquer publicação final. Se quiserem que eu remova a demo, removo sem problema.
+Se fizer sentido, posso conversar com vocês e transformar essa prévia em um site com foco em contato pelo WhatsApp.
+
+Posso te explicar como funcionaria?

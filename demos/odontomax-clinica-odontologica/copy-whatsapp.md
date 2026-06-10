@@ -2,14 +2,18 @@
 
 Oi, pessoal da Odontomax Clínica Odontológica. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei a Odontomax em pesquisa por atendimento odontológico em Vila Velha e pensei em uma página simples para reunir contato, localização e informações iniciais antes da primeira conversa.
+Sou Luiz, da Grande Vitória. Encontrei a Odontomax pesquisando atendimento odontológico em Vila Velha e preparei uma prévia de site para mostrar uma forma mais clara de apresentar a clínica.
 
-A demo está aqui:
+Na odontologia, a pessoa precisa sentir segurança antes de chamar. Um site próprio ajuda a organizar localização, WhatsApp, informações iniciais e identidade da clínica em uma página mais profissional.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/odontomax-clinica-odontologica/
 
-Não é o modelo final. Vocês podem alterar textos, fotos, cores, serviços, chamadas e tudo que precisar para representar melhor a clínica.
+Não é o modelo final. É uma proposta inicial. Posso ajustar textos, fotos autorizadas, cores, serviços, chamadas e todos os dados que vocês quiserem confirmar.
 
-Usei apenas informações públicas e imagens neutras. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. A página serve para mostrar como a Odontomax poderia ter uma presença própria mais clara.
+Usei apenas informações públicas e imagens neutras. Não usei fotos de pacientes, antes e depois, imagens privadas ou promessas de resultado. O foco é facilitar a primeira conversa com mais confiança.
 
-Se fizer sentido, posso conversar sobre a clínica, entender quais informações devem aparecer e ajustar tudo antes de qualquer publicação final. Se preferirem que eu remova, removo sem problema.
+Se fizer sentido para vocês, posso transformar essa prévia em um site real, com a cara da Odontomax e foco em contato pelo WhatsApp.
+
+Posso te explicar a proposta?

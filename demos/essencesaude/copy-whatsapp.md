@@ -2,14 +2,18 @@
 
 Oi, pessoal da EssenceSaúde. Tudo bem?
 
-Sou Luiz, de Vitória. Conheci a EssenceSaúde em uma pesquisa por negócios de saúde na região e achei que uma página própria poderia explicar melhor o cuidado integrativo, o pós-operatório, as terapias e o caminho para reserva pelo WhatsApp.
+Sou Luiz, de Vitória. Encontrei a EssenceSaúde pesquisando negócios de saúde na região e preparei uma prévia de site pensando em cuidado integrativo, pós-operatório, terapias e contato pelo WhatsApp.
 
-Montei uma primeira ideia aqui:
+Esse tipo de serviço precisa passar confiança antes da pessoa chamar. Uma página própria ajuda a explicar a proposta da EssenceSaúde, organizar informações e criar um caminho mais simples entre a pesquisa e a conversa.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/essencesaude/
 
-Não é o modelo final. Dá para ajustar textos, fotos, cores, serviços, tom da comunicação e tudo que precisar para combinar com a proposta da EssenceSaúde.
+Não é o modelo final. É uma proposta visual inicial. Posso ajustar tom, textos, fotos autorizadas, serviços, cores, prioridades e tudo que fizer mais sentido para o posicionamento da EssenceSaúde.
 
-Usei apenas informações públicas e imagens neutras. Não usei fotos de pacientes, imagens privadas ou promessas de resultado. A intenção é mostrar uma página mais clara para quem ainda está decidindo se entra em contato.
+Usei apenas informações públicas e imagens neutras. Não usei fotos privadas, pacientes ou promessas de resultado. A intenção é mostrar uma comunicação mais profissional sem exagerar em promessa.
 
-Se vocês quiserem, posso conversar sobre o posicionamento do negócio, entender o que deve aparecer no site e adaptar a demo antes de uma versão final. Se preferirem que eu remova, eu removo sem problema.
+Se fizer sentido, posso conversar com vocês, entender melhor o negócio e transformar a prévia em um site com mais força comercial e foco em agendamento.
+
+Posso te apresentar como seria esse trabalho?

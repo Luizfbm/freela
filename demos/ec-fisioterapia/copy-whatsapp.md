@@ -2,14 +2,18 @@
 
 Oi, pessoal da EC Fisioterapia. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei a EC Fisioterapia pesquisando clínicas e estúdios em Vila Velha. Como a demo aponta fisioterapia, pilates e contato público, pensei em uma página que colocasse essas informações de forma mais direta para quem pesquisa no celular.
+Sou Luiz, da Grande Vitória. Encontrei a EC pesquisando fisioterapia e pilates em Vila Velha e preparei uma prévia de site para vocês verem como uma página própria poderia funcionar.
 
-A primeira ideia está aqui:
+Quem pesquisa pelo celular costuma comparar rápido. Se a informação aparece clara, com bairro, serviços e botão de WhatsApp, a chance de a pessoa iniciar conversa aumenta. Foi esse caminho que eu tentei montar na prévia.
+
+A página está aqui:
 
 https://portifolio-luizfbm.com.br/demos/ec-fisioterapia/
 
-Não é o modelo final. O site pode mudar em texto, fotos, cores, serviços, ordem das seções e tudo que fizer sentido para o funcionamento real da EC.
+Não é o modelo final. É uma proposta visual. Posso ajustar texto, fotos, cores, serviços, horários, localização e qualquer detalhe que precise ficar fiel ao atendimento real da EC.
 
-Usei apenas informações públicas e imagens neutras. Não usei fotos de pacientes, imagens privadas ou promessas de resultado. Algumas informações precisariam ser confirmadas com vocês antes de qualquer publicação oficial.
+Usei apenas informações públicas e imagens neutras. Não usei fotos privadas, pacientes ou promessas de resultado. Alguns dados aparecem com cuidado justamente porque precisam ser confirmados antes de um site oficial.
 
-Se quiserem, posso conversar sobre o negócio, entender melhor os atendimentos e ajustar a página para ficar correta. Se preferirem que eu remova a demo, faço sem problema.
+Se fizer sentido para vocês, posso entender melhor o negócio e transformar essa prévia em um site simples, profissional e pronto para receber contatos.
+
+Posso te mostrar o próximo passo?

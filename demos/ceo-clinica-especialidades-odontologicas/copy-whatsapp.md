@@ -2,14 +2,18 @@
 
 Oi, pessoal da CEO Clínica de Especialidades Odontológicas. Tudo bem?
 
-Sou Luiz, de Vitória. Encontrei a CEO em diretórios públicos e pensei que uma página própria poderia ajudar a organizar contato, localização em Jardim da Penha e informações gerais da clínica em um lugar só.
+Sou Luiz, de Vitória. Encontrei a CEO em fontes públicas e preparei uma prévia de site pensando em uma clínica odontológica que precisa passar confiança logo no primeiro acesso.
 
-Fiz um conceito visual inicial para vocês avaliarem:
+Hoje, quando alguém procura atendimento odontológico, geralmente quer três coisas rápido: saber se encontrou a clínica certa, entender onde fica e conseguir chamar sem procurar telefone em vários lugares. Uma página própria resolve esse caminho com mais clareza.
+
+A prévia está aqui:
 
 https://portifolio-luizfbm.com.br/demos/ceo-clinica-especialidades-odontologicas/
 
-Não é o modelo final. A ideia é justamente ajustar com vocês: textos, especialidades, fotos autorizadas, cores, chamadas e o que mais precisar para representar melhor a clínica.
+Não é o modelo final. É uma proposta inicial para vocês avaliarem. Posso ajustar especialidades, textos, imagens autorizadas, cores, localização, botões e tudo que precisar para representar melhor a CEO.
 
-Usei só dados públicos e não incluí fotos privadas, fotos de pacientes nem promessas clínicas. Também evitei tratar lista de procedimentos como oficial sem confirmação.
+Usei apenas informações públicas. Não usei fotos privadas, pacientes, antes e depois ou promessas de resultado. Também não tratei listas de procedimentos de diretório como informação oficial sem confirmação.
 
-Se fizer sentido, estou aberto a conversar sobre a clínica, entender quais áreas devem aparecer com prioridade e adaptar a página antes de qualquer publicação. Se preferirem que eu remova a demo, faço isso sem problema.
+Se vocês gostarem da direção, posso conversar com vocês, entender o que a clínica quer destacar e transformar essa prévia em um site real, mais organizado e focado em contato.
+
+Posso te explicar a ideia com mais detalhes?
