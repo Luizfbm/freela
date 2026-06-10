@@ -51,6 +51,11 @@ svg {
   stroke-width: 2;
 }
 
+.whatsapp-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
 .skip-link {
   position: absolute;
   top: -80px;
@@ -96,6 +101,17 @@ svg {
   line-height: 1.05;
   text-decoration: none;
   color: var(--primary-dark);
+}
+
+.brand-logo {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.brand-logo.logo-moversaude {
+  width: 132px;
+  height: 62px;
+  object-fit: contain;
 }
 
 .brand span {
@@ -543,6 +559,11 @@ svg {
 
   .brand span {
     max-width: min(58vw, 260px);
+  }
+
+  .brand-logo.logo-moversaude {
+    width: 112px;
+    height: 52px;
   }
 
   .hero {

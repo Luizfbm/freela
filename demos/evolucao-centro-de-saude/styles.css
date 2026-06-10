@@ -51,6 +51,11 @@ svg {
   stroke-width: 2;
 }
 
+.whatsapp-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
 .skip-link {
   position: absolute;
   top: -80px;
@@ -90,6 +95,7 @@ svg {
   min-width: 0;
   display: inline-flex;
   align-items: center;
+  gap: 12px;
   font-family: "Figtree", Arial, sans-serif;
   font-size: clamp(1rem, 2.1vw, 1.2rem);
   font-weight: 800;
@@ -101,6 +107,19 @@ svg {
 .brand span {
   max-width: 310px;
   overflow-wrap: anywhere;
+}
+
+.brand-logo.logo-evolucao-symbol {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+}
+
+.brand-logo.logo-evolucao-symbol img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .nav-links {

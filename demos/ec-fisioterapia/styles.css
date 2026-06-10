@@ -51,6 +51,11 @@ svg {
   stroke-width: 2;
 }
 
+.whatsapp-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
 .skip-link {
   position: absolute;
   top: -80px;
@@ -101,6 +106,18 @@ svg {
 .brand span {
   max-width: 310px;
   overflow-wrap: anywhere;
+}
+
+.brand-logo.logo-ec-fisioterapia-wordmark {
+  width: 196px;
+  height: 46px;
+  flex: 0 0 auto;
+}
+
+.brand-logo.logo-ec-fisioterapia-wordmark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .nav-links {

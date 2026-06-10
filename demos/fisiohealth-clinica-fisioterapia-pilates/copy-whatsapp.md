@@ -1,9 +1,15 @@
+# Mensagem para WhatsApp
+
 Oi, pessoal da Fisiohealth. Tudo bem?
 
-Sou Luiz, de Vitória. Encontrei a clínica em diretórios públicos enquanto pesquisava negócios de saúde aqui na região e percebi que as informações aparecem espalhadas, sem uma página própria simples para apresentar fisioterapia, pilates e contato.
+Sou Luiz, de Vitória. Encontrei a Fisiohealth pesquisando clínicas de fisioterapia e pilates em Jardim Camburi. Pensei em uma página própria para mostrar fisioterapia, pilates, RPG, terapia manual e contato em uma leitura mais rápida.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Fiz esse conceito inicial:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/fisiohealth-clinica-fisioterapia-pilates/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens comparativas ou promessas de resultado. Se fizer sentido, posso ajustar com os dados corretos de vocês e publicar em um domínio próprio. Se preferirem que eu remova, sem pressão.
+Não é o modelo final. A página pode mudar conforme vocês quiserem: textos, fotos, cores, serviços, ordem dos blocos e chamadas de contato.
+
+Usei informações públicas e imagens neutras. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. O objetivo é mostrar como a Fisiohealth poderia ficar mais fácil de entender para quem procura pelo celular.
+
+Se fizer sentido, posso conversar com vocês sobre a clínica, entender o que deve aparecer e ajustar a página antes de qualquer publicação final. Se preferirem remover a demo, removo sem problema.

@@ -1,9 +1,15 @@
+# Mensagem para WhatsApp
+
 Oi, pessoal da CEO Clínica de Especialidades Odontológicas. Tudo bem?
 
-Sou Luiz, de Vitória. Encontrei a clínica em diretórios públicos enquanto pesquisava negócios de saúde aqui na região. Vi telefone, endereço e presença em listagens, mas não encontrei um site próprio simples para organizar essas informações.
+Sou Luiz, de Vitória. Encontrei a CEO em diretórios públicos e pensei que uma página própria poderia ajudar a organizar contato, localização em Jardim da Penha e informações gerais da clínica em um lugar só.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Fiz um conceito visual inicial para vocês avaliarem:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/ceo-clinica-especialidades-odontologicas/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens de diretórios, lista de procedimentos como se fosse oficial ou promessas de resultado. Se fizer sentido, posso ajustar com os dados corretos de vocês. Se preferirem que eu remova, sem pressão.
+Não é o modelo final. A ideia é justamente ajustar com vocês: textos, especialidades, fotos autorizadas, cores, chamadas e o que mais precisar para representar melhor a clínica.
+
+Usei só dados públicos e não incluí fotos privadas, fotos de pacientes nem promessas clínicas. Também evitei tratar lista de procedimentos como oficial sem confirmação.
+
+Se fizer sentido, estou aberto a conversar sobre a clínica, entender quais áreas devem aparecer com prioridade e adaptar a página antes de qualquer publicação. Se preferirem que eu remova a demo, faço isso sem problema.

@@ -1,13 +1,15 @@
 # Mensagem para WhatsApp
 
-Oi, pessoal da Hiáskara Macedo Fisioterapia. Tudo bem?
+Oi, Hiáskara. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e não encontrei uma página própria simples com as informações principais.
+Sou Luiz, aqui da Grande Vitória. Encontrei seu nome pesquisando fisioterapia em Itapuã e pensei em uma página simples para organizar contato, região e informações iniciais para quem quer chamar pelo WhatsApp.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Preparei uma primeira ideia aqui:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/hiaskara-macedo-fisioterapia/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para mudar texto, foto, cores, serviços, forma de apresentação e tudo que fizer sentido para a sua atuação.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas informações públicas e imagem neutra. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. Como alguns dados precisam de confirmação, deixei a demo pronta para ser ajustada com você.
+
+Se fizer sentido, posso conversar sobre seu atendimento, entender melhor sua rotina e adaptar a página antes de qualquer versão final. Se preferir que eu remova, removo sem problema.

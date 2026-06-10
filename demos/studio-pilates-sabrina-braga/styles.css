@@ -51,6 +51,11 @@ svg {
   stroke-width: 2;
 }
 
+.whatsapp-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
 .skip-link {
   position: absolute;
   top: -80px;

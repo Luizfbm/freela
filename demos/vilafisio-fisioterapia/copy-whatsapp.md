@@ -2,12 +2,14 @@
 
 Oi, pessoal da VilaFisio Fisioterapia. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei a VilaFisio pesquisando fisioterapia e pilates em Itapuã. Depois de ver as informações públicas, pensei em uma página própria para mostrar localização, serviços e WhatsApp de um jeito mais organizado.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Preparei essa primeira ideia:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/vilafisio-fisioterapia/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para mudar textos, fotos, cores, serviços, ordem dos blocos e qualquer ajuste que faça sentido para a VilaFisio.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas informações públicas, logo e imagem neutra. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. A página é só um conceito visual para mostrar como o contato poderia ficar mais fácil.
+
+Se fizer sentido, posso conversar com vocês sobre a rotina da clínica, entender o que precisa aparecer e ajustar tudo antes de publicar uma versão final. Se preferirem que eu remova, removo sem problema.

@@ -51,6 +51,11 @@ svg {
   stroke-width: 2;
 }
 
+.whatsapp-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
 .skip-link {
   position: absolute;
   top: -80px;
@@ -90,12 +95,25 @@ svg {
   min-width: 0;
   display: inline-flex;
   align-items: center;
+  gap: 11px;
   font-family: "Figtree", Arial, sans-serif;
   font-size: clamp(1rem, 2.1vw, 1.2rem);
   font-weight: 800;
   line-height: 1.05;
   text-decoration: none;
   color: var(--primary-dark);
+}
+
+.brand-logo {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.brand-logo.logo-movifisio {
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .brand span {
@@ -542,7 +560,12 @@ svg {
   }
 
   .brand span {
-    max-width: min(58vw, 260px);
+    max-width: min(48vw, 240px);
+  }
+
+  .brand-logo.logo-movifisio {
+    width: 46px;
+    height: 46px;
   }
 
   .hero {

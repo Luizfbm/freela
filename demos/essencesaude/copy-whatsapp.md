@@ -1,9 +1,15 @@
+# Mensagem para WhatsApp
+
 Oi, pessoal da EssenceSaúde. Tudo bem?
 
-Sou Luiz, de Vitória. Encontrei a EssenceSaúde pelo Instagram, agenda pública, parceiros e pela página de vocês no Google Sites enquanto pesquisava negócios de saúde aqui na região. Vi que vocês já têm uma comunicação forte sobre terapias integrativas e pós-operatório, e montei uma versão mais direta para organizar serviço, endereço e WhatsApp.
+Sou Luiz, de Vitória. Conheci a EssenceSaúde em uma pesquisa por negócios de saúde na região e achei que uma página própria poderia explicar melhor o cuidado integrativo, o pós-operatório, as terapias e o caminho para reserva pelo WhatsApp.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Montei uma primeira ideia aqui:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/essencesaude/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, avaliações, imagens comparativas ou promessas de resultado. Se fizer sentido, posso ajustar com os dados corretos de vocês e deixar a página pronta para um domínio próprio. Se preferirem que eu remova, sem pressão.
+Não é o modelo final. Dá para ajustar textos, fotos, cores, serviços, tom da comunicação e tudo que precisar para combinar com a proposta da EssenceSaúde.
+
+Usei apenas informações públicas e imagens neutras. Não usei fotos de pacientes, imagens privadas ou promessas de resultado. A intenção é mostrar uma página mais clara para quem ainda está decidindo se entra em contato.
+
+Se vocês quiserem, posso conversar sobre o posicionamento do negócio, entender o que deve aparecer no site e adaptar a demo antes de uma versão final. Se preferirem que eu remova, eu removo sem problema.

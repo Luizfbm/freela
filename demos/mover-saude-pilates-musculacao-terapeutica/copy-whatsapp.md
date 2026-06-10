@@ -2,12 +2,14 @@
 
 Oi, pessoal da Mover Saúde Pilates e Musculação Terapêutica. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei a Mover Saúde em canais públicos e achei interessante criar uma página que explicasse pilates, musculação terapêutica, localização no Centro e WhatsApp de forma direta.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+A primeira versão está aqui:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/mover-saude-pilates-musculacao-terapeutica/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Vocês podem alterar textos, fotos, cores, serviços, destaques e a ordem das informações conforme a identidade da Mover Saúde.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas dados públicos e imagens neutras. Não usei fotos de pacientes, alunos, equipe ou promessas de resultado. A proposta é mostrar uma presença própria mais organizada para quem pesquisa pelo celular.
+
+Se fizer sentido, posso conversar sobre o negócio de vocês, entender melhor as modalidades e ajustar a página antes de qualquer publicação final. Se preferirem remover, sem problema.

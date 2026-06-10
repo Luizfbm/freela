@@ -1,13 +1,15 @@
 # Mensagem para WhatsApp
 
-Oi, pessoal da Merinha Braga Studio Pilates. Tudo bem?
+Oi, Merinha. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei o Studio Pilates na pesquisa por opções na Praia da Costa e pensei em uma página própria para destacar pilates, localização e WhatsApp sem depender só de rede social.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Montei essa primeira ideia:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/merinha-braga-studio-pilates/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para mudar texto, fotos, cores, serviços, horários, chamadas e tudo que precisar para combinar com o studio.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei informações públicas e imagem neutra. Não usei fotos de alunos, fotos privadas ou promessas de resultado. A demo é apenas um ponto de partida para visualizar como o site poderia ficar.
+
+Se fizer sentido, posso conversar contigo sobre o studio, entender melhor a rotina das aulas e ajustar a página antes de qualquer publicação final. Se preferir que eu remova a demo, removo sem problema.

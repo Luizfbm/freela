@@ -1,9 +1,15 @@
+# Mensagem para WhatsApp
+
 Oi, pessoal da Viva Odontologia. Tudo bem?
 
-Sou Luiz, de Vitória. Encontrei a clínica em uma listagem pública enquanto pesquisava negócios de saúde aqui na região. A listagem mostra telefone e endereço, mas não encontrei um site próprio; o Instagram apontado também ficou ambíguo, então preferi não usar essa identidade.
+Sou Luiz, de Vitória. Encontrei a Viva Odontologia em uma listagem pública e preferi montar uma página mais neutra, porque algumas informações de rede social ficaram ambíguas. A ideia foi organizar endereço, WhatsApp e dados básicos sem assumir nada que não esteja confirmado.
 
-Montei um conceito visual não oficial de como uma página simples poderia organizar os dados públicos da Viva Odontologia:
+A primeira versão está aqui:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/viva-odontologia/
 
-Não usei fotos privadas, fotos de pacientes, perfil de outra cidade, lista de procedimentos não confirmada ou promessas de resultado. Se fizer sentido, posso ajustar com as informações corretas de vocês. Se preferirem que eu remova, sem pressão.
+Não é o modelo final. Vocês podem alterar textos, fotos, cores, serviços, chamadas e tudo que precisar para representar a Viva Odontologia do jeito correto.
+
+Usei apenas informações públicas e imagem neutra. Não usei fotos de pacientes, imagens privadas, perfil de outra cidade ou promessas de resultado. A página existe só como conceito visual.
+
+Se fizer sentido, posso conversar sobre a clínica, confirmar os dados e ajustar a página antes de qualquer publicação final. Se preferirem que eu remova a demo, removo sem problema.

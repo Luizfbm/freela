@@ -2,12 +2,14 @@
 
 Oi, pessoal da Fisiocorporis. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei a Fisiocorporis pesquisando fisioterapia e pilates em Itapuã. Como vocês já aparecem em canais públicos, pensei em uma página própria para reunir o essencial e levar a pessoa direto para o WhatsApp.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Montei uma primeira ideia neste link:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/fisiocorporis/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para mudar texto, fotos, cores, serviços, destaques e a ordem das informações conforme vocês acharem melhor.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei dados públicos e imagens neutras. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. A demo mostra um caminho mais organizado para quem procura a Fisiocorporis pelo celular.
+
+Se fizer sentido, posso conversar sobre o negócio de vocês, entender os serviços reais e ajustar a página antes de qualquer publicação final. Se preferirem remover, eu removo sem problema.

@@ -1,13 +1,15 @@
 # Mensagem para WhatsApp
 
-Oi, pessoal da Fisioterapeuta Robson Vaillant. Tudo bem?
+Oi, Robson. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e não encontrei uma página própria simples com as informações principais.
+Sou Luiz, aqui da Grande Vitória. Encontrei seu nome em pesquisa por fisioterapia em Vila Velha e pensei que uma página própria poderia ajudar a organizar contato, região de atendimento e informações básicas para quem procura pelo celular.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Preparei uma primeira ideia visual aqui:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/fisioterapeuta-robson-vaillant/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para mudar texto, foto, cores, serviços, abordagem e o que mais fizer sentido para a sua atuação.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas informações públicas e uma imagem neutra. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. Como alguns canais não ficaram confirmados, a página deixa espaço para ajuste com os dados corretos.
+
+Se fizer sentido, posso conversar contigo sobre o atendimento, entender melhor sua rotina e adaptar a página antes de publicar qualquer versão final. Se preferir que eu remova a demo, removo sem problema.

@@ -2,12 +2,14 @@
 
 Oi, pessoal da FisioterapiaHD. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei a FisioterapiaHD em pesquisa por fisioterapia em Praia de Itaparica e pensei em uma página simples para tirar dúvidas iniciais, mostrar contato público e facilitar o primeiro WhatsApp.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Montei essa primeira ideia:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/fisioterapiahd/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Vocês podem alterar textos, fotos, cores, serviços, seções e a forma de apresentar a FisioterapiaHD do jeito que acharem melhor.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas informações públicas e imagem neutra. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. A página serve como uma proposta visual, não como site oficial.
+
+Se fizer sentido, estou aberto a conversar sobre o negócio, entender melhor o atendimento e ajustar a demo antes de qualquer publicação definitiva. Se preferirem que eu remova, removo sem problema.

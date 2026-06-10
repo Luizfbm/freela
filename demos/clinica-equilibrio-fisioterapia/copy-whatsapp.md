@@ -2,9 +2,14 @@
 
 Oi, pessoal da Clínica Equilíbrio. Tudo bem?
 
-Sou Luiz, aqui de Vitória. Encontrei vocês em diretórios locais, mas não achei um site próprio claro com as informações organizadas.
+Sou Luiz, de Vitória. Conheci a Clínica Equilíbrio pesquisando serviços locais de fisioterapia e imaginei uma página simples para explicar o foco do atendimento, organizar contato e passar mais confiança para quem está buscando ajuda pelo celular.
 
-Montei um conceito visual simples de como poderia ficar uma página para apresentar melhor a clínica e facilitar o contato de quem pesquisa pelo celular:
-{{DEMO_URL}}
+Criei uma primeira versão visual aqui:
 
-Não é um site oficial de vocês, só uma ideia visual feita com informações públicas. Também não usei fotos de pacientes nem promessas de resultado. Se fizer sentido, posso ajustar com os dados corretos, WhatsApp e endereço confirmado. Se preferirem que eu remova, sem problema.
+https://portifolio-luizfbm.com.br/demos/clinica-equilibrio-fisioterapia/
+
+Não é o modelo final. Dá para mudar copy, cores, fotos, seções, chamadas e qualquer informação que vocês acharem importante para o perfil da clínica.
+
+Usei informações públicas e imagens neutras, sem fotos de pacientes e sem promessa de resultado. O objetivo é mostrar como a clínica poderia aparecer com uma comunicação mais clara, sem depender de informação solta.
+
+Se vocês quiserem, posso conversar sobre o negócio, entender melhor os atendimentos e ajustar essa página com calma antes de publicar algo definitivo. Se preferirem a remoção da demo, eu removo.

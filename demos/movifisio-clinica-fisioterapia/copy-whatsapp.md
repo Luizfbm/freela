@@ -2,12 +2,14 @@
 
 Oi, pessoal da MoviFisio Clínica de Fisioterapia. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e não encontrei uma página própria simples com as informações principais.
+Sou Luiz, aqui da Grande Vitória. Encontrei a MoviFisio pesquisando clínicas de fisioterapia em Praia de Itaparica. Como alguns canais públicos não deixam tudo claro, pensei em uma página própria para organizar contato, serviços e localização.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Criei essa primeira ideia:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/movifisio-clinica-fisioterapia/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. A página pode ser alterada com vocês: textos, fotos, cores, serviços, seções e qualquer detalhe que precise refletir melhor a clínica.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei informações públicas e imagem neutra. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. Os dados sensíveis ficaram abertos para confirmação antes de uma publicação oficial.
+
+Se fizer sentido, posso conversar sobre a MoviFisio, entender a rotina de atendimento e ajustar a demo com calma. Se preferirem que eu remova, removo sem problema.

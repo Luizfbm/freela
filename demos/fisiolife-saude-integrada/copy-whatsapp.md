@@ -2,12 +2,14 @@
 
 Oi, pessoal da FisioLife Saúde Integrada. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei a FisioLife Saúde Integrada pesquisando fisioterapia e pilates em Vila Velha. Pensei em uma página própria para deixar Praia das Gaivotas, serviços e WhatsApp bem claros para quem chega pelo celular.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Preparei essa demo inicial:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/fisiolife-saude-integrada/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. A página pode mudar em texto, foto, cor, serviço, ordem dos blocos e qualquer outro ponto que vocês quiserem ajustar.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas informações públicas e imagem neutra. Não usei fotos privadas, pacientes ou promessas de resultado. A intenção é mostrar como uma presença própria poderia complementar o que vocês já divulgam.
+
+Se fizer sentido, estou aberto a conversar sobre a rotina da FisioLife, entender o que deve aparecer e refinar a página antes de uma versão final. Se preferirem que eu remova, sem problema.

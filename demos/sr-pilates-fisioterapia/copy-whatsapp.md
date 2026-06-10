@@ -2,12 +2,14 @@
 
 Oi, pessoal da SR Pilates e Fisioterapia. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei a SR Pilates e Fisioterapia pesquisando negócios de pilates e fisioterapia na região da Cidade da Barra e Riviera da Barra. Pensei em uma página simples para deixar serviço, área e WhatsApp mais fáceis de encontrar.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+A primeira ideia está aqui:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/sr-pilates-fisioterapia/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. A página pode mudar no texto, nas fotos, nas cores, nos serviços, na ordem das seções e em tudo que vocês quiserem ajustar.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas informações públicas e imagem neutra. Não usei fotos de pacientes, alunos, equipe ou promessas de resultado. A intenção é mostrar como uma página própria poderia ajudar quem pesquisa pelo celular.
+
+Se fizer sentido, posso conversar com vocês sobre o negócio, entender melhor a rotina e adaptar tudo antes de qualquer publicação final. Se preferirem remover a demo, removo sem problema.

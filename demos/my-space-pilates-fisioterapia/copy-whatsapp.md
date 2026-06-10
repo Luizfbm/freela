@@ -2,12 +2,14 @@
 
 Oi, pessoal da My Space Pilates e Fisioterapia. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e não encontrei uma página própria simples com as informações principais.
+Sou Luiz, aqui da Grande Vitória. Encontrei a My Space pesquisando pilates e fisioterapia em Itapuã. Pensei em uma página local, bem direta, para mostrar o que vocês atendem, onde ficam e como chamar pelo WhatsApp.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Montei essa primeira versão:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/my-space-pilates-fisioterapia/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para mudar texto, foto, cor, serviços, horários, botões e a ordem das informações conforme o funcionamento de vocês.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas informações públicas e uma imagem neutra. Não usei fotos de pacientes, alunos, equipe ou promessas de resultado. A demo é só uma proposta visual para facilitar o entendimento de quem chega pelo celular.
+
+Se fizer sentido, estou aberto a conversar sobre o negócio, entender a rotina e ajustar a página antes de qualquer versão final. Se quiserem que eu remova, eu removo.

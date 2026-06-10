@@ -1,13 +1,15 @@
 # Mensagem para WhatsApp
 
-Oi, pessoal da Espaço FisioVida. Tudo bem?
+Oi, pessoal do Espaço FisioVida. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e não encontrei uma página própria simples com as informações principais.
+Sou Luiz, aqui da Grande Vitória. Cheguei ao Espaço FisioVida pesquisando fisioterapia e pilates em Vila Velha. Como vocês atendem uma busca bem local, pensei em uma página simples para mostrar bairro, serviços principais e WhatsApp logo de cara.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Preparei essa primeira ideia:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/espaco-fisiovida/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para mudar textos, fotos, cores, serviços, destaques e qualquer informação que vocês queiram ajustar.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas dados públicos e imagem neutra. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. A demo serve para mostrar como o Espaço FisioVida poderia aparecer melhor para quem procura pelo celular.
+
+Se fizer sentido, posso conversar com vocês sobre o negócio, entender melhor a rotina e adaptar tudo antes de qualquer publicação final. Se quiserem que eu remova a demo, removo sem problema.

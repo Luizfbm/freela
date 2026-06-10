@@ -216,6 +216,11 @@ svg {
   height: 46px;
 }
 
+.brand-logo.logo-fisiohealth-official {
+  width: 94px;
+  height: 58px;
+}
+
 .brand-logo img {
   box-sizing: border-box;
   min-width: 0;

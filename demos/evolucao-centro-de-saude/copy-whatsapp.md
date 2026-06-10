@@ -2,12 +2,14 @@
 
 Oi, pessoal da Evolução Centro de Saúde. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei a Evolução Centro de Saúde em canais públicos e pensei em uma página que organizasse melhor serviços, contato e localização na Praia da Costa, sem deixar a pessoa depender só de links soltos.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Preparei essa primeira versão visual:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/evolucao-centro-de-saude/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para alterar textos, fotos, cores, serviços, prioridades e a estrutura conforme o centro de saúde quiser ou precisar.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei informações públicas e imagens neutras. Não usei fotos privadas, pacientes ou promessas de resultado. Como alguns dados ainda precisam de confirmação, a página foi escrita com cuidado para não se passar por oficial.
+
+Se fizer sentido, estou aberto a conversar sobre o negócio, entender melhor os serviços e ajustar a página antes de qualquer publicação final. Se preferirem que eu remova a demo, removo sem problema.

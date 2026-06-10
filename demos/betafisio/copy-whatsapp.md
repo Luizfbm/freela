@@ -2,12 +2,14 @@
 
 Oi, pessoal da Betafisio. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei a Betafisio enquanto pesquisava negócios de fisioterapia e pilates em Vila Velha. Vi que o contato de vocês aparece em canais públicos, mas uma página própria poderia deixar o caminho mais direto para quem procura atendimento pelo celular.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Preparei uma primeira ideia de site, já pensando em fisioterapia, pilates, bairro e WhatsApp:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/betafisio/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. A página pode mudar no texto, nas cores, nas fotos, nos serviços e na ordem das informações conforme vocês quiserem ou precisarem.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas informações públicas e imagens neutras. Não usei fotos de pacientes, fotos privadas nem promessas de resultado. A ideia é mostrar como a Betafisio poderia ter uma presença online mais clara, sem depender só de rede social ou link de bio.
+
+Se fizer sentido, posso conversar com vocês sobre a rotina da clínica, entender o que precisa aparecer e ajustar tudo antes de qualquer publicação final. Se preferirem que eu remova a demo, eu removo sem problema.

@@ -2,12 +2,14 @@
 
 Oi, pessoal da Clínica Restaurar Fisioterapia e Pilates. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e vi que o contato aparece mais por rede social ou link de bio do que por uma página própria.
+Sou Luiz, aqui da Grande Vitória. Encontrei a Restaurar em fontes públicas e vi que fisioterapia, pilates e WhatsApp são pontos importantes para quem procura a clínica em Terra Vermelha. Montei uma ideia de site pensando nesse caminho curto até o contato.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+A demo está neste link:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/clinica-restaurar-fisioterapia-pilates/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. O visual, os textos, fotos, serviços, horários e chamadas podem ser alterados do jeito que o negócio de vocês quiser ou precisar.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei apenas informações públicas e imagens neutras. Não usei fotos reais da clínica, pacientes, equipe ou promessas de resultado. A página é só uma proposta visual para organizar melhor o que já aparece de forma pública.
+
+Se fizer sentido, posso conversar com vocês sobre a rotina da clínica e ajustar a página antes de qualquer publicação final. Se não quiserem manter a demo, removo sem problema.

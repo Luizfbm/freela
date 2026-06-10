@@ -2,12 +2,14 @@
 
 Oi, pessoal da Respirar Pilates e Fisioterapia. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e não encontrei uma página própria simples com as informações principais.
+Sou Luiz, aqui da Grande Vitória. Encontrei a Respirar pesquisando pilates e fisioterapia em Santa Mônica. Pensei em uma página curta, focada em agendamento, para mostrar serviço, bairro e WhatsApp logo no começo.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Fiz essa primeira ideia:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/respirar-pilates-fisioterapia/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para mudar textos, fotos, cores, serviços, horários e o que mais precisar para deixar com a cara da Respirar.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei informações públicas e imagem neutra. Não usei fotos de pacientes, alunos, equipe ou promessas de resultado. Alguns dados ficam para confirmação de vocês antes de uma versão oficial.
+
+Se fizer sentido, posso conversar sobre o studio, entender melhor os atendimentos e ajustar a página antes de qualquer publicação final. Se preferirem que eu remova, faço sem problema.

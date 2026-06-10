@@ -2,12 +2,14 @@
 
 Oi, pessoal da Equipe Fisioterapia Especializada. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e não encontrei uma página própria simples com as informações principais.
+Sou Luiz, aqui da Grande Vitória. Encontrei a Equipe Fisioterapia Especializada na pesquisa por serviços de fisioterapia na Praia da Costa. Como o próprio nome já passa uma ideia de cuidado mais técnico, pensei em uma página que explicasse melhor contato, localização e forma de agendamento.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+Montei essa versão inicial:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/equipe-fisioterapia-especializada/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para alterar textos, imagens, cores, serviços, chamadas e a ordem das informações conforme vocês acharem melhor.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei informações públicas e uma imagem neutra. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. Também deixei claro que os dados precisam ser confirmados antes de virar um site oficial.
+
+Se fizer sentido, estou aberto a conversar sobre a atuação de vocês, entender o que deve aparecer com prioridade e ajustar a demo antes de publicar algo definitivo. Se preferirem que eu remova, eu removo.

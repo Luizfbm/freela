@@ -2,12 +2,14 @@
 
 Oi, pessoal da FisioMovi Pilates e Fisioterapia. Tudo bem?
 
-Sou Luiz, aqui da Grande Vitória. Encontrei vocês em fontes públicas enquanto pesquisava negócios de saúde em Vila Velha e não encontrei uma página própria simples com as informações principais.
+Sou Luiz, aqui da Grande Vitória. Encontrei a FisioMovi pesquisando opções de fisioterapia e pilates em Praia de Itaparica. Como a decisão de chamar geralmente acontece pelo celular, pensei em uma página curta, com foco em agendamento pelo WhatsApp.
 
-Montei um conceito visual não oficial de como essa página poderia ficar:
+A primeira ideia está aqui:
 
-{{DEMO_URL}}
+https://portifolio-luizfbm.com.br/demos/fisiomovi-pilates-fisioterapia/
 
-Usei apenas informações públicas. Não usei fotos privadas, fotos de pacientes, imagens do perfil, depoimentos ou promessa de resultado. A ideia é mostrar um caminho mais claro para quem procura vocês pelo celular.
+Não é o modelo final. Dá para alterar textos, fotos, cores, serviços, ordem das informações e detalhes de agendamento conforme o funcionamento de vocês.
 
-Se fizer sentido, eu ajusto com os dados corretos, logo oficial, fotos aprovadas e publico em um domínio próprio. Se preferirem que eu remova, sem problema.
+Usei informações públicas e imagens neutras. Não usei fotos de pacientes, fotos privadas ou promessas de resultado. Alguns pontos ficaram como dados a confirmar justamente para vocês revisarem.
+
+Se fizer sentido, posso conversar sobre o estúdio, entender a rotina de atendimento e ajustar a página antes de publicar algo final. Se preferirem que eu remova, faço sem problema.

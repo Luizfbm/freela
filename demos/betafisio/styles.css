@@ -51,6 +51,11 @@ svg {
   stroke-width: 2;
 }
 
+.whatsapp-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
 .skip-link {
   position: absolute;
   top: -80px;
@@ -101,6 +106,18 @@ svg {
 .brand span {
   max-width: 310px;
   overflow-wrap: anywhere;
+}
+
+.brand-logo.logo-betafisio-wordmark {
+  width: 128px;
+  height: 48px;
+  flex: 0 0 auto;
+}
+
+.brand-logo.logo-betafisio-wordmark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .nav-links {
@@ -470,9 +487,9 @@ svg {
 }
 
 .reveal {
-  opacity: 0;
-  transform: translateY(12px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
+  opacity: 1;
+  transform: none;
+  transition: none;
 }
 
 .reveal.is-visible {
