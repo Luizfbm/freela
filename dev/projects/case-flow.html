@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Case do Case Flow, sistema de chamados com chatbot inteligente.">
+  <title>Case Flow | Luiz Filipe Miranda</title>
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="terminal-shell" id="top">
+    <header class="window-bar" aria-label="Barra da janela">
+      <div class="window-controls" aria-hidden="true"><span class="control close"></span><span class="control minimize"></span><span class="control maximize"></span></div>
+      <a class="window-title" href="../index.html#projetos">voltar ~/portfolio</a>
+    </header>
+    <main>
+      <section class="hero case-hero" aria-labelledby="project-title">
+        <p class="prompt">$ open projects/case-flow</p>
+        <p class="eyebrow">InovaApp2025 | operações e suporte</p>
+        <h1 id="project-title">Case Flow pega conversa solta e vira chamado organizado.</h1>
+        <p class="hero-copy">
+          Sistema de chamados com Kanban, controle por setor e chatbot que entende a mensagem do usuário, extrai
+          contexto e cria ticket com categoria e prioridade.
+        </p>
+        <div class="hero-actions">
+          <a class="terminal-button" href="../index.html#projetos">voltar</a>
+          <a class="terminal-button icon-link" href="https://github.com/Luizfbm/CaseFlow-EQPDEV" target="_blank" rel="noreferrer">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.16 1.18A10.98 10.98 0 0 1 12 5.98c.98 0 1.96.13 2.88.39 2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.24 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.14 0 1.54-.01 2.78-.01 3.16 0 .31.21.68.8.56A11.52 11.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"></path></svg>
+            GitHub
+          </a>
+          <a class="terminal-button" href="https://caseflow.abacusai.app" target="_blank" rel="noreferrer">demo</a>
+        </div>
+      </section>
+
+      <section class="metrics case-metrics" aria-label="Destaques do projeto">
+        <article><strong>Mensagem -> ticket</strong><span>título, descrição, categoria e prioridade</span></article>
+        <article><strong>4 status</strong><span>novos, andamento, aguardando e finalizados</span></article>
+        <article><strong>4 roles</strong><span>Admin, TI, SAC e Financeiro</span></article>
+        <article><strong>Histórico</strong><span>conversa vira contexto operacional</span></article>
+      </section>
+
+      <section class="section terminal-panel">
+        <div class="section-heading"><p class="prompt">$ cat story.md</p><h2>História</h2></div>
+        <p class="case-copy">
+          O Case Flow ataca um problema comum: o usuário explica o problema do jeito dele, mas o time precisa de um
+          ticket organizado para agir. A IA fica nessa passagem. Ela entende a mensagem, sugere estrutura e entrega ao
+          Kanban um chamado mais pronto para triagem.
+        </p>
+      </section>
+
+      <section class="section architecture-section">
+        <div class="section-heading"><p class="prompt">$ cat architecture.svg</p><h2>Arquitetura</h2></div>
+        <figure class="architecture-figure">
+          <img src="../assets/case-flow-architecture.svg?v=diagram-v2" alt="Diagrama da arquitetura do Case Flow com usuários, frontend Next.js, API Routes serverless, Abacus.AI NLP, Prisma ORM, NextAuth e PostgreSQL.">
+          <figcaption>
+            Fluxo da aplicação: a interface envia mensagens e ações para API Routes serverless. O NLP externo interpreta
+            a demanda e o Prisma grava tickets, usuários e comentários no PostgreSQL.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section">
+        <div class="section-heading"><p class="prompt">$ grep selling-points</p><h2>Por que vale olhar</h2></div>
+        <div class="selling-grid">
+          <article><h3>Automação sem teatro</h3><p>A IA entra onde ajuda: transformar texto livre em dados que o time consegue usar.</p></article>
+          <article><h3>Responsabilidade por setor</h3><p>Roles e categorias deixam claro quem pode ver, assumir e resolver cada demanda.</p></article>
+          <article><h3>Atendimento fechado</h3><p>Ticket, comentários, status, Kanban e histórico ficam no mesmo fluxo.</p></article>
+        </div>
+      </section>
+
+      <section class="section terminal-panel">
+        <div class="section-heading"><p class="prompt">$ view code --tabs</p><h2>Viewer de código</h2></div>
+        <div class="code-viewer" data-code-viewer>
+          <div class="code-tabs" role="tablist" aria-label="Trechos de código do Case Flow">
+            <button class="code-tab active" type="button" data-code-tab="schema">schema.prisma</button>
+            <button class="code-tab" type="button" data-code-tab="auth">auth.ts</button>
+            <button class="code-tab" type="button" data-code-tab="intent">analyze-intent/route.ts</button>
+            <button class="code-tab" type="button" data-code-tab="kanban">dashboard-client.tsx</button>
+            <button class="code-tab" type="button" data-code-tab="ticket-card">ticket-card.tsx</button>
+          </div>
+          <pre class="code-pane active" data-code-pane="schema"><code>model Ticket {
+  id          String       @id @default(cuid())
+  title       String
+  description String       @db.Text
+  category    TicketCategory
+  status      TicketStatus @default(NEW)
+  priority    Priority     @default(MEDIUM)
+  createdBy   String
+  assignedTo  String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  creator     User         @relation("CreatedTickets", fields: [createdBy], references: [id])
+  assignee    User?        @relation("AssignedTickets", fields: [assignedTo], references: [id])
+  comments    Comment[]
+}
+
+enum UserRole {
+  ADM
+  TI
+  SAC
+  FINANCEIRO
+}
+
+enum TicketStatus {
+  NEW
+  IN_PROGRESS
+  FINISHED
+  RETURNED
+}</code></pre>
+          <pre class="code-pane" data-code-pane="auth"><code>export const authOptions: NextAuthOptions = {
+  providers: [
+    CredentialsProvider({
+      name: "credentials",
+      credentials: { email: { type: "email" }, password: { type: "password" } },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+
+        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
+        if (!user) return null;
+
+        const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+        if (!isPasswordValid) return null;
+
+        return { id: user.id, email: user.email, name: user.name, role: user.role };
+      }
+    })
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = (user as any).role;
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token) {
+        (session.user as any).id = token.id;
+        (session.user as any).role = token.role;
+      }
+      return session;
+    }
+  }
+}</code></pre>
+          <pre class="code-pane" data-code-pane="intent"><code>export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+    }
+
+    const { message } = await request.json()
+
+    // Detecta se a mensagem do chat é uma intenção de criar um chamado
+    const isTicketRequest = detectTicketIntent(message)
+
+    return Response.json({ isTicketRequest, message })
+  } catch (error) {
+    console.error("Intent analysis error:", error)
+    return Response.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+function detectTicketIntent(message: string): boolean {
+  const ticketPhrases = ["abrir um chamado", "criar um chamado", "abrir um ticket"]
+  return ticketPhrases.some((phrase) => message.toLowerCase().includes(phrase))
+}</code></pre>
+          <pre class="code-pane" data-code-pane="kanban"><code>&lt;motion.div
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.2 }}
+  className="grid grid-cols-1 lg:grid-cols-4 gap-6"
+&gt;
+  {Object.entries(statusConfig).map(([status, config], index) =&gt; {
+    const statusTickets = getTicketsByStatus(status)
+
+    return (
+      &lt;motion.div
+        key={status}
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.1 * index }}
+        className={`${config.bgColor} ${config.borderColor} border rounded-xl p-4 min-h-[500px]`}
+      &gt;
+        &lt;div className="flex items-center gap-3 mb-4"&gt;
+          &lt;div className={`p-2 ${config.color} rounded-lg`}&gt;
+            &lt;config.icon className="h-5 w-5 text-white" /&gt;
+          &lt;/div&gt;
+          &lt;div className="flex-1"&gt;
+            &lt;h3 className="font-semibold text-foreground"&gt;{config.title}&lt;/h3&gt;
+            &lt;p className="text-sm text-muted-foreground"&gt;{statusTickets.length} chamados&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div className="space-y-3"&gt;
+          {statusTickets.map((ticket) =&gt; (
+            &lt;TicketCard key={ticket.id} ticket={ticket} onUpdate={handleTicketUpdate} /&gt;
+          ))}
+        &lt;/div&gt;
+      &lt;/motion.div&gt;
+    )
+  })}
+&lt;/motion.div&gt;</code></pre>
+          <pre class="code-pane" data-code-pane="ticket-card"><code>&lt;Card className="h-full hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500"&gt;
+  &lt;CardHeader className="pb-3"&gt;
+    &lt;div className="flex items-start justify-between gap-2"&gt;
+      &lt;h3 className="font-medium text-sm line-clamp-2 flex-1"&gt;
+        {ticket.title}
+      &lt;/h3&gt;
+      &lt;Badge className={cn("text-xs", priorityColors[ticket.priority])}&gt;
+        {ticket.priority}
+      &lt;/Badge&gt;
+    &lt;/div&gt;
+    &lt;div className="flex flex-wrap gap-1"&gt;
+      &lt;Badge variant="outline" className={cn("text-xs", categoryColors[ticket.category])}&gt;
+        {ticket.category}
+      &lt;/Badge&gt;
+    &lt;/div&gt;
+  &lt;/CardHeader&gt;
+
+  &lt;CardContent className="pt-0"&gt;
+    &lt;p className="text-xs text-muted-foreground line-clamp-2 mb-3"&gt;
+      {ticket.description}
+    &lt;/p&gt;
+
+    &lt;div className="flex items-center justify-between text-xs text-muted-foreground"&gt;
+      &lt;div className="flex items-center gap-1"&gt;
+        &lt;User className="h-3 w-3" /&gt;
+        &lt;span&gt;{ticket.creator.name}&lt;/span&gt;
+      &lt;/div&gt;
+      &lt;div className="flex items-center gap-1"&gt;
+        &lt;Calendar className="h-3 w-3" /&gt;
+        &lt;span&gt;{formatDistanceToNow(new Date(ticket.createdAt), { locale: ptBR })}&lt;/span&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/CardContent&gt;
+&lt;/Card&gt;</code></pre>
+        </div>
+      </section>
+
+      <section class="section case-result"><p class="prompt">$ result</p><p>Mostra IA no meio da operação: entende a intenção, organiza a demanda e manda o chamado para o fluxo de suporte.</p></section>
+    </main>
+  </div>
+  <button class="back-to-top" type="button" aria-label="Voltar ao topo">^</button>
+  <script src="../script.js"></script>
+</body>
+</html>

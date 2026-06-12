@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">Arquitetura do Dev-roast</title>
+  <desc id="desc">Diagrama da arquitetura server-first do Dev-roast com client, Next.js App Router, tRPC, Gemini e PostgreSQL.</desc>
+  <style>
+    .bg { fill: #101111; }
+    .zone { fill: #151718; stroke: #34393d; stroke-width: 2; }
+    .service { fill: #191c1e; stroke: #dedede; stroke-width: 1.5; }
+    .gateway { fill: #10151f; stroke: #00d75f; stroke-width: 1.8; }
+    .data { fill: #121b16; stroke: #00d75f; stroke-width: 1.5; }
+    .ai { fill: #111827; stroke: #60a5fa; stroke-width: 1.8; }
+    .headline { fill: #f3f3f0; font: 700 22px "SFMono-Regular", Consolas, monospace; }
+    .zone-title { fill: #f3f3f0; font: 700 18px "SFMono-Regular", Consolas, monospace; }
+    .node-title { fill: #f3f3f0; font: 700 18px "SFMono-Regular", Consolas, monospace; text-anchor: middle; }
+    .node-small { fill: #c8cdd0; font: 13px "SFMono-Regular", Consolas, monospace; text-anchor: middle; }
+    .muted { fill: #9ba3aa; font: 13px "SFMono-Regular", Consolas, monospace; }
+    .edge-label { fill: #9ba3aa; font: 12px "SFMono-Regular", Consolas, monospace; text-anchor: middle; }
+    .green { fill: #00d75f; font: 700 14px "SFMono-Regular", Consolas, monospace; }
+    .line { stroke: #9ba3aa; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+    .strong-line { stroke: #00d75f; stroke-width: 2; fill: none; marker-end: url(#arrow-green); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="#9ba3aa"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="#00d75f"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1400" height="860"/>
+
+  <text class="green" x="56" y="48">$ pnpm dev</text>
+  <text class="headline" x="56" y="82">Dev-roast - AI code review com resultado compartilhável</text>
+  <text class="muted" x="56" y="108">server-first, type-safe, syntax highlight no servidor e persistência com Drizzle</text>
+
+  <rect class="zone" x="52" y="145" width="1296" height="235"/>
+  <text class="zone-title" x="80" y="178">Client + experiência compartilhável</text>
+
+  <rect class="service" x="90" y="215" width="275" height="68"/>
+  <text class="node-title" x="227.5" y="244">Code Editor</text>
+  <text class="node-small" x="227.5" y="264">snippet, linguagem e tom</text>
+
+  <rect class="service" x="410" y="215" width="275" height="68"/>
+  <text class="node-title" x="547.5" y="244">Roast Result</text>
+  <text class="node-small" x="547.5" y="264">score, veredito e share</text>
+
+  <rect class="service" x="730" y="215" width="275" height="68"/>
+  <text class="node-title" x="867.5" y="244">Leaderboard</text>
+  <text class="node-small" x="867.5" y="264">ranking e estatísticas</text>
+
+  <rect class="gateway" x="535" y="315" width="330" height="64"/>
+  <text class="node-title" x="700" y="342">tRPC Client</text>
+  <text class="node-small" x="700" y="362">httpBatchLink + TanStack Query</text>
+
+  <path class="line" d="M227 283 C270 318 410 337 535 345"/>
+  <path class="line" d="M548 283 C575 302 620 316 648 315"/>
+  <path class="line" d="M868 283 C842 309 795 318 753 315"/>
+
+  <rect class="zone" x="52" y="430" width="1296" height="245"/>
+  <text class="zone-title" x="80" y="463">Next.js 16 App Router + tRPC</text>
+
+  <rect class="service" x="90" y="505" width="290" height="68"/>
+  <text class="node-title" x="235" y="534">Server Components</text>
+  <text class="node-small" x="235" y="554">prefetch + hydrate</text>
+
+  <rect class="gateway" x="430" y="505" width="290" height="68"/>
+  <text class="node-title" x="575" y="534">API Route</text>
+  <text class="node-small" x="575" y="554">/api/trpc/[trpc]</text>
+
+  <rect class="gateway" x="770" y="505" width="240" height="68"/>
+  <text class="node-title" x="890" y="534">tRPC Router</text>
+  <text class="node-small" x="890" y="554">procedures type-safe</text>
+
+  <rect class="service" x="1060" y="505" width="250" height="68"/>
+  <text class="node-title" x="1185" y="534">OpenGraph</text>
+  <text class="node-small" x="1185" y="554">imagem social dinâmica</text>
+
+  <rect class="gateway" x="110" y="610" width="260" height="52"/>
+  <text class="node-title" x="240" y="642">roast.create</text>
+
+  <rect class="gateway" x="430" y="610" width="260" height="52"/>
+  <text class="node-title" x="560" y="642">roast.getById</text>
+
+  <rect class="gateway" x="750" y="610" width="260" height="52"/>
+  <text class="node-title" x="880" y="642">roast.getStats</text>
+
+  <rect class="gateway" x="1070" y="610" width="260" height="52"/>
+  <text class="node-title" x="1200" y="642">leaderboard.list</text>
+
+  <path class="strong-line" d="M700 379 V490 C700 500 680 505 660 505"/>
+  <text class="edge-label" x="790" y="455">mutations e queries</text>
+
+  <path class="line" d="M235 505 C275 475 810 475 890 505"/>
+  <text class="edge-label" x="520" y="470">caller direto</text>
+
+  <path class="strong-line" d="M720 539 H770"/>
+  <path class="strong-line" d="M890 573 V604"/>
+  <path class="line" d="M890 604 C780 598 390 595 240 610"/>
+  <path class="line" d="M890 604 C780 606 660 606 560 610"/>
+  <path class="line" d="M890 604 C880 607 880 607 880 610"/>
+  <path class="line" d="M890 604 C1005 604 1110 606 1200 610"/>
+  <path class="line" d="M1005 539 H1060"/>
+
+  <rect class="zone" x="52" y="725" width="1296" height="120"/>
+  <text class="zone-title" x="80" y="758">IA + dados</text>
+
+  <rect class="ai" x="185" y="785" width="310" height="58"/>
+  <text class="node-title" x="340" y="812">Google Gemini</text>
+  <text class="node-small" x="340" y="832">gemini-2.0-flash-lite</text>
+
+  <rect class="data" x="875" y="785" width="340" height="58"/>
+  <text class="node-title" x="1045" y="812">PostgreSQL</text>
+  <text class="node-small" x="1045" y="832">Drizzle ORM + leaderboard</text>
+
+  <path class="strong-line" d="M240 662 C240 720 300 740 340 785"/>
+  <text class="edge-label" x="275" y="716">@google/generative-ai</text>
+  <path class="line" d="M560 662 C610 735 830 760 980 785"/>
+  <path class="line" d="M880 662 C890 728 950 760 1035 785"/>
+  <path class="line" d="M1200 662 C1180 726 1110 760 1065 785"/>
+</svg>

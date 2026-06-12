@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">Arquitetura do Case Flow</title>
+  <desc id="desc">Diagrama da arquitetura do Case Flow com usuários, frontend Next.js, API Routes serverless, chatbot com Abacus AI, Prisma ORM, NextAuth e PostgreSQL.</desc>
+  <style>
+    .bg { fill: #101111; }
+    .zone { fill: #151718; stroke: #34393d; stroke-width: 2; }
+    .service { fill: #191c1e; stroke: #dedede; stroke-width: 1.5; }
+    .gateway { fill: #10151f; stroke: #00d75f; stroke-width: 1.8; }
+    .data { fill: #121b16; stroke: #00d75f; stroke-width: 1.5; }
+    .ai { fill: #111827; stroke: #60a5fa; stroke-width: 1.8; }
+    .auth { fill: #1f151f; stroke: #f472b6; stroke-width: 1.5; }
+    .headline { fill: #f3f3f0; font: 700 22px "SFMono-Regular", Consolas, monospace; }
+    .zone-title { fill: #f3f3f0; font: 700 18px "SFMono-Regular", Consolas, monospace; }
+    .node-title { fill: #f3f3f0; font: 700 18px "SFMono-Regular", Consolas, monospace; text-anchor: middle; }
+    .node-small { fill: #c8cdd0; font: 13px "SFMono-Regular", Consolas, monospace; text-anchor: middle; }
+    .muted { fill: #9ba3aa; font: 13px "SFMono-Regular", Consolas, monospace; }
+    .edge-label { fill: #9ba3aa; font: 12px "SFMono-Regular", Consolas, monospace; text-anchor: middle; }
+    .green { fill: #00d75f; font: 700 14px "SFMono-Regular", Consolas, monospace; }
+    .line { stroke: #9ba3aa; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+    .strong-line { stroke: #00d75f; stroke-width: 2; fill: none; marker-end: url(#arrow-green); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="#9ba3aa"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="#00d75f"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1400" height="900"/>
+
+  <text class="green" x="56" y="48">$ npm run dev</text>
+  <text class="headline" x="56" y="82">Case Flow - chamados com IA e Kanban operacional</text>
+  <text class="muted" x="56" y="108">conversa vira ticket classificado, priorizado e rastreável por setor</text>
+
+  <rect class="zone" x="52" y="145" width="1296" height="215"/>
+  <text class="zone-title" x="80" y="178">Frontend - Next.js 14 App Router</text>
+
+  <rect class="service" x="90" y="220" width="240" height="64"/>
+  <text class="node-title" x="210" y="247">Usuários</text>
+  <text class="node-small" x="210" y="267">Admin, TI, SAC, Financeiro</text>
+
+  <rect class="gateway" x="430" y="195" width="300" height="70"/>
+  <text class="node-title" x="580" y="224">Interface Web</text>
+  <text class="node-small" x="580" y="245">login, navegação e sessão</text>
+
+  <rect class="gateway" x="405" y="295" width="260" height="54"/>
+  <text class="node-title" x="535" y="329">Chatbot UI</text>
+
+  <rect class="gateway" x="765" y="295" width="300" height="54"/>
+  <text class="node-title" x="915" y="329">Dashboard Kanban</text>
+
+  <path class="strong-line" d="M330 252 H430"/>
+  <text class="edge-label" x="380" y="239">interage</text>
+  <path class="line" d="M580 265 C575 280 555 288 535 295"/>
+  <path class="line" d="M580 265 C650 284 760 286 915 295"/>
+
+  <rect class="zone" x="52" y="410" width="1296" height="265"/>
+  <text class="zone-title" x="80" y="443">Backend - API Routes Serverless</text>
+
+  <rect class="gateway" x="95" y="500" width="285" height="70"/>
+  <text class="node-title" x="237.5" y="529">API do Chatbot</text>
+  <text class="node-small" x="237.5" y="550">análise de intenção</text>
+
+  <rect class="gateway" x="505" y="500" width="285" height="70"/>
+  <text class="node-title" x="647.5" y="529">Tickets CRUD</text>
+  <text class="node-small" x="647.5" y="550">status, comentários e filtros</text>
+
+  <rect class="auth" x="915" y="500" width="285" height="70"/>
+  <text class="node-title" x="1057.5" y="529">NextAuth</text>
+  <text class="node-small" x="1057.5" y="550">credenciais e roles</text>
+
+  <rect class="data" x="520" y="610" width="260" height="54"/>
+  <text class="node-title" x="650" y="644">Prisma ORM</text>
+
+  <path class="strong-line" d="M535 349 C500 420 310 450 238 500"/>
+
+  <path class="strong-line" d="M915 349 C865 423 710 455 648 500"/>
+
+  <path class="line" d="M580 265 C830 350 1030 420 1058 500"/>
+
+  <path class="line" d="M238 570 C300 625 430 637 520 637"/>
+
+  <path class="line" d="M648 570 V610"/>
+  <path class="line" d="M1058 570 C1020 625 860 637 780 637"/>
+
+  <rect class="zone" x="52" y="725" width="1296" height="120"/>
+  <text class="zone-title" x="80" y="758">Serviços externos + dados</text>
+
+  <rect class="ai" x="170" y="785" width="315" height="58"/>
+  <text class="node-title" x="327.5" y="812">Abacus.AI NLP</text>
+  <text class="node-small" x="327.5" y="832">título, categoria e prioridade</text>
+
+  <rect class="data" x="875" y="785" width="340" height="58"/>
+  <text class="node-title" x="1045" y="812">PostgreSQL</text>
+  <text class="node-small" x="1045" y="832">tickets, usuários e comentários</text>
+
+  <path class="strong-line" d="M238 570 C180 650 215 735 328 785"/>
+
+  <path class="line" d="M650 664 C715 725 890 758 1005 785"/>
+</svg>

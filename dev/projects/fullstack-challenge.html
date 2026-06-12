@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Case do Chrono Crash, Crash Game full stack com NestJS, React, RabbitMQ, Keycloak, Kong, observabilidade e testes E2E.">
+  <title>Chrono Crash | Luiz Filipe Miranda</title>
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="terminal-shell" id="top">
+    <header class="window-bar" aria-label="Barra da janela">
+      <div class="window-controls" aria-hidden="true"><span class="control close"></span><span class="control minimize"></span><span class="control maximize"></span></div>
+      <a class="window-title" href="../index.html#projetos">voltar ~/portfolio</a>
+    </header>
+    <main>
+      <section class="hero case-hero" aria-labelledby="project-title">
+        <p class="prompt">$ open projects/chrono-crash</p>
+        <p class="eyebrow">Full-stack challenge | realtime, dinheiro e observabilidade</p>
+        <h1 id="project-title">Chrono Crash é um Crash Game full stack tratado como produto real.</h1>
+        <p class="hero-copy">
+          Começou como desafio técnico, mas eu puxei para um cenário mais próximo de produção: React/Vite no frontend,
+          NestJS separado em Game e Wallet, RabbitMQ para comandos financeiros, Keycloak, Kong, PostgreSQL, Prisma,
+          Socket.IO, Prometheus, Grafana, Jaeger, OpenTelemetry e testes E2E.
+        </p>
+        <div class="hero-actions">
+          <a class="terminal-button" href="../index.html#projetos">voltar</a>
+          <a class="terminal-button icon-link" href="https://github.com/Luizfbm/fullstack-challenge" target="_blank" rel="noreferrer">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.16 1.18A10.98 10.98 0 0 1 12 5.98c.98 0 1.96.13 2.88.39 2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.24 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.14 0 1.54-.01 2.78-.01 3.16 0 .31.21.68.8.56A11.52 11.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"></path></svg>
+            GitHub
+          </a>
+        </div>
+      </section>
+
+      <section class="metrics case-metrics" aria-label="Destaques do projeto">
+        <article><strong>2 serviços</strong><span>Game e Wallet em contextos separados</span></article>
+        <article><strong>RabbitMQ</strong><span>débitos e créditos com outbox e inbox</span></article>
+        <article><strong>Provably fair</strong><span>commitment, HMAC SHA-256 e verificação</span></article>
+        <article><strong>84.58%</strong><span>coverage global registrado no README</span></article>
+      </section>
+
+      <section class="section terminal-panel">
+        <div class="section-heading"><p class="prompt">$ cat story.md</p><h2>História</h2></div>
+        <p class="case-copy">
+          Peguei o desafio como se fosse um produto de cassino realtime. O ponto não era só apostar, ver multiplicador
+          e sacar antes do crash. Eu queria deixar claro onde cada responsabilidade mora: Game Service não mexe direto
+          no saldo, Wallet Service cuida do ledger em centavos com BigInt, Kong concentra entrada, Keycloak emite
+          identidade, Socket.IO publica os eventos da rodada e a stack de observabilidade deixa a operação auditável.
+        </p>
+      </section>
+
+      <section class="section architecture-section">
+        <div class="section-heading"><p class="prompt">$ cat architecture.svg</p><h2>Arquitetura</h2></div>
+        <figure class="architecture-figure">
+          <img src="../assets/fullstack-challenge-architecture.svg" alt="Diagrama da arquitetura do Chrono Crash com React Vite, Kong, Keycloak, Game Service, Wallet Service, RabbitMQ, PostgreSQL e observabilidade.">
+          <figcaption>
+            Fluxo principal: React/Vite entra pelo Kong. O gateway encaminha REST e Socket.IO para o Game Service,
+            Keycloak emite JWTs, Game e Wallet validam JWKS, RabbitMQ carrega comandos financeiros e Prometheus,
+            Grafana, Jaeger e OpenTelemetry dão visibilidade da operação.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section">
+        <div class="section-heading"><p class="prompt">$ grep selling-points</p><h2>Por que vale olhar</h2></div>
+        <div class="selling-grid">
+          <article><h3>Consistência financeira</h3><p>O Game não altera saldo direto. Débito e crédito passam por RabbitMQ, outbox no Game, inbox no Wallet e comandos idempotentes.</p></article>
+          <article><h3>Realtime auditável</h3><p>A rodada publica snapshot, abertura de apostas, ticks, crash, settlement, apostas e cashouts por Socket.IO.</p></article>
+          <article><h3>Operação observável</h3><p>Prometheus mede apostas, cashouts, WebSocket, RTP, auto bet e comandos de wallet. Jaeger recebe traces via OTEL.</p></article>
+          <article><h3>Segurança e identidade</h3><p>Keycloak cuida do login com authorization code flow e PKCE no frontend. Os serviços NestJS validam JWT por JWKS.</p></article>
+          <article><h3>Mecânicas de jogo</h3><p>Provably fair com serverSeedHash antes da rodada, serverSeed revelado depois do crash, HMAC SHA-256, auto cashout e auto bet Martingale.</p></article>
+          <article><h3>Qualidade verificável</h3><p>Bun test, Vitest, Playwright, E2E de API, E2E browser, testes responsivos, Docker healthchecks e quality gate por baseline.</p></article>
+        </div>
+      </section>
+
+      <section class="section terminal-panel">
+        <div class="section-heading"><p class="prompt">$ cat delivery-report.md</p><h2>Escopo técnico entregue</h2></div>
+        <div class="case-result">
+          <p class="prompt">runtime + platform</p>
+          <p>
+            Bun 1.x, Docker Compose, NestJS com TypeScript strict, React/Vite, Tailwind CSS v4, Prisma, PostgreSQL,
+            RabbitMQ, Kong DB-less, Keycloak, Socket.IO, TanStack Query, Zustand, Swagger/OpenAPI, Prometheus,
+            Grafana, Jaeger e OpenTelemetry.
+          </p>
+        </div>
+        <div class="case-result">
+          <p class="prompt">domain + reliability</p>
+          <p>
+            Dois bancos separados, `games` e `wallets`; dinheiro em centavos com BigInt; multiplicadores em basis points;
+            outbox/inbox para idempotência; retries exponenciais em créditos; leaderboard por lucro líquido; auto bet
+            com estratégias fixed e Martingale, stop-loss e take-profit.
+          </p>
+        </div>
+        <div class="case-result">
+          <p class="prompt">quality + evidence</p>
+          <p>
+            O README registra `bun run ci:local`, `bun run ci:e2e` e `bun run test:e2e:browser` na última auditoria
+            local: 17 testes E2E de API, 7 testes de browser, coverage global de 84.58%, duplicação de 1.46% e
+            nenhuma vulnerabilidade high/critical.
+          </p>
+        </div>
+      </section>
+
+      <section class="section terminal-panel">
+        <div class="section-heading"><p class="prompt">$ view code --tabs</p><h2>Viewer de código</h2></div>
+        <div class="code-viewer" data-code-viewer>
+          <div class="code-tabs" role="tablist" aria-label="Trechos de código do Chrono Crash">
+            <button class="code-tab active" type="button" data-code-tab="fair">provably-fair.ts</button>
+            <button class="code-tab" type="button" data-code-tab="outbox">place-bet.use-case.ts</button>
+            <button class="code-tab" type="button" data-code-tab="inbox">wallet-inbox.repository.ts</button>
+            <button class="code-tab" type="button" data-code-tab="realtime">rounds.gateway.ts</button>
+            <button class="code-tab" type="button" data-code-tab="auth">keycloak-jwt.guard.ts</button>
+            <button class="code-tab" type="button" data-code-tab="metrics">game-metrics.ts</button>
+          </div>
+          <pre class="code-pane active" data-code-pane="fair"><code>import { createHash, createHmac } from "node:crypto";
+
+export class ProvablyFair {
+  static hashSeed(seed: string): string {
+    return createHash("sha256").update(seed).digest("hex");
+  }
+
+  static verifySeed(serverSeed: string, serverSeedHash: string): boolean {
+    return ProvablyFair.hashSeed(serverSeed) === serverSeedHash;
+  }
+
+  static calculateCrashPointBp(input: CrashPointInput): number {
+    const digest = createHmac("sha256", input.serverSeed)
+      .update(`${input.clientSeed}:${input.nonce}`)
+      .digest("hex");
+
+    const sample = BigInt(`0x${digest.slice(0, 13)}`);
+    const maxSample = 2n ** 52n;
+    const numerator = maxSample * BigInt(10000 - input.houseEdgeBp);
+    const denominator = maxSample - sample;
+    const multiplierBp = Number(numerator / denominator);
+
+    return Math.max(10000, multiplierBp);
+  }
+}</code></pre>
+          <pre class="code-pane" data-code-pane="outbox"><code>private async dispatchDebitThroughOutbox(input: {
+  amountCents: bigint;
+  betId: string;
+  playerId: string;
+  referenceId: string;
+  roundId: string;
+  username: string;
+}): Promise&lt;{ applied: boolean; balanceCents: bigint }&gt; {
+  const message = await this.walletOutboxRepository.enqueue({
+    id: this.idGenerator.generate(),
+    type: "WALLET_DEBIT",
+    status: "IN_FLIGHT",
+    roundId: input.roundId,
+    betId: input.betId,
+    playerId: input.playerId,
+    username: input.username,
+    amountCents: input.amountCents,
+    referenceId: input.referenceId,
+    reason: "BET_PLACED",
+  });
+
+  await this.walletOutboxDispatcher.dispatchMessage(message);
+  const stored = await this.walletOutboxRepository.findById(message.id);
+
+  if (stored?.status !== "SUCCEEDED" || stored.responseBalanceCents === null) {
+    throw new WalletOperationRejectedError(
+      stored?.errorCode ?? "WALLET_DEBIT_FAILED",
+      stored?.errorMessage ?? "Wallet debit failed",
+    );
+  }
+
+  return {
+    applied: stored.responseApplied ?? true,
+    balanceCents: stored.responseBalanceCents,
+  };
+}</code></pre>
+          <pre class="code-pane" data-code-pane="inbox"><code>async process(command: WalletInboxCommand): Promise&lt;WalletInboxResponse&gt; {
+  return this.prisma.$transaction(async (prisma) =&gt; {
+    const existing = await prisma.walletInboxMessage.findUnique({
+      where: { referenceId: command.data.referenceId },
+    });
+
+    if (existing?.status === "PROCESSED" || existing?.status === "FAILED") {
+      return this.toDuplicateResponse(existing);
+    }
+
+    const wallet = await prisma.wallet.findUnique({
+      where: { playerId: command.data.playerId },
+    });
+
+    if (!wallet) {
+      const response = {
+        ok: false,
+        error: { code: "WALLET_NOT_FOUND", message: "Wallet not found" },
+      };
+      await this.persistResponse(prisma, command.data.referenceId, response);
+      return response;
+    }
+
+    const amountCents = BigInt(command.data.amountCents);
+
+    if (command.pattern === "wallet.debit" &amp;&amp; wallet.balanceCents &lt; amountCents) {
+      const response = {
+        ok: false,
+        error: { code: "INSUFFICIENT_FUNDS", message: "Insufficient funds" },
+      };
+      await this.persistResponse(prisma, command.data.referenceId, response);
+      return response;
+    }
+
+    const nextBalance =
+      command.pattern === "wallet.debit"
+        ? wallet.balanceCents - amountCents
+        : wallet.balanceCents + amountCents;
+
+    await prisma.wallet.update({ where: { id: wallet.id }, data: { balanceCents: nextBalance } });
+    await prisma.walletTransaction.create({ data: { walletId: wallet.id, amountCents, referenceId: command.data.referenceId } });
+  });
+}</code></pre>
+          <pre class="code-pane" data-code-pane="realtime"><code>@WebSocketGateway({
+  namespace: GAME_REALTIME_NAMESPACE,
+  cors: { origin: true, credentials: true },
+})
+export class RoundsGateway implements OnGatewayConnection, RoundEventsPublisher {
+  @WebSocketServer()
+  private namespace!: Namespace;
+
+  async handleConnection(client: Socket): Promise&lt;void&gt; {
+    const round = await this.getCurrentRoundUseCase.execute();
+    client.emit(
+      ROUND_SNAPSHOT_EVENT,
+      this.roundRealtimeSerializer.toSnapshotPayload(round),
+    );
+    this.recordWebSocketEvent(ROUND_SNAPSHOT_EVENT);
+  }
+
+  async publishTick(round: Round): Promise&lt;void&gt; {
+    this.emitRoundEvent(ROUND_TICK_EVENT, round);
+  }
+
+  async publishCrashed(round: Round): Promise&lt;void&gt; {
+    this.emitRoundEvent(ROUND_CRASHED_EVENT, round);
+  }
+
+  async publishBetCashedOut(bet: Bet): Promise&lt;void&gt; {
+    this.emitBetEvent(BET_CASHED_OUT_EVENT, bet);
+  }
+}</code></pre>
+          <pre class="code-pane" data-code-pane="auth"><code>@Injectable()
+export class KeycloakJwtGuard implements CanActivate {
+  private readonly issuer =
+    process.env.KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/crash-game";
+  private readonly clientId =
+    process.env.KEYCLOAK_CLIENT_ID ?? "crash-game-client";
+  private readonly jwksUrl =
+    process.env.KEYCLOAK_JWKS_URL ??
+    `${this.issuer}/protocol/openid-connect/certs`;
+  private readonly jwks = createRemoteJWKSet(new URL(this.jwksUrl));
+
+  async canActivate(context: ExecutionContext): Promise&lt;boolean&gt; {
+    const request = context.switchToHttp().getRequest&lt;RequestWithHeadersAndUser&gt;();
+    const token = this.extractBearerToken(request.headers.authorization);
+
+    if (!token) {
+      throw new UnauthorizedException("Missing bearer token");
+    }
+
+    const { payload } = await jwtVerify(token, this.jwks, {
+      issuer: this.issuer,
+    });
+
+    if (payload.azp !== this.clientId) {
+      throw new UnauthorizedException("Invalid token client");
+    }
+
+    request.user = this.toAuthenticatedUser(payload);
+    return true;
+  }
+}</code></pre>
+          <pre class="code-pane" data-code-pane="metrics"><code>export class GameMetrics {
+  private readonly registry = new Registry();
+
+  private readonly betsTotal = new Counter({
+    name: "crash_game_bets_total",
+    help: "Total crash game bets by status.",
+    labelNames: ["status"],
+    registers: [this.registry],
+  });
+
+  private readonly websocketEventsTotal = new Counter({
+    name: "crash_game_websocket_events_total",
+    help: "Total crash game WebSocket events by event name.",
+    labelNames: ["event"],
+    registers: [this.registry],
+  });
+
+  private readonly crashPointMultiplier = new Histogram({
+    name: "crash_game_crash_point_multiplier",
+    help: "Crash game crash point multiplier distribution.",
+    buckets: [1.01, 1.5, 2, 3, 5, 10, 25, 50, 100],
+    registers: [this.registry],
+  });
+
+  constructor() {
+    collectDefaultMetrics({
+      prefix: "crash_game_process_",
+      register: this.registry,
+    });
+  }
+}</code></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <button class="back-to-top" type="button" aria-label="Voltar ao topo">^</button>
+  <script src="../script.js"></script>
+</body>
+</html>

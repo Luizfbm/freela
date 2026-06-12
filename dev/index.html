@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Portfólio de Luiz Filipe Bungenstab Miranda, desenvolvedor full stack web e mobile com projetos em IA, saúde, educação e operações.">
+  <title>Luiz Filipe Miranda | Full Stack Developer</title>
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="terminal-shell" id="top">
+    <header class="window-bar" aria-label="Barra da janela">
+      <div class="window-controls" aria-hidden="true">
+        <span class="control close"></span>
+        <span class="control minimize"></span>
+        <span class="control maximize"></span>
+      </div>
+      <a class="window-title" href="#top" aria-label="Voltar para o início">luiz@portfolio:~</a>
+    </header>
+
+    <main>
+      <section class="hero section" id="sobre" aria-labelledby="hero-title">
+        <p class="prompt">$ ./about-luiz.sh</p>
+        <p class="eyebrow">Full Stack Web & Mobile Developer</p>
+        <h1 id="hero-title">Crio produtos web e mobile com IA quando ela resolve um problema real.</h1>
+        <p class="hero-copy">
+          Sou desenvolvedor full stack em Vitória/ES. Trabalho com React Native, Next.js, TypeScript, Node.js e
+          PostgreSQL, principalmente em produtos de saúde, educação e operação. Gosto de pegar fluxo confuso,
+          automatizar o que faz sentido e entregar algo que as pessoas consigam usar sem manual.
+        </p>
+
+        <div class="hero-actions" aria-label="Ações principais">
+          <a class="terminal-button" href="mailto:contatoluizfbm@gmail.com">email</a>
+          <a class="terminal-button icon-link" href="https://github.com/Luizfbm" target="_blank" rel="noreferrer" aria-label="GitHub de Luiz Filipe">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.16 1.18A10.98 10.98 0 0 1 12 5.98c.98 0 1.96.13 2.88.39 2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.24 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.14 0 1.54-.01 2.78-.01 3.16 0 .31.21.68.8.56A11.52 11.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"></path>
+            </svg>
+            github
+          </a>
+          <a class="terminal-button icon-link" href="https://www.linkedin.com/in/luizfilipedev/" target="_blank" rel="noreferrer" aria-label="LinkedIn de Luiz Filipe">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V8.98h3.42v1.57h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.29ZM5.32 7.42a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12Zm1.78 13.03H3.54V8.98H7.1v11.47ZM22.23 0H1.76C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.76 24h20.47c.97 0 1.77-.77 1.77-1.72V1.72C24 .77 23.2 0 22.23 0Z"></path>
+            </svg>
+            linkedin
+          </a>
+        </div>
+
+        <nav class="command-nav" aria-label="Navegação por comandos">
+          <button class="command active" data-target="experiencia" type="button">cat experiencia.log</button>
+          <button class="command" data-target="projetos" type="button">ls projetos/</button>
+          <button class="command" data-target="github" type="button">git activity</button>
+          <button class="command" data-target="stack" type="button">grep stack</button>
+          <button class="command" data-target="formacao" type="button">cat formacao.md</button>
+          <button class="command" data-target="contato" type="button">open contato</button>
+        </nav>
+      </section>
+
+      <section class="metrics" aria-label="Destaques profissionais">
+        <article>
+          <strong>50+ laboratórios</strong>
+          <span>atendidos em todo o Brasil</span>
+        </article>
+        <article>
+          <strong>5.000 usuários ativos</strong>
+          <span>em produtos de saúde</span>
+        </article>
+        <article>
+          <strong>2 dias -> 3 horas</strong>
+          <span>em build e deploy mobile</span>
+        </article>
+        <article>
+          <strong>30+ apps</strong>
+          <span>publicados para iOS e Android</span>
+        </article>
+      </section>
+
+      <section class="section terminal-panel" id="experiencia" aria-labelledby="experiencia-title">
+        <div class="section-heading">
+          <p class="prompt">$ cat experiencia.log</p>
+          <h2 id="experiencia-title">Experiência</h2>
+        </div>
+
+        <div class="timeline">
+          <article class="timeline-item">
+            <div class="timeline-header">
+              <div>
+                <h3>Desenvolvedor Web e Mobile</h3>
+                <p>S_line - Sistemas Online</p>
+              </div>
+              <span>dez 2025 - atual</span>
+            </div>
+            <ul>
+              <li>Migrei apps legados feitos em FlutterFlow para uma stack com React Native, TypeScript, Node.js e APIs REST.</li>
+              <li>Refatorei mais de 48 telas e módulos usados por laboratórios e usuários ativos em todo o país.</li>
+              <li>Automatizei CI/CD com Expo Application Services e GitHub Actions, reduzindo build e deploy de 2 dias para menos de 3 horas.</li>
+              <li>Publiquei mais de 30 aplicativos white-label para iOS e Android.</li>
+              <li>Trabalho com TDD, Codex, planos de implementação e revisão constante dos prompts usados no fluxo de desenvolvimento.</li>
+            </ul>
+          </article>
+
+          <article class="timeline-item">
+            <div class="timeline-header">
+              <div>
+                <h3>Estagiário Desenvolvedor Web</h3>
+                <p>Super Estágios</p>
+              </div>
+              <span>jul 2025 - out 2025</span>
+            </div>
+            <ul>
+              <li>Mantive funcionalidades em PHP, JavaScript, HTML, CSS e Bootstrap na maior plataforma de estágios do Brasil.</li>
+              <li>Atuei em fluxos usados por 3,5 milhões de estudantes, 100 mil empresas e 150 mil estagiários ativos.</li>
+              <li>Corrigi consultas, telas e integrações em MySQL e AWS, priorizando performance e consistência dos dados.</li>
+              <li>Trabalhei em rotina ágil com Git, GitHub e GitFlow.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="projetos" aria-labelledby="projetos-title">
+        <div class="section-heading">
+          <p class="prompt">$ ls ./featured-projects</p>
+          <h2 id="projetos-title">Projetos</h2>
+        </div>
+
+        <div class="project-grid">
+          <a class="project-card" href="projects/fullstack-challenge.html" aria-label="Abrir case do Chrono Crash">
+            <div class="project-topline">
+              <h3>Chrono Crash</h3>
+              <span>Full-stack Challenge</span>
+            </div>
+            <p>
+              Crash Game full stack com NestJS, React/Vite, RabbitMQ, Keycloak, Kong, PostgreSQL, Prisma,
+              Socket.IO, observabilidade e testes automatizados.
+            </p>
+            <ul class="tag-list" aria-label="Tecnologias do Chrono Crash">
+              <li>NestJS</li>
+              <li>RabbitMQ</li>
+              <li>Keycloak</li>
+              <li>Socket.IO</li>
+              <li>Observability</li>
+            </ul>
+            <span class="project-hint">clique para saber mais</span>
+          </a>
+
+          <a class="project-card" href="projects/iaejovem.html" aria-label="Abrir case do IAeJovem">
+            <div class="project-topline">
+              <h3>IAeJovem</h3>
+              <span>HackFaesa2025</span>
+            </div>
+            <p>
+              Plataforma de apoio emocional para estudantes, com chat empático, painel para professores, pontuação,
+              loja de resgates, notificações e análise de risco.
+            </p>
+            <ul class="tag-list" aria-label="Tecnologias do IAeJovem">
+              <li>Next.js 14</li>
+              <li>TypeScript</li>
+              <li>PostgreSQL</li>
+              <li>Prisma</li>
+              <li>ChatGPT API</li>
+            </ul>
+            <span class="project-hint">clique para saber mais</span>
+          </a>
+
+          <a class="project-card" href="projects/case-flow.html" aria-label="Abrir case do Case Flow">
+            <div class="project-topline">
+              <h3>Case Flow</h3>
+              <span>InovaApp2025</span>
+            </div>
+            <p>
+              Sistema de chamados com Kanban, níveis de acesso e chatbot que pega mensagens e cria tickets com título,
+              categoria e prioridade.
+            </p>
+            <ul class="tag-list" aria-label="Tecnologias do Case Flow">
+              <li>Next.js</li>
+              <li>TypeScript</li>
+              <li>PostgreSQL</li>
+              <li>Prisma</li>
+              <li>NLP</li>
+            </ul>
+            <span class="project-hint">clique para saber mais</span>
+          </a>
+
+          <a class="project-card" href="projects/dev-roast.html" aria-label="Abrir case do Dev-roast">
+            <div class="project-topline">
+              <h3>Dev-roast</h3>
+              <span>AI Code Review</span>
+            </div>
+            <p>
+              Ferramenta de análise de código com IA. O usuário cola um snippet e recebe crítica técnica, pontuação,
+              sugestões e uma página pronta para compartilhar.
+            </p>
+            <ul class="tag-list" aria-label="Tecnologias do Dev-roast">
+              <li>Next.js</li>
+              <li>React</li>
+              <li>tRPC</li>
+              <li>Drizzle ORM</li>
+              <li>OpenAI/Gemini</li>
+            </ul>
+            <span class="project-hint">clique para saber mais</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="section terminal-panel github-section" id="github" aria-labelledby="github-title">
+        <div class="section-heading">
+          <p class="prompt">$ git log --graph --author=Luizfbm</p>
+          <h2 id="github-title">Atividade no GitHub</h2>
+        </div>
+
+        <div class="github-terminal">
+          <div class="github-output" aria-label="Resumo da atividade no GitHub">
+            <p><span class="terminal-muted">$</span> github --activity Luizfbm --live</p>
+            <p><span class="terminal-muted">status:</span> <strong>lendo repositórios públicos</strong></p>
+            <p>
+              <span class="terminal-muted">repos:</span>
+              <span data-github-stat="repos">--</span>
+              <span class="ascii-bar" data-github-bar="repos">░░░░░░░░░░░░</span>
+            </p>
+            <p>
+              <span class="terminal-muted">recent:</span>
+              <span data-github-stat="updated">--</span>
+              <span>repos com atualização nos últimos 90 dias</span>
+              <span class="ascii-bar" data-github-bar="updated">░░░░░░░░░░░░</span>
+            </p>
+            <p>
+              <span class="terminal-muted">stack:</span>
+              <span data-github-stat="language">TypeScript</span>
+              <span class="ascii-bar is-long">████████░░░░</span>
+            </p>
+            <p><span class="terminal-muted">graph:</span> sincronizado pelo feed público do GitHub</p>
+          </div>
+
+          <div class="github-terminal-footer">
+            <a class="terminal-button icon-link" href="https://github.com/Luizfbm" target="_blank" rel="noreferrer">
+              <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.16 1.18A10.98 10.98 0 0 1 12 5.98c.98 0 1.96.13 2.88.39 2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.24 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.14 0 1.54-.01 2.78-.01 3.16 0 .31.21.68.8.56A11.52 11.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"></path>
+              </svg>
+              abrir github
+            </a>
+
+            <figure class="github-chart">
+              <img
+                src="https://gh-heat.anishroy.com/api/Luizfbm/svg?theme=green&darkMode=true"
+                alt="Gráfico de contribuições públicas de Luizfbm no GitHub em tema escuro."
+                loading="lazy"
+              >
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="section terminal-panel" id="stack" aria-labelledby="stack-title">
+        <div class="section-heading">
+          <p class="prompt">$ grep -R "skills" ./profile</p>
+          <h2 id="stack-title">Stack</h2>
+        </div>
+
+        <div class="stack-grid">
+          <article>
+            <h3>Linguagens</h3>
+            <p>JavaScript, TypeScript, Python, PHP, C#, Java, HTML, CSS</p>
+          </article>
+          <article>
+            <h3>Frameworks</h3>
+            <p>React, React Native, Node.js, Next.js, Laravel, Tailwind CSS, FastAPI</p>
+          </article>
+          <article>
+            <h3>Dados</h3>
+            <p>PostgreSQL, MySQL, SQLite, Redis, SQL Server, Prisma ORM, Drizzle ORM</p>
+          </article>
+          <article>
+            <h3>DevOps</h3>
+            <p>AWS, Git, GitHub, GitFlow, GitHub Actions, Docker, CI/CD, EAS</p>
+          </article>
+          <article>
+            <h3>IA</h3>
+            <p>RAG, Prompt Engineering, NLP, Streaming API, MCP, Agentic Workflows, GenAI</p>
+          </article>
+          <article>
+            <h3>Qualidade</h3>
+            <p>TDD, testes automatizados, RNTL, SOLID, código limpo, API REST</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="formacao" aria-labelledby="formacao-title">
+        <div class="section-heading">
+          <p class="prompt">$ cat formacao.md</p>
+          <h2 id="formacao-title">Formação</h2>
+        </div>
+
+        <div class="education-list">
+          <article>
+            <div>
+              <h3>Universidade Vila Velha - UVV</h3>
+              <p>Tecnólogo em Análise e Desenvolvimento de Sistemas</p>
+            </div>
+            <span>jul 2024 - dez 2026</span>
+          </article>
+          <article>
+            <div>
+              <h3>Senac Brasil</h3>
+              <p>Técnico de Informática para a Internet</p>
+            </div>
+            <span>jun 2022 - ago 2024</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="section contact-section" id="contato" aria-labelledby="contato-title">
+        <div class="section-heading">
+          <p class="prompt">$ open contato</p>
+          <h2 id="contato-title">Contato</h2>
+        </div>
+        <p class="contact-copy">
+          Estou aberto a oportunidades full stack, mobile e produtos com IA aplicada.
+          Português nativo e inglês avançado (C1).
+        </p>
+        <div class="contact-links">
+          <a href="mailto:contatoluizfbm@gmail.com">contatoluizfbm@gmail.com</a>
+          <a class="icon-link" href="https://github.com/Luizfbm" target="_blank" rel="noreferrer">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.16 1.18A10.98 10.98 0 0 1 12 5.98c.98 0 1.96.13 2.88.39 2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.24 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.14 0 1.54-.01 2.78-.01 3.16 0 .31.21.68.8.56A11.52 11.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"></path>
+            </svg>
+            github.com/Luizfbm
+          </a>
+          <a class="icon-link" href="https://www.linkedin.com/in/luizfilipedev/" target="_blank" rel="noreferrer">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V8.98h3.42v1.57h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.29ZM5.32 7.42a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12Zm1.78 13.03H3.54V8.98H7.1v11.47ZM22.23 0H1.76C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.76 24h20.47c.97 0 1.77-.77 1.77-1.72V1.72C24 .77 23.2 0 22.23 0Z"></path>
+            </svg>
+            linkedin.com/in/luizfilipedev
+          </a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <button class="back-to-top" type="button" aria-label="Voltar ao topo">^</button>
+
+  <script src="script.js"></script>
+</body>
+</html>

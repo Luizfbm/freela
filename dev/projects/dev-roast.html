@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Case do Dev-roast, plataforma de análise de código com IA.">
+  <title>Dev-roast | Luiz Filipe Miranda</title>
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="terminal-shell" id="top">
+    <header class="window-bar" aria-label="Barra da janela">
+      <div class="window-controls" aria-hidden="true"><span class="control close"></span><span class="control minimize"></span><span class="control maximize"></span></div>
+      <a class="window-title" href="../index.html#projetos">voltar ~/portfolio</a>
+    </header>
+    <main>
+      <section class="hero case-hero" aria-labelledby="project-title">
+        <p class="prompt">$ open projects/dev-roast</p>
+        <p class="eyebrow">AI code review | produto compartilhável</p>
+        <h1 id="project-title">Dev-roast pega revisão de código com IA e deixa o resultado fácil de compartilhar.</h1>
+        <p class="hero-copy">
+          O usuário cola um snippet e recebe crítica técnica, score, veredito, sugestões e uma página de resultado.
+          Por baixo, o projeto usa server-first, tRPC, Drizzle e syntax highlight no servidor.
+        </p>
+        <div class="hero-actions">
+          <a class="terminal-button" href="../index.html#projetos">voltar</a>
+          <a class="terminal-button icon-link" href="https://github.com/Luizfbm/Dev-roast" target="_blank" rel="noreferrer">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.16 1.18A10.98 10.98 0 0 1 12 5.98c.98 0 1.96.13 2.88.39 2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.24 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.14 0 1.54-.01 2.78-.01 3.16 0 .31.21.68.8.56A11.52 11.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"></path></svg>
+            GitHub
+          </a>
+        </div>
+      </section>
+
+      <section class="metrics case-metrics" aria-label="Destaques do projeto">
+        <article><strong>Server-first</strong><span>menos JavaScript no cliente</span></article>
+        <article><strong>Type-safe</strong><span>Drizzle -> tRPC -> React</span></article>
+        <article><strong>Shareable</strong><span>resultado pronto para compartilhar</span></article>
+        <article><strong>Shiki SSR</strong><span>highlight sem pesar no cliente</span></article>
+      </section>
+
+      <section class="section terminal-panel">
+        <div class="section-heading"><p class="prompt">$ cat story.md</p><h2>História</h2></div>
+        <p class="case-copy">
+          O Dev-roast parte de uma ação simples: colar um trecho de código. A graça está no tom, mas o produto não
+          depende só da piada. Ele entrega análise, pontuação, veredito, sugestões e uma página final que funciona bem
+          como conteúdo compartilhável.
+        </p>
+      </section>
+
+      <section class="section architecture-section">
+        <div class="section-heading"><p class="prompt">$ cat architecture.svg</p><h2>Arquitetura</h2></div>
+        <figure class="architecture-figure">
+          <img src="../assets/dev-roast-architecture.svg?v=diagram-v2" alt="Diagrama da arquitetura do Dev-roast com Client, Next.js App Router, tRPC Router, Gemini e PostgreSQL.">
+          <figcaption>
+            Fluxo server-first: páginas e Server Components preparam dados via tRPC, mutações passam por API Route,
+            a análise usa Gemini e os resultados ficam em PostgreSQL com Drizzle ORM.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section">
+        <div class="section-heading"><p class="prompt">$ grep selling-points</p><h2>Por que vale olhar</h2></div>
+        <div class="selling-grid">
+          <article><h3>Tom que chama atenção</h3><p>O roast tira a análise de código do formato genérico e deixa o resultado mais fácil de lembrar.</p></article>
+          <article><h3>Stack atual</h3><p>Next.js 16, React 19, tRPC, TanStack Query, Drizzle e Tailwind v4.</p></article>
+          <article><h3>Menos peso no cliente</h3><p>Server Components, prefetch/hydration e Shiki no servidor reduzem trabalho no browser.</p></article>
+        </div>
+      </section>
+
+      <section class="section terminal-panel">
+        <div class="section-heading"><p class="prompt">$ view code --tabs</p><h2>Viewer de código</h2></div>
+        <div class="code-viewer" data-code-viewer>
+          <div class="code-tabs" role="tablist" aria-label="Trechos de código do Dev-roast">
+            <button class="code-tab active" type="button" data-code-tab="trpc">server.tsx</button>
+            <button class="code-tab" type="button" data-code-tab="mutation">roast.ts</button>
+            <button class="code-tab" type="button" data-code-tab="highlight">code-block.tsx</button>
+            <button class="code-tab" type="button" data-code-tab="editor">editor-body.tsx</button>
+            <button class="code-tab" type="button" data-code-tab="og">opengraph-image.tsx</button>
+          </div>
+          <pre class="code-pane active" data-code-pane="trpc"><code>import "server-only";
+
+import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
+import type { TRPCQueryOptions } from "@trpc/tanstack-react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+import { cache } from "react";
+import { createTRPCContext } from "./init";
+import { makeQueryClient } from "./query-client";
+import { appRouter } from "./routers/_app";
+
+export const getQueryClient = cache(makeQueryClient);
+
+export const trpc = createTRPCOptionsProxy({
+  ctx: createTRPCContext,
+  router: appRouter,
+  queryClient: getQueryClient,
+});
+
+export const caller = appRouter.createCaller(createTRPCContext);
+
+export function HydrateClient({ children }: { children: React.ReactNode }) {
+  const queryClient = getQueryClient();
+  return (
+    &lt;HydrationBoundary state={dehydrate(queryClient)}&gt;
+      {children}
+    &lt;/HydrationBoundary&gt;
+  );
+}
+
+export function prefetch&lt;T extends ReturnType&lt;TRPCQueryOptions&lt;any&gt;&gt;&gt;(
+  queryOptions: T,
+) {
+  const queryClient = getQueryClient();
+  if (queryOptions.queryKey[1]?.type === "infinite") {
+    return queryClient.prefetchInfiniteQuery(queryOptions as any);
+  }
+  return queryClient.prefetchQuery(queryOptions);
+}</code></pre>
+          <pre class="code-pane" data-code-pane="mutation"><code>create: baseProcedure
+  .input(
+    z.object({
+      code: z.string().min(1),
+      language: z.string(),
+      roastMode: z.boolean(),
+    })
+  )
+  .mutation(async ({ ctx, input }) => {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash-lite",
+      generationConfig: { responseMimeType: "application/json" },
+    });
+
+    const result = await model.generateContent(prompt);
+    const data = JSON.parse(result.response.text());
+
+    const [roast] = await ctx.db.transaction(async (tx) => {
+      const [insertedRoast] = await tx
+        .insert(roasts)
+        .values({
+          code: input.code,
+          language: input.language,
+          lineCount: input.code.split("\n").length,
+          score: data.score,
+          verdict: data.verdict,
+          roastQuote: data.roastQuote,
+          suggestedFix: data.suggestedFix,
+        })
+        .returning();
+
+      if (data.analysisItems?.length > 0) {
+        await tx.insert(analysisItems).values(
+          data.analysisItems.map((item, index) => ({
+            roastId: insertedRoast.id,
+            severity: item.severity,
+            title: item.title,
+            description: item.description,
+            order: index,
+          }))
+        );
+      }
+
+      return [insertedRoast];
+    });
+
+    return { id: roast.id };
+  }),</code></pre>
+          <pre class="code-pane" data-code-pane="highlight"><code>/**
+ * Server Component: syntax highlighting com zero bundle no client.
+ */
+export async function CodeBlockContent({
+  code,
+  lang = "typescript",
+  className,
+}: CodeBlockContentProps) {
+  "use cache";
+
+  const html = await codeToHtml(code, {
+    lang,
+    theme: "vesper",
+  });
+
+  const linesCount = code.trim().split("\n").length;
+
+  return (
+    &lt;div className={body({ className })}&gt;
+      &lt;div className={lineNumbers()}&gt;
+        {Array.from({ length: linesCount }).map((_, i) => (
+          &lt;span key={i}&gt;{i + 1}&lt;/span&gt;
+        ))}
+      &lt;/div&gt;
+      &lt;div
+        className={contentStyle()}
+        dangerouslySetInnerHTML={{ __html: html }}
+      /&gt;
+    &lt;/div&gt;
+  );
+}</code></pre>
+          <pre class="code-pane" data-code-pane="editor"><code>{/* Editor Layers */}
+&lt;div className="flex-1 relative overflow-hidden bg-bg-input"&gt;
+  {/* Layer 1: Código com highlight (visual, não-interativo) */}
+  &lt;div
+    ref={preRef}
+    className="absolute inset-0 p-4 font-mono text-[12px] leading-5 
+               pointer-events-none overflow-hidden whitespace-pre"
+    dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+    aria-hidden="true"
+  /&gt;
+
+  {/* Layer 2: Textarea transparente (interativo, invisível) */}
+  &lt;textarea
+    ref={textareaRef}
+    value={code}
+    onChange={(e) =&gt; onChange(e.target.value)}
+    onScroll={handleScroll}
+    onKeyDown={handleKeyDown}
+    spellCheck={false}
+    className="absolute inset-0 w-full h-full p-4 bg-transparent 
+               text-transparent caret-white font-mono text-[12px] 
+               leading-5 resize-none outline-none z-20"
+    placeholder="// paste your code here..."
+  /&gt;
+&lt;/div&gt;</code></pre>
+          <pre class="code-pane" data-code-pane="og"><code>export const alt = "DevRoast - AI Code Analysis Result";
+export const size = { width: 1200, height: 630 };
+export const contentType = "image/png";
+
+export default async function Image({
+  params,
+}: {
+  params: Promise&lt;{ id: string }&gt;;
+}) {
+  const { id } = await params;
+  const roastData = await caller.roast.getById({ id });
+
+  const getScoreColor = (score: number) =&gt; {
+    if (score &lt;= 3.5) return "#FBBF24";
+    if (score &lt;= 6) return "#EAB308";
+    if (score &lt;= 8) return "#22C55E";
+    return "#10B981";
+  };
+
+  return new ImageResponse(
+    (
+      &lt;div style={{
+        height: "100%", width: "100%",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        backgroundColor: "#000000", padding: "80px",
+      }}&gt;
+        &lt;span style={{
+          fontSize: "160px", fontWeight: 800,
+          color: getScoreColor(roastData.score),
+        }}&gt;
+          {roastData.score.toFixed(1)}
+        &lt;/span&gt;
+        &lt;span style={{ color: "#71717A", fontSize: "48px" }}&gt;/10&lt;/span&gt;
+        &lt;span style={{ color: "#FFFFFF", fontSize: "24px", fontStyle: "italic" }}&gt;
+          "{roastData.roastQuote}"
+        &lt;/span&gt;
+      &lt;/div&gt;
+    ),
+    { ...size }
+  );
+}</code></pre>
+        </div>
+      </section>
+
+      <section class="section case-result"><p class="prompt">$ result</p><p>Uma ideia simples bem fechada: IA para revisar código, página compartilhável e arquitetura server-first por baixo.</p></section>
+    </main>
+  </div>
+  <button class="back-to-top" type="button" aria-label="Voltar ao topo">^</button>
+  <script src="../script.js"></script>
+</body>
+</html>
