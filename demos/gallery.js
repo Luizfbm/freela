@@ -1,5 +1,13 @@
 const demos = [
   {
+    name: "Dilma Santana Podóloga",
+    slug: "dilma-santana-podologa",
+    segment: "Podologia",
+    area: "Jardim Camburi, Vitória/ES",
+    group: "Hot Vitória",
+    tags: ["hot", "podologia", "vitoria", "jardim camburi"],
+  },
+  {
     name: "VilaFisio Fisioterapia",
     slug: "vilafisio-fisioterapia",
     segment: "Fisioterapia",

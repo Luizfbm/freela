@@ -13,6 +13,7 @@ python3 -m http.server 4173
 Acesse:
 
 - http://localhost:4173/demos/
+- http://localhost:4173/demos/dilma-santana-podologa/
 - http://localhost:4173/demos/clinica-equilibrio-fisioterapia/
 - http://localhost:4173/demos/coi-odontologia/
 - http://localhost:4173/demos/fisiohealth-clinica-fisioterapia-pilates/
