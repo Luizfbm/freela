@@ -144,6 +144,10 @@ jobs:
               printf '%s' "$1" | jq -c '(.result.data // .data // empty)'
             }
 
+            normalize_deployable() {
+              printf '%s' "$1" | jq -r 'if (.deployable == true or .deployable == 1 or .deployable == "1" or .deployable == "true") then "1" elif (.deployable == false or .deployable == 0 or .deployable == "0" or .deployable == "false") then "0" else (.deployable // "") end'
+            }
+
             uapi_diagnostics() {
               printf '%s\n' "$1" \
                 | jq -c '{status: (.result.status // .status), errors: (.result.errors // .errors), messages: (.result.messages // .messages), warnings: (.result.warnings // .warnings), metadata: (.result.metadata // .metadata)}' \
@@ -178,6 +182,7 @@ jobs:
 
             remote_sha=""
             deployable=""
+            deployable_raw=""
 
             for attempt in {1..30}; do
               retrieve_response="$(
@@ -193,7 +198,8 @@ jobs:
 
               if [ -n "$repo_json" ]; then
                 remote_sha="$(printf '%s' "$repo_json" | jq -r '.last_update.identifier // ""')"
-                deployable="$(printf '%s' "$repo_json" | jq -r '.deployable // ""')"
+                deployable="$(normalize_deployable "$repo_json")"
+                deployable_raw="$(printf '%s' "$repo_json" | jq -r '.deployable // "missing"')"
               fi
 
               if [ "$remote_sha" = "$GITHUB_SHA" ]; then
@@ -210,7 +216,8 @@ jobs:
             fi
 
             if [ "$deployable" != "1" ]; then
-              echo "::error::cPanel repository is not deployable after update"
+              echo "::error::cPanel repository is not deployable after update (deployable=${deployable_raw:-unknown})"
+              printf '%s\n' "$repo_json" | jq -c '{repository_root, branch, deployable, tasks}' || true
               exit 1
             fi
 
