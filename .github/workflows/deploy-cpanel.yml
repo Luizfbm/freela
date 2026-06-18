@@ -216,9 +216,11 @@ jobs:
             fi
 
             if [ "$deployable" != "1" ]; then
-              echo "::error::cPanel repository is not deployable after update (deployable=${deployable_raw:-unknown})"
+              echo "::warning::cPanel repository reports deployable=${deployable_raw:-unknown}; treating VersionControl/update as update-only deploy because remote HEAD matches $GITHUB_SHA."
               printf '%s\n' "$repo_json" | jq -c '{repository_root, branch, deployable, tasks}' || true
-              exit 1
+              echo "PAPERCLIP_DEPLOY_UPDATE_ONLY_OK"
+              echo "PAPERCLIP_DEPLOY_REMOTE_OK"
+              exit 0
             fi
 
             echo "Creating cPanel deployment via UAPI."

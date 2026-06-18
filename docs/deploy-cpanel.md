@@ -41,6 +41,8 @@ O workflow usa UAPI conforme a documentacao oficial do cPanel:
 - `VersionControlDeployment/create` para acionar o deploy.
 - `VersionControlDeployment/retrieve` para esperar o deploy terminar com sucesso.
 
+Se o repo do cPanel ja e a raiz publicada do site, o cPanel pode responder `deployable=0` e `tasks=[]`. Nesse caso o workflow usa o modo `update-only`: depois que `VersionControl/update` confirma que o checkout remoto chegou no `GITHUB_SHA`, o push ja esta publicado e a Action termina com sucesso. Mesmo assim, o agente deve verificar a URL publicada antes de liberar qualquer link.
+
 ### 2. Acesso SSH legado do GitHub Actions ao cPanel
 
 Use este caminho somente se a conta tiver shell habilitado. Crie uma chave SSH dedicada para deploy. A chave publica deve ser autorizada no cPanel em `SSH Access > Authorized Keys`.
@@ -110,9 +112,11 @@ Se o site estiver em subdominio ou outro diretoria, ajuste a linha `DEPLOYPATH` 
 Ao fazer push na branch `main`, o GitHub Actions:
 
 1. valida secrets e variables;
-2. se `CPANEL_API_TOKEN` existir, chama UAPI para atualizar o repositorio, confirma que o checkout remoto chegou no `GITHUB_SHA`, cria o deploy e espera o status `succeeded`;
-3. se `CPANEL_API_TOKEN` nao existir, usa o fallback SSH para rodar `git pull --ff-only origin main` e `uapi VersionControlDeployment create repository_root=...`;
-4. o cPanel le o `.cpanel.yml` e sincroniza os arquivos publicos.
+2. se `CPANEL_API_TOKEN` existir, chama UAPI para atualizar o repositorio e confirma que o checkout remoto chegou no `GITHUB_SHA`;
+3. se o cPanel reportar o repo como deployable, cria o deploy e espera o status `succeeded`;
+4. se o repo do cPanel ja e a raiz publicada e o cPanel reportar `deployable=0`, usa o modo `update-only` e considera o deploy concluido apos o SHA remoto bater;
+5. se `CPANEL_API_TOKEN` nao existir, usa o fallback SSH para rodar `git pull --ff-only origin main` e `uapi VersionControlDeployment create repository_root=...`;
+6. quando o modo deployable estiver ativo, o cPanel le o `.cpanel.yml` e sincroniza os arquivos publicos.
 
 Tambem da para rodar manualmente pelo botao `Run workflow` em `Actions > Deploy cPanel`.
 
