@@ -3,7 +3,7 @@
 Este repositorio ja tem duas pecas da automacao:
 
 - `.cpanel.yml`: define o que o cPanel publica em `public_html`.
-- `.github/workflows/deploy-cpanel.yml`: entra no cPanel por SSH, roda `git pull --ff-only` e aciona `VersionControlDeployment`.
+- `.github/workflows/deploy-cpanel.yml`: aciona o deploy pelo GitHub Actions. O caminho preferido usa UAPI com token do cPanel; o caminho SSH fica como fallback legado.
 
 ## Regra operacional para agentes
 
@@ -14,15 +14,36 @@ Agentes podem acionar deploy automatico quando isso fizer parte da tarefa, mas o
 3. acompanhar `Actions > Deploy cPanel` no GitHub Actions;
 4. verificar o link publicado com `curl`, navegador ou QA antes de liberar para envio ao cliente.
 
-Nao usar cPanel manual, nao usar FTP e nao fazer SSH manual para publicar arquivos. SSH no workflow existe apenas como detalhe interno da automacao.
+Nao usar cPanel manual, nao usar FTP e nao fazer SSH manual para publicar arquivos. SSH no workflow existe apenas como fallback interno da automacao.
 
-Se o GitHub Actions falhar com `Shell access is not enabled`, o deploy automatico nao rodou de verdade. Nesse caso, a correcao operacional e habilitar shell no cPanel ou migrar o workflow para um caminho com token/API do cPanel.
+Se o GitHub Actions falhar com `Shell access is not enabled`, o deploy automatico por SSH nao rodou. Nesse caso, configure o caminho preferido por token/API do cPanel ou habilite shell no cPanel.
 
 ## O que voce precisa configurar uma vez
 
-### 1. Acesso do GitHub Actions ao cPanel
+### 1. Acesso do GitHub Actions ao cPanel por API
 
-Crie uma chave SSH dedicada para deploy. A chave publica deve ser autorizada no cPanel em `SSH Access > Authorized Keys`.
+Este e o caminho preferido, porque nao depende de shell interativo no hosting.
+
+No cPanel, crie um API Token com permissao para Git Version Control. No GitHub, em `Settings > Secrets and variables > Actions > Secrets`, crie:
+
+- `CPANEL_API_TOKEN`: token de API do cPanel.
+- `CPANEL_API_HOST`: host do cPanel. Opcional se `CPANEL_SSH_HOST` ja existir e apontar para o mesmo host.
+- `CPANEL_API_USER`: usuario do cPanel. Opcional se `CPANEL_SSH_USER` ja existir e apontar para o mesmo usuario.
+
+No GitHub, em `Settings > Secrets and variables > Actions > Variables`, crie se precisar:
+
+- `CPANEL_API_PORT`: porta da API do cPanel. Padrao: `2083`.
+
+O workflow usa UAPI conforme a documentacao oficial do cPanel:
+
+- `VersionControl/update` com `repository_root` e `branch` para puxar a branch remota.
+- `VersionControl/retrieve` para esperar o checkout remoto chegar no `GITHUB_SHA`.
+- `VersionControlDeployment/create` para acionar o deploy.
+- `VersionControlDeployment/retrieve` para esperar o deploy terminar com sucesso.
+
+### 2. Acesso SSH legado do GitHub Actions ao cPanel
+
+Use este caminho somente se a conta tiver shell habilitado. Crie uma chave SSH dedicada para deploy. A chave publica deve ser autorizada no cPanel em `SSH Access > Authorized Keys`.
 
 No GitHub, em `Settings > Secrets and variables > Actions > Secrets`, crie:
 
@@ -34,11 +55,11 @@ No GitHub, em `Settings > Secrets and variables > Actions > Secrets`, crie:
 
 Nao commite chave privada, senha, token ou host sensivel no repositorio.
 
-### 2. Acesso do cPanel ao GitHub
+### 3. Acesso do cPanel ao GitHub
 
-Se o repositorio do GitHub for privado, o proprio servidor cPanel precisa conseguir fazer `git pull`.
+Se o repositorio do GitHub for privado, o proprio servidor cPanel precisa conseguir fazer pull pelo recurso de Git Version Control.
 
-No terminal do cPanel:
+Com shell habilitado, isso pode ser configurado no terminal do cPanel:
 
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/freela_github_deploy -C "cpanel-freela-deploy"
@@ -64,15 +85,17 @@ cd /home/SEU_USUARIO/caminho/do/repositorio
 git pull --ff-only origin main
 ```
 
-### 3. Variaveis do GitHub Actions
+Sem shell habilitado, configure o acesso do repositorio remoto pela interface de Git Version Control do cPanel.
+
+### 4. Variaveis do GitHub Actions
 
 No GitHub, em `Settings > Secrets and variables > Actions > Variables`, crie:
 
 - `CPANEL_REPO_PATH`: caminho absoluto do repositorio no cPanel. Exemplo: `/home/SEU_USUARIO/repos/freela`.
 - `CPANEL_BRANCH`: `main`.
-- `CPANEL_UAPI_BIN`: normalmente `/usr/bin/uapi`. Se o servidor usar CloudLinux, pode ser `/usr/local/cpanel/bin/uapi`.
+- `CPANEL_UAPI_BIN`: somente para o fallback SSH. Normalmente `/usr/bin/uapi`. Se o servidor usar CloudLinux, pode ser `/usr/local/cpanel/bin/uapi`.
 
-### 4. Conferir destino publico
+### 5. Conferir destino publico
 
 O `.cpanel.yml` publica em:
 
@@ -87,11 +110,9 @@ Se o site estiver em subdominio ou outro diretoria, ajuste a linha `DEPLOYPATH` 
 Ao fazer push na branch `main`, o GitHub Actions:
 
 1. valida secrets e variables;
-2. conecta no cPanel por SSH;
-3. entra em `CPANEL_REPO_PATH`;
-4. roda `git pull --ff-only origin main`;
-5. executa `uapi VersionControlDeployment create repository_root=...`;
-6. o cPanel le o `.cpanel.yml` e sincroniza os arquivos publicos.
+2. se `CPANEL_API_TOKEN` existir, chama UAPI para atualizar o repositorio, confirma que o checkout remoto chegou no `GITHUB_SHA`, cria o deploy e espera o status `succeeded`;
+3. se `CPANEL_API_TOKEN` nao existir, usa o fallback SSH para rodar `git pull --ff-only origin main` e `uapi VersionControlDeployment create repository_root=...`;
+4. o cPanel le o `.cpanel.yml` e sincroniza os arquivos publicos.
 
 Tambem da para rodar manualmente pelo botao `Run workflow` em `Actions > Deploy cPanel`.
 
@@ -106,8 +127,10 @@ git push origin main
 No GitHub, acompanhe `Actions > Deploy cPanel`. Se falhar, os erros mais comuns sao:
 
 - SSH nao autorizado no cPanel.
+- `CPANEL_API_TOKEN` ausente ou sem permissao para Git Version Control.
 - `CPANEL_REPO_PATH` aponta para o diretorio errado.
 - cPanel nao consegue fazer `git pull` do GitHub.
 - caminho do `uapi` diferente do configurado.
+- shell desabilitado quando o workflow estiver usando o fallback SSH.
 
 Quando passar, o deploy automatico fica ativo para todo push em `main`.

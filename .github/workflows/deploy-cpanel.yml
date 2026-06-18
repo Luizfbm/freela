@@ -19,6 +19,10 @@ jobs:
     timeout-minutes: 10
 
     env:
+      CPANEL_API_HOST: ${{ secrets.CPANEL_API_HOST }}
+      CPANEL_API_USER: ${{ secrets.CPANEL_API_USER }}
+      CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+      CPANEL_API_PORT: ${{ vars.CPANEL_API_PORT || '2083' }}
       CPANEL_SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
       CPANEL_SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
       CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
@@ -35,6 +39,27 @@ jobs:
           set -euo pipefail
 
           missing=0
+          api_host="${CPANEL_API_HOST:-${CPANEL_SSH_HOST:-}}"
+          api_user="${CPANEL_API_USER:-${CPANEL_SSH_USER:-}}"
+
+          if [ -z "${CPANEL_REPO_PATH:-}" ]; then
+            echo "::error::Missing repository variable CPANEL_REPO_PATH"
+            missing=1
+          fi
+
+          if [ -n "${CPANEL_API_TOKEN:-}" ]; then
+            if [ -z "$api_host" ]; then
+              echo "::error::Missing repository secret CPANEL_API_HOST, or CPANEL_SSH_HOST as fallback"
+              missing=1
+            fi
+
+            if [ -z "$api_user" ]; then
+              echo "::error::Missing repository secret CPANEL_API_USER, or CPANEL_SSH_USER as fallback"
+              missing=1
+            fi
+
+            exit "$missing"
+          fi
 
           if [ -z "${CPANEL_SSH_HOST:-}" ]; then
             echo "::error::Missing repository secret CPANEL_SSH_HOST"
@@ -51,17 +76,17 @@ jobs:
             missing=1
           fi
 
-          if [ -z "${CPANEL_REPO_PATH:-}" ]; then
-            echo "::error::Missing repository variable CPANEL_REPO_PATH"
-            missing=1
-          fi
-
           exit "$missing"
 
       - name: Configure SSH
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ -n "${CPANEL_API_TOKEN:-}" ]; then
+            echo "Using cPanel UAPI token path; SSH key setup skipped."
+            exit 0
+          fi
 
           install -m 700 -d ~/.ssh
           key_material="${CPANEL_SSH_KEY//$'\\n'/$'\n'}"
@@ -88,6 +113,143 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ -n "${CPANEL_API_TOKEN:-}" ]; then
+            if ! command -v jq >/dev/null; then
+              echo "::error::jq is required for cPanel UAPI response validation"
+              exit 1
+            fi
+
+            api_host="${CPANEL_API_HOST:-${CPANEL_SSH_HOST:-}}"
+            api_user="${CPANEL_API_USER:-${CPANEL_SSH_USER:-}}"
+            api_port="${CPANEL_API_PORT:-2083}"
+            api_base="https://${api_host}:${api_port}/execute"
+            branch="${CPANEL_BRANCH:-main}"
+
+            api_call() {
+              local endpoint="$1"
+              shift
+
+              curl --fail-with-body --silent --show-error --get \
+                --header "Authorization: cpanel ${api_user}:${CPANEL_API_TOKEN}" \
+                "$@" \
+                "${api_base}/${endpoint}"
+            }
+
+            assert_uapi_success() {
+              local body="$1"
+              local label="$2"
+
+              if ! printf '%s' "$body" | jq -e '.result.status == 1' >/dev/null; then
+                echo "::error::${label} failed"
+                printf '%s\n' "$body" | jq -c '{errors: .result.errors, messages: .result.messages, warnings: .result.warnings}' || printf '%s\n' "$body"
+                exit 1
+              fi
+            }
+
+            echo "Updating cPanel-managed repository via UAPI."
+            update_response="$(
+              api_call "VersionControl/update" \
+                --data-urlencode "repository_root=${CPANEL_REPO_PATH}" \
+                --data-urlencode "branch=${branch}"
+            )"
+            assert_uapi_success "$update_response" "VersionControl/update"
+
+            remote_sha=""
+            deployable=""
+
+            for attempt in {1..30}; do
+              retrieve_response="$(
+                api_call "VersionControl/retrieve" \
+                  --data-urlencode "fields=repository_root,branch,last_update,deployable,tasks"
+              )"
+              assert_uapi_success "$retrieve_response" "VersionControl/retrieve"
+
+              repo_json="$(
+                printf '%s' "$retrieve_response" \
+                  | jq -c --arg root "$CPANEL_REPO_PATH" '[.result.data[]? | select(.repository_root == $root)][0] // empty'
+              )"
+
+              if [ -n "$repo_json" ]; then
+                remote_sha="$(printf '%s' "$repo_json" | jq -r '.last_update.identifier // ""')"
+                deployable="$(printf '%s' "$repo_json" | jq -r '.deployable // ""')"
+              fi
+
+              if [ "$remote_sha" = "$GITHUB_SHA" ]; then
+                break
+              fi
+
+              echo "Waiting for cPanel repository update (${attempt}/30). Current remote HEAD: ${remote_sha:-unknown}"
+              sleep 5
+            done
+
+            if [ "$remote_sha" != "$GITHUB_SHA" ]; then
+              echo "::error::cPanel repository did not update to $GITHUB_SHA. Last observed HEAD: ${remote_sha:-unknown}"
+              exit 1
+            fi
+
+            if [ "$deployable" != "1" ]; then
+              echo "::error::cPanel repository is not deployable after update"
+              exit 1
+            fi
+
+            echo "Creating cPanel deployment via UAPI."
+            deploy_response="$(
+              api_call "VersionControlDeployment/create" \
+                --data-urlencode "repository_root=${CPANEL_REPO_PATH}"
+            )"
+            assert_uapi_success "$deploy_response" "VersionControlDeployment/create"
+
+            deploy_id="$(printf '%s' "$deploy_response" | jq -r '.result.data.deploy_id // empty')"
+
+            if [ -z "$deploy_id" ]; then
+              echo "::error::VersionControlDeployment/create did not return a deploy_id"
+              exit 1
+            fi
+
+            deployment_state=""
+
+            for attempt in {1..60}; do
+              deployment_response="$(api_call "VersionControlDeployment/retrieve")"
+              assert_uapi_success "$deployment_response" "VersionControlDeployment/retrieve"
+
+              deployment_json="$(
+                printf '%s' "$deployment_response" \
+                  | jq -c --arg id "$deploy_id" '[.result.data[]? | select((.deploy_id | tostring) == $id)][0] // empty'
+              )"
+
+              if [ -n "$deployment_json" ]; then
+                if [ "$(printf '%s' "$deployment_json" | jq -r '.timestamps.failed // empty')" ]; then
+                  echo "::error::cPanel deployment ${deploy_id} failed"
+                  printf '%s\n' "$deployment_json" | jq -c '{deploy_id, log_path, timestamps, repository_state}'
+                  exit 1
+                fi
+
+                if [ "$(printf '%s' "$deployment_json" | jq -r '.timestamps.canceled // empty')" ]; then
+                  echo "::error::cPanel deployment ${deploy_id} was canceled"
+                  printf '%s\n' "$deployment_json" | jq -c '{deploy_id, log_path, timestamps, repository_state}'
+                  exit 1
+                fi
+
+                if [ "$(printf '%s' "$deployment_json" | jq -r '.timestamps.succeeded // empty')" ]; then
+                  deployment_state="succeeded"
+                  printf '%s\n' "$deployment_json" | jq -c '{deploy_id, log_path, timestamps, repository_state}'
+                  break
+                fi
+              fi
+
+              echo "Waiting for cPanel deployment ${deploy_id} (${attempt}/60)."
+              sleep 5
+            done
+
+            if [ "$deployment_state" != "succeeded" ]; then
+              echo "::error::Timed out waiting for cPanel deployment ${deploy_id}"
+              exit 1
+            fi
+
+            echo "PAPERCLIP_DEPLOY_REMOTE_OK"
+            exit 0
+          fi
 
           printf -v repo_path_q '%q' "$CPANEL_REPO_PATH"
           printf -v branch_q '%q' "${CPANEL_BRANCH:-main}"
