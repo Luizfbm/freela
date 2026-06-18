@@ -64,8 +64,19 @@ jobs:
           set -euo pipefail
 
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$CPANEL_SSH_KEY" | tr -d '\r' > ~/.ssh/cpanel_deploy_key
+          key_material="${CPANEL_SSH_KEY//$'\\n'/$'\n'}"
+          printf '%s\n' "$key_material" | tr -d '\r' > ~/.ssh/cpanel_deploy_key
           chmod 600 ~/.ssh/cpanel_deploy_key
+
+          if ! grep -q -- "-----BEGIN .* PRIVATE KEY-----" ~/.ssh/cpanel_deploy_key; then
+            echo "::error::CPANEL_SSH_KEY must be the private key, including BEGIN/END lines. Do not use the .pub public key here."
+            exit 1
+          fi
+
+          if ! ssh-keygen -y -f ~/.ssh/cpanel_deploy_key >/dev/null; then
+            echo "::error::CPANEL_SSH_KEY is not a valid OpenSSH private key. Recreate the secret with the exact multiline private key."
+            exit 1
+          fi
 
           if [ -n "${CPANEL_SSH_KNOWN_HOSTS:-}" ]; then
             printf '%s\n' "$CPANEL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
