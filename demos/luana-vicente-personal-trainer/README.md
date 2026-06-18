@@ -8,7 +8,7 @@ Demo de Presença Local em 72h para Luana Vicente Personal Trainer.
 - Nicho: personal trainer.
 - Região: Vitória, Espírito Santo.
 - Instagram público usado como referência: <https://www.instagram.com/luanavicentepersonal/>.
-- WhatsApp usado na demo: +55 27 98184-4010.
+- Contato direto: a confirmar antes de publicar ou enviar a demo.
 
 ## Objetivo da demo
 
