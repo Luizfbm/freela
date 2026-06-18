@@ -339,19 +339,9 @@ function setLink(anchor, href) {
   anchor.href = href;
 }
 
-function buildWhatsappHref(demo) {
-  const whatsappData = window.demoWhatsappLinks?.[demo.slug];
-  if (!whatsappData?.phone || !whatsappData?.message) {
-    return `./${demo.slug}/copy-whatsapp.md`;
-  }
-  return `https://wa.me/${whatsappData.phone}?text=${encodeURIComponent(whatsappData.message)}`;
-}
-
 function renderCard(demo) {
   const item = template.content.cloneNode(true);
   const card = item.querySelector(".demo-card");
-  const thumb = item.querySelector(".thumb-link");
-  const image = item.querySelector("img");
   const title = item.querySelector("h2");
   const location = item.querySelector(".demo-location");
   const segment = item.querySelector(".segment-pill");
@@ -359,20 +349,12 @@ function renderCard(demo) {
 
   const demoUrl = `./${demo.slug}/`;
   card.dataset.search = demoText(demo);
-  setLink(thumb, demoUrl);
-  image.loading = "eager";
-  image.decoding = "async";
-  image.src = `./thumbnails/${demo.slug}.jpg`;
-  image.alt = `Screenshot desktop de ${demo.name}`;
   title.textContent = demo.name;
   location.textContent = demo.area;
   segment.textContent = demo.segment;
   status.textContent = demo.group;
 
   setLink(item.querySelector(".demo-link"), demoUrl);
-  setLink(item.querySelector(".screenshot-desktop"), `./${demo.slug}/screenshot-desktop.png`);
-  setLink(item.querySelector(".screenshot-mobile"), `./${demo.slug}/screenshot-mobile.png`);
-  setLink(item.querySelector(".whatsapp-link"), buildWhatsappHref(demo));
 
   return item;
 }

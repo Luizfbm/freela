@@ -1,0 +1,10 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH="${HOME}/public_html/"
+    - /bin/mkdir -p "$DEPLOYPATH"
+    - /bin/cp index.html styles.css script.js "$DEPLOYPATH"
+    - /bin/mkdir -p "$DEPLOYPATH/assets"
+    - /usr/bin/rsync -a --exclude='.DS_Store' assets/ "$DEPLOYPATH/assets/"
+    - /bin/mkdir -p "$DEPLOYPATH/demos"
+    - /usr/bin/rsync -a --delete --exclude='.DS_Store' demos/ "$DEPLOYPATH/demos/"

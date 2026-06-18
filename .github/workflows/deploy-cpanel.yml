@@ -1,0 +1,126 @@
+name: Deploy cPanel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: cpanel-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Pull and deploy on cPanel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      CPANEL_SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+      CPANEL_SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+      CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+      CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+      CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+      CPANEL_REPO_PATH: ${{ vars.CPANEL_REPO_PATH }}
+      CPANEL_BRANCH: ${{ vars.CPANEL_BRANCH || 'main' }}
+      CPANEL_UAPI_BIN: ${{ vars.CPANEL_UAPI_BIN || '/usr/bin/uapi' }}
+
+    steps:
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=0
+
+          if [ -z "${CPANEL_SSH_HOST:-}" ]; then
+            echo "::error::Missing repository secret CPANEL_SSH_HOST"
+            missing=1
+          fi
+
+          if [ -z "${CPANEL_SSH_USER:-}" ]; then
+            echo "::error::Missing repository secret CPANEL_SSH_USER"
+            missing=1
+          fi
+
+          if [ -z "${CPANEL_SSH_KEY:-}" ]; then
+            echo "::error::Missing repository secret CPANEL_SSH_KEY"
+            missing=1
+          fi
+
+          if [ -z "${CPANEL_REPO_PATH:-}" ]; then
+            echo "::error::Missing repository variable CPANEL_REPO_PATH"
+            missing=1
+          fi
+
+          exit "$missing"
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CPANEL_SSH_KEY" | tr -d '\r' > ~/.ssh/cpanel_deploy_key
+          chmod 600 ~/.ssh/cpanel_deploy_key
+
+          if [ -n "${CPANEL_SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$CPANEL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "${CPANEL_SSH_PORT:-22}" "$CPANEL_SSH_HOST" >> ~/.ssh/known_hosts
+          fi
+
+      - name: Pull latest commit and trigger cPanel deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          printf -v repo_path_q '%q' "$CPANEL_REPO_PATH"
+          printf -v branch_q '%q' "${CPANEL_BRANCH:-main}"
+          printf -v uapi_bin_q '%q' "${CPANEL_UAPI_BIN:-/usr/bin/uapi}"
+
+          ssh \
+            -i ~/.ssh/cpanel_deploy_key \
+            -p "${CPANEL_SSH_PORT:-22}" \
+            -o IdentitiesOnly=yes \
+            "$CPANEL_SSH_USER@$CPANEL_SSH_HOST" \
+            "CPANEL_REPO_PATH=$repo_path_q CPANEL_BRANCH=$branch_q CPANEL_UAPI_BIN=$uapi_bin_q bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+
+          if [ -z "${CPANEL_BRANCH:-}" ]; then
+            CPANEL_BRANCH=main
+          fi
+
+          if [ -z "${CPANEL_UAPI_BIN:-}" ]; then
+            CPANEL_UAPI_BIN=/usr/bin/uapi
+          fi
+
+          if [ ! -d "$CPANEL_REPO_PATH/.git" ]; then
+            echo "Repository not found at CPANEL_REPO_PATH=$CPANEL_REPO_PATH"
+            exit 1
+          fi
+
+          if [ ! -x "$CPANEL_UAPI_BIN" ]; then
+            if [ -x /usr/local/cpanel/bin/uapi ]; then
+              CPANEL_UAPI_BIN=/usr/local/cpanel/bin/uapi
+            else
+              echo "uapi not found at $CPANEL_UAPI_BIN or /usr/local/cpanel/bin/uapi"
+              exit 1
+            fi
+          fi
+
+          cd "$CPANEL_REPO_PATH"
+          git fetch origin "$CPANEL_BRANCH"
+
+          if git show-ref --verify --quiet "refs/heads/$CPANEL_BRANCH"; then
+            git checkout "$CPANEL_BRANCH"
+          else
+            git checkout -B "$CPANEL_BRANCH" "origin/$CPANEL_BRANCH"
+          fi
+
+          git pull --ff-only origin "$CPANEL_BRANCH"
+          "$CPANEL_UAPI_BIN" VersionControlDeployment create repository_root="$CPANEL_REPO_PATH"
+          REMOTE
