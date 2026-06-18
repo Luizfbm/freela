@@ -97,6 +97,12 @@ jobs:
             -i ~/.ssh/cpanel_deploy_key \
             -p "${CPANEL_SSH_PORT:-22}" \
             -o IdentitiesOnly=yes \
+            -o IdentityAgent=none \
+            -o PreferredAuthentications=publickey \
+            -o PubkeyAuthentication=yes \
+            -o PasswordAuthentication=no \
+            -o KbdInteractiveAuthentication=no \
+            -o NumberOfPasswordPrompts=0 \
             "$CPANEL_SSH_USER@$CPANEL_SSH_HOST" \
             "CPANEL_REPO_PATH=$repo_path_q CPANEL_BRANCH=$branch_q CPANEL_UAPI_BIN=$uapi_bin_q bash -s" <<'REMOTE'
           set -Eeuo pipefail
