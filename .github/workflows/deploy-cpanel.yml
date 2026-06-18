@@ -136,13 +136,34 @@ jobs:
                 "${api_base}/${endpoint}"
             }
 
+            uapi_status() {
+              printf '%s' "$1" | jq -r '(.result.status // .status // (if ((.result.errors // .errors) == null) then 1 else 0 end))'
+            }
+
+            uapi_data() {
+              printf '%s' "$1" | jq -c '(.result.data // .data // empty)'
+            }
+
+            uapi_diagnostics() {
+              printf '%s\n' "$1" \
+                | jq -c '{status: (.result.status // .status), errors: (.result.errors // .errors), messages: (.result.messages // .messages), warnings: (.result.warnings // .warnings), metadata: (.result.metadata // .metadata)}' \
+                || printf '%s\n' "$1"
+            }
+
             assert_uapi_success() {
               local body="$1"
               local label="$2"
+              local status=""
 
-              if ! printf '%s' "$body" | jq -e '.result.status == 1' >/dev/null; then
+              if ! status="$(uapi_status "$body")"; then
+                echo "::error::${label} returned invalid JSON"
+                printf '%s\n' "$body"
+                exit 1
+              fi
+
+              if [ "$status" != "1" ]; then
                 echo "::error::${label} failed"
-                printf '%s\n' "$body" | jq -c '{errors: .result.errors, messages: .result.messages, warnings: .result.warnings}' || printf '%s\n' "$body"
+                uapi_diagnostics "$body"
                 exit 1
               fi
             }
@@ -166,8 +187,8 @@ jobs:
               assert_uapi_success "$retrieve_response" "VersionControl/retrieve"
 
               repo_json="$(
-                printf '%s' "$retrieve_response" \
-                  | jq -c --arg root "$CPANEL_REPO_PATH" '[.result.data[]? | select(.repository_root == $root)][0] // empty'
+                uapi_data "$retrieve_response" \
+                  | jq -c --arg root "$CPANEL_REPO_PATH" 'if type == "array" then ([.[] | select(.repository_root == $root)][0] // empty) else empty end'
               )"
 
               if [ -n "$repo_json" ]; then
@@ -200,7 +221,7 @@ jobs:
             )"
             assert_uapi_success "$deploy_response" "VersionControlDeployment/create"
 
-            deploy_id="$(printf '%s' "$deploy_response" | jq -r '.result.data.deploy_id // empty')"
+            deploy_id="$(uapi_data "$deploy_response" | jq -r '.deploy_id // empty')"
 
             if [ -z "$deploy_id" ]; then
               echo "::error::VersionControlDeployment/create did not return a deploy_id"
@@ -214,8 +235,8 @@ jobs:
               assert_uapi_success "$deployment_response" "VersionControlDeployment/retrieve"
 
               deployment_json="$(
-                printf '%s' "$deployment_response" \
-                  | jq -c --arg id "$deploy_id" '[.result.data[]? | select((.deploy_id | tostring) == $id)][0] // empty'
+                uapi_data "$deployment_response" \
+                  | jq -c --arg id "$deploy_id" 'if type == "array" then ([.[] | select((.deploy_id | tostring) == $id)][0] // empty) else empty end'
               )"
 
               if [ -n "$deployment_json" ]; then
