@@ -5,6 +5,19 @@ Este repositorio ja tem duas pecas da automacao:
 - `.cpanel.yml`: define o que o cPanel publica em `public_html`.
 - `.github/workflows/deploy-cpanel.yml`: entra no cPanel por SSH, roda `git pull --ff-only` e aciona `VersionControlDeployment`.
 
+## Regra operacional para agentes
+
+Agentes podem acionar deploy automatico quando isso fizer parte da tarefa, mas o caminho certo e sempre o pipeline controlado:
+
+1. garantir que a mudanca publica passou por QA quando for demo ou pagina de cliente;
+2. commitar e fazer push para `main`, ou pedir esse push quando a autorizacao humana for necessaria;
+3. acompanhar `Actions > Deploy cPanel` no GitHub Actions;
+4. verificar o link publicado com `curl`, navegador ou QA antes de liberar para envio ao cliente.
+
+Nao usar cPanel manual, nao usar FTP e nao fazer SSH manual para publicar arquivos. SSH no workflow existe apenas como detalhe interno da automacao.
+
+Se o GitHub Actions falhar com `Shell access is not enabled`, o deploy automatico nao rodou de verdade. Nesse caso, a correcao operacional e habilitar shell no cPanel ou migrar o workflow para um caminho com token/API do cPanel.
+
 ## O que voce precisa configurar uma vez
 
 ### 1. Acesso do GitHub Actions ao cPanel

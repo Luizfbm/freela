@@ -93,7 +93,8 @@ jobs:
           printf -v branch_q '%q' "${CPANEL_BRANCH:-main}"
           printf -v uapi_bin_q '%q' "${CPANEL_UAPI_BIN:-/usr/bin/uapi}"
 
-          ssh \
+          set +e
+          remote_output="$(ssh \
             -i ~/.ssh/cpanel_deploy_key \
             -p "${CPANEL_SSH_PORT:-22}" \
             -o IdentitiesOnly=yes \
@@ -140,4 +141,25 @@ jobs:
 
           git pull --ff-only origin "$CPANEL_BRANCH"
           "$CPANEL_UAPI_BIN" VersionControlDeployment create repository_root="$CPANEL_REPO_PATH"
+          echo "PAPERCLIP_DEPLOY_REMOTE_OK"
           REMOTE
+          )"
+          remote_status=$?
+          set -e
+
+          printf '%s\n' "$remote_output"
+
+          if printf '%s\n' "$remote_output" | grep -qi "Shell access is not enabled"; then
+            echo "::error::cPanel SSH authenticated, but shell access is disabled for this account. Enable shell access or switch this workflow to a cPanel API-token deploy path."
+            exit 1
+          fi
+
+          if [ "$remote_status" -ne 0 ]; then
+            echo "::error::Remote cPanel deploy command failed with exit code $remote_status"
+            exit "$remote_status"
+          fi
+
+          if ! printf '%s\n' "$remote_output" | grep -q "PAPERCLIP_DEPLOY_REMOTE_OK"; then
+            echo "::error::Remote cPanel deploy marker was not found. The SSH login probably did not execute the deploy script."
+            exit 1
+          fi
