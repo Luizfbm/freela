@@ -5,447 +5,161 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="Conceito visual nao oficial para uma mini pagina de contato profissional de massoterapia em Vitoria, ES.">
-  <meta name="theme-color" content="#f7f3ed">
-  <title>Aghata Massoterapia | Conceito visual</title>
+  <meta name="theme-color" content="#eef6f2">
+  <title>Aghata Massoterapia | Mini pagina de contato</title>
   <link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f7f3ed;
-      --panel: #fffdf8;
-      --ink: #25322f;
-      --muted: #68736f;
-      --line: #ded7cd;
-      --sage: #4f7f71;
-      --sage-dark: #315e52;
-      --coral: #c56f58;
-      --soft-green: #dfece5;
-      --soft-coral: #f3ded6;
-      --shadow: 0 18px 45px rgba(37, 50, 47, 0.1);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background:
-        radial-gradient(circle at top left, rgba(79, 127, 113, 0.18), transparent 32rem),
-        linear-gradient(180deg, #fbf8f2 0%, var(--bg) 46%, #eef3ef 100%);
-      color: var(--ink);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.5;
-    }
-
-    a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    .page {
-      width: min(100%, 760px);
-      margin: 0 auto;
-      padding: 22px 18px 30px;
-    }
-
-    .shell {
-      overflow: hidden;
-      border: 1px solid rgba(79, 127, 113, 0.18);
-      border-radius: 28px;
-      background: rgba(255, 253, 248, 0.9);
-      box-shadow: var(--shadow);
-    }
-
-    .topo {
-      display: grid;
-      gap: 20px;
-      padding: 24px;
-      background:
-        linear-gradient(135deg, rgba(223, 236, 229, 0.95), rgba(255, 253, 248, 0.7)),
-        var(--panel);
-    }
-
-    .marca {
-      display: flex;
-      align-items: center;
-      gap: 13px;
-    }
-
-    .monograma {
-      display: grid;
-      width: 46px;
-      height: 46px;
-      place-items: center;
-      border-radius: 16px;
-      background: var(--sage-dark);
-      color: #fff;
-      font-size: 0.86rem;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-    }
-
-    .marca p,
-    .marca h1 {
-      margin: 0;
-    }
-
-    .marca h1 {
-      font-size: clamp(1.45rem, 7vw, 2.35rem);
-      line-height: 1.04;
-      letter-spacing: 0;
-    }
-
-    .marca p {
-      color: var(--muted);
-      font-size: 0.94rem;
-      font-weight: 650;
-    }
-
-    .intro {
-      display: grid;
-      gap: 14px;
-    }
-
-    .intro p {
-      margin: 0;
-      max-width: 58ch;
-      color: #40504c;
-      font-size: 1.02rem;
-    }
-
-    .meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .meta li {
-      border: 1px solid rgba(49, 94, 82, 0.18);
-      border-radius: 999px;
-      background: rgba(255, 253, 248, 0.78);
-      color: var(--sage-dark);
-      font-size: 0.86rem;
-      font-weight: 700;
-      padding: 7px 11px;
-    }
-
-    .acoes {
-      display: grid;
-      gap: 10px;
-    }
-
-    .botao {
-      display: inline-flex;
-      min-height: 48px;
-      align-items: center;
-      justify-content: center;
-      gap: 9px;
-      border-radius: 999px;
-      font-size: 0.96rem;
-      font-weight: 800;
-      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
-    }
-
-    .botao:focus-visible {
-      outline: 3px solid rgba(197, 111, 88, 0.45);
-      outline-offset: 3px;
-    }
-
-    .botao:hover {
-      transform: translateY(-1px);
-    }
-
-    .botao.principal {
-      background: var(--sage-dark);
-      color: #fff;
-      box-shadow: 0 12px 25px rgba(49, 94, 82, 0.22);
-    }
-
-    .botao.secundario {
-      border: 1px solid rgba(49, 94, 82, 0.2);
-      background: rgba(255, 253, 248, 0.74);
-      color: var(--sage-dark);
-    }
-
-    .ig {
-      display: inline-grid;
-      width: 24px;
-      height: 24px;
-      place-items: center;
-      border-radius: 8px;
-      background: var(--coral);
-      color: #fff;
-      font-size: 0.72rem;
-      font-weight: 900;
-      letter-spacing: 0;
-    }
-
-    main {
-      display: grid;
-      gap: 0;
-    }
-
-    section {
-      padding: 22px 24px;
-      border-top: 1px solid var(--line);
-      background: var(--panel);
-    }
-
-    section:nth-child(even) {
-      background: rgba(247, 243, 237, 0.7);
-    }
-
-    .secao-titulo {
-      margin: 0 0 12px;
-      color: var(--sage-dark);
-      font-size: 0.82rem;
-      font-weight: 850;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .texto-curto {
-      margin: 0;
-      color: #40504c;
-      font-size: 1rem;
-    }
-
-    .encaixe {
-      display: grid;
-      gap: 12px;
-    }
-
-    .passos {
-      display: grid;
-      gap: 9px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .passos li {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 10px;
-      align-items: start;
-      color: #3e4e49;
-      font-size: 0.96rem;
-    }
-
-    .passos span {
-      display: grid;
-      width: 24px;
-      height: 24px;
-      place-items: center;
-      border-radius: 50%;
-      background: var(--soft-coral);
-      color: #7a3f31;
-      font-size: 0.78rem;
-      font-weight: 900;
-    }
-
-    .servicos {
-      display: grid;
-      gap: 10px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .servicos li {
-      display: flex;
-      min-height: 48px;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      border: 1px solid rgba(104, 115, 111, 0.18);
-      border-radius: 16px;
-      background: #fff;
-      padding: 12px 13px;
-      font-weight: 750;
-    }
-
-    .servicos small {
-      flex: 0 0 auto;
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 750;
-    }
-
-    .info {
-      display: grid;
-      gap: 10px;
-      margin: 0;
-    }
-
-    .info div {
-      display: grid;
-      grid-template-columns: minmax(92px, auto) 1fr;
-      gap: 14px;
-      border-bottom: 1px solid rgba(104, 115, 111, 0.16);
-      padding: 0 0 10px;
-    }
-
-    .info div:last-child {
-      border-bottom: 0;
-      padding-bottom: 0;
-    }
-
-    .info dt {
-      color: var(--muted);
-      font-size: 0.86rem;
-      font-weight: 760;
-    }
-
-    .info dd {
-      margin: 0;
-      color: var(--ink);
-      font-weight: 760;
-      overflow-wrap: anywhere;
-    }
-
-    .fechamento {
-      display: grid;
-      gap: 16px;
-      padding-bottom: 24px;
-    }
-
-    .aviso {
-      margin: 0;
-      border-left: 3px solid rgba(197, 111, 88, 0.65);
-      border-radius: 12px;
-      background: rgba(243, 222, 214, 0.55);
-      color: #5d4740;
-      font-size: 0.84rem;
-      padding: 11px 12px;
-    }
-
-    @media (min-width: 620px) {
-      .page {
-        padding: 34px 22px 42px;
-      }
-
-      .topo {
-        grid-template-columns: 1fr auto;
-        align-items: end;
-        padding: 32px;
-      }
-
-      .marca,
-      .intro {
-        grid-column: 1 / -1;
-      }
-
-      .acoes {
-        min-width: 250px;
-      }
-
-      section {
-        padding: 26px 32px;
-      }
-
-      .servicos {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .servicos li:first-child {
-        grid-column: 1 / -1;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="page">
-    <div class="shell">
-      <header class="topo" id="inicio">
-        <div class="marca" aria-label="Identificação">
-          <span class="monograma" aria-hidden="true">AM</span>
-          <div>
-            <p>Massoterapia em Vitória, ES</p>
-            <h1>Aghata Massoterapia</h1>
+  <div class="page-shell">
+    <header class="site-header" id="inicio" aria-label="Topo da pagina">
+      <a class="brand" href="#inicio" aria-label="Aghata Massoterapia">
+        <span class="brand-mark" aria-hidden="true">AM</span>
+        <span>
+          <strong>Aghata Massoterapia</strong>
+          <small>Massoterapia em Vitoria, ES</small>
+        </span>
+      </a>
+
+      <nav class="nav-links" aria-label="Navegacao principal">
+        <a href="#atendimentos">Atendimentos</a>
+        <a href="#como-funciona">Como comecar</a>
+        <a href="#contato">Contato</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-content">
+          <p class="eyebrow">Mini pagina para link na bio</p>
+          <h1 id="hero-title">Aghata Massoterapia, organizada para quem chega pelo Instagram.</h1>
+          <p class="hero-copy">
+            Um conceito simples de presenca local para apresentar a profissional,
+            a regiao de atendimento e o melhor caminho para iniciar uma conversa,
+            sem transformar isso em um site grande.
+          </p>
+
+          <div class="hero-actions" aria-label="Acoes principais">
+            <a class="button button-primary" href="https://www.instagram.com/aghatamassoterapiaa/" target="_blank" rel="noopener noreferrer">
+              Enviar mensagem pelo Instagram
+            </a>
+            <a class="button button-secondary" href="#atendimentos">Ver informacoes</a>
           </div>
         </div>
 
-        <div class="intro">
-          <p>Uma recepção digital curta para quem chega pelo Instagram entender o atendimento, a região e o melhor caminho para iniciar a conversa.</p>
-          <ul class="meta" aria-label="Informações principais">
-            <li>Profissional local</li>
-            <li>Contato pelo Instagram</li>
-            <li>Serviços a confirmar</li>
-          </ul>
-        </div>
-
-        <div class="acoes" aria-label="Ações principais">
-          <a class="botao principal" href="https://www.instagram.com/aghatamassoterapiaa/" target="_blank" rel="noopener noreferrer">
-            <span class="ig" aria-hidden="true">IG</span>
-            Enviar mensagem pelo Instagram
-          </a>
-          <a class="botao secundario" href="#atendimento">Ver como começar</a>
-        </div>
-      </header>
-
-      <main>
-        <section aria-labelledby="apresentacao-titulo">
-          <h2 class="secao-titulo" id="apresentacao-titulo">Apresentação</h2>
-          <p class="texto-curto">Este exemplo organiza as primeiras informações de Aghata Massoterapia em uma página simples: o que faz, onde atende e quais dados a pessoa precisa confirmar antes de chamar. Sem promessas, sem texto longo e sem transformar o contato em site completo.</p>
-        </section>
-
-        <section class="encaixe" id="atendimento" aria-labelledby="atendimento-titulo">
-          <h2 class="secao-titulo" id="atendimento-titulo">Para quem está chegando agora</h2>
-          <ul class="passos">
-            <li><span>1</span><strong>Entenda que o atendimento é de massoterapia em Vitória.</strong></li>
-            <li><span>2</span><strong>Confira os tipos de atendimento que precisam ser confirmados.</strong></li>
-            <li><span>3</span><strong>Chame pelo Instagram para tirar dúvidas ou pedir orientação sobre agenda.</strong></li>
-          </ul>
-        </section>
-
-        <section aria-labelledby="servicos-titulo">
-          <h2 class="secao-titulo" id="servicos-titulo">Serviços principais</h2>
-          <ul class="servicos" aria-label="Serviços e informações a confirmar">
-            <li>Massoterapia <small>confirmado</small></li>
-            <li>Modalidades de atendimento <small>a confirmar</small></li>
-            <li>Agenda e disponibilidade <small>a confirmar</small></li>
-            <li>Local de atendimento <small>a confirmar</small></li>
-          </ul>
-        </section>
-
-        <section aria-labelledby="info-titulo">
-          <h2 class="secao-titulo" id="info-titulo">Informações úteis</h2>
-          <dl class="info">
+        <aside class="profile-card" aria-label="Resumo da presenca local">
+          <span class="profile-label">Contato confirmado</span>
+          <strong>Instagram/Direct</strong>
+          <p>@aghatamassoterapiaa</p>
+          <dl>
             <div>
-              <dt>Região</dt>
-              <dd>Vitória, ES</dd>
+              <dt>Nicho</dt>
+              <dd>Massoterapia</dd>
             </div>
             <div>
-              <dt>Instagram</dt>
-              <dd>@aghatamassoterapiaa</dd>
-            </div>
-            <div>
-              <dt>Canal atual</dt>
-              <dd>Mensagem pelo Instagram/Direct</dd>
+              <dt>Regiao</dt>
+              <dd>Vitoria, ES</dd>
             </div>
           </dl>
-        </section>
+        </aside>
+      </section>
 
-        <section class="fechamento" aria-labelledby="contato-titulo">
-          <h2 class="secao-titulo" id="contato-titulo">Contato</h2>
-          <a class="botao principal" href="https://www.instagram.com/aghatamassoterapiaa/" target="_blank" rel="noopener noreferrer">
-            <span class="ig" aria-hidden="true">IG</span>
-            Abrir Instagram da Aghata
-          </a>
-          <p class="aviso">Conceito visual não oficial criado com informações públicas. Antes de publicar, textos e dados precisam ser confirmados.</p>
-        </section>
-      </main>
-    </div>
+      <section class="section compact-section" aria-labelledby="apresentacao-title">
+        <p class="section-kicker">Apresentacao</p>
+        <h2 id="apresentacao-title">Uma pagina curta para reduzir duvidas antes do primeiro contato.</h2>
+        <p>
+          Esta demonstracao mostra como as informacoes publicas da Aghata podem
+          ficar reunidas em um endereco simples: nome, area de atuacao, regiao,
+          dados que ainda precisam ser confirmados e um caminho claro para o Direct.
+        </p>
+      </section>
+
+      <section class="section" id="atendimentos" aria-labelledby="atendimentos-title">
+        <div class="section-heading">
+          <p class="section-kicker">Atendimentos</p>
+          <h2 id="atendimentos-title">O que a pagina pode organizar</h2>
+        </div>
+
+        <div class="info-grid">
+          <article>
+            <span>01</span>
+            <h3>Massoterapia</h3>
+            <p>Area principal apresentada publicamente, com texto curto e direto.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Modalidades</h3>
+            <p>Espaco para listar tecnicas ou formatos somente depois de confirmados.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Regiao</h3>
+            <p>Referencia local em Vitoria, sem inventar bairro, endereco ou mapa.</p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>Agenda</h3>
+            <p>Orientacao para iniciar a conversa pelo canal confirmado.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section split-section" id="como-funciona" aria-labelledby="como-title">
+        <div>
+          <p class="section-kicker">Como comecar</p>
+          <h2 id="como-title">Um fluxo simples para quem quer perguntar antes de agendar.</h2>
+          <p>
+            A pagina funciona como uma recepcao digital enxuta: a pessoa entende
+            o basico, ve o que ainda precisa ser combinado e chama pelo Instagram.
+          </p>
+        </div>
+
+        <ol class="steps">
+          <li>
+            <span>1</span>
+            <p>Leia o resumo da profissional e da regiao de atendimento.</p>
+          </li>
+          <li>
+            <span>2</span>
+            <p>Confira quais detalhes ainda precisam ser confirmados.</p>
+          </li>
+          <li>
+            <span>3</span>
+            <p>Envie mensagem pelo Instagram para tirar duvidas ou conversar sobre disponibilidade.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="section" aria-labelledby="confirmar-title">
+        <div class="section-heading">
+          <p class="section-kicker">Dados a confirmar</p>
+          <h2 id="confirmar-title">Informacoes que nao entram como fato sem aprovacao.</h2>
+        </div>
+
+        <ul class="confirm-list" aria-label="Dados a confirmar">
+          <li>Modalidades e tipos de atendimento</li>
+          <li>Bairro, endereco ou formato de atendimento</li>
+          <li>Horarios, agenda e disponibilidade</li>
+          <li>Fotos autorizadas e identidade visual oficial</li>
+        </ul>
+      </section>
+
+      <section class="final-cta" id="contato" aria-labelledby="contato-title">
+        <p class="section-kicker">Contato</p>
+        <h2 id="contato-title">Para esta demo, o canal seguro e o Instagram.</h2>
+        <p>
+          O exemplo mantem o contato pelo perfil publico observado e deixa os
+          demais dados para confirmacao antes de qualquer publicacao oficial.
+        </p>
+        <a class="button button-primary" href="https://www.instagram.com/aghatamassoterapiaa/" target="_blank" rel="noopener noreferrer">
+          Abrir Instagram da Aghata
+        </a>
+      </section>
+    </main>
+
+    <footer class="demo-notice">
+      Conceito visual nao oficial criado com informacoes publicas. Antes de publicar, textos e dados precisam ser confirmados.
+    </footer>
   </div>
 </body>
 </html>
