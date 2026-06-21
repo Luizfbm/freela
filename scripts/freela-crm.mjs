@@ -2568,6 +2568,8 @@ function markUnmatchedReconciled(database, unmatchedId, leadId, inboundId, reaso
 function stateForWhatsAppClassification(classification) {
   if (classification === "resposta_permissao") return "respondeu_pode";
   if (classification === "resposta_pediu_preco") return "preco_pedido";
+  if (classification === "resposta_lead_quente") return "lead_quente";
+  if (classification === "resposta_objecao") return "objecao_comercial";
   if (classification === "resposta_pediu_exemplo") return "pedido_exemplo";
   if (classification === "resposta_sem_interesse") return "encerrado";
   return "atendimento_autonomo";
@@ -4383,6 +4385,24 @@ function classifyResponse(message) {
     )
   ) {
     return "resposta_pediu_preco";
+  }
+  if (/\bsem interesse\b|\bnao tenho interesse\b|\bnao quero\b/.test(normalized)) {
+    return "resposta_sem_interesse";
+  }
+  if (
+    !/\bnao\b/.test(normalized) &&
+    /\bgostei\b|\bquero fazer\b|\bquero fechar\b|\bbora\b|\bfechar\b|\bcontratar\b|\bcontrato\b|\bcomecar\b|\bcomeçar\b|\bvamos fazer\b|\bvou querer\b/.test(
+      normalized,
+    )
+  ) {
+    return "resposta_lead_quente";
+  }
+  if (
+    /\bcaro\b|\bachei caro\b|\bsem tempo\b|\bvou pensar\b|\bpensar um pouco\b|\bja tenho site\b|\btenho site\b|\bdepois\b|\bmais pra frente\b|\bmais para frente\b|\bnao agora\b|\bagora nao\b/.test(
+      normalized,
+    )
+  ) {
+    return "resposta_objecao";
   }
   if (/\bpode\b|\bclaro\b|\bsim\b/.test(normalized)) return "resposta_permissao";
   if (/\bexemplo\b|\blink\b|\bsite\b/.test(normalized)) return "resposta_pediu_exemplo";

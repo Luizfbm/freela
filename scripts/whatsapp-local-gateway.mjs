@@ -7,7 +7,9 @@ import { DatabaseSync } from "node:sqlite";
 const DEFAULT_PAPERCLIP_API_BASE = "http://127.0.0.1:3100";
 const DEFAULT_PAPERCLIP_COMPANY_ID = "50a2756c-2942-40c1-90f8-b16807a62ef3";
 const DEFAULT_ATENDIMENTO_AGENT_ID = "db8a76a9-e503-4cdc-b8cb-f14cf757070a";
-const WHATSAPP_WAKE_TYPE = "atendimento_whatsapp";
+const DEFAULT_CLOSER_AGENT_ID = "4d334072-4966-4c9d-a16a-f3e48faf05d9";
+const WHATSAPP_ATENDIMENTO_WAKE_TYPE = "atendimento_whatsapp";
+const WHATSAPP_CLOSER_WAKE_TYPE = "whatsapp_closer";
 
 function main() {
   const { root, command, flags } = parseArgs(process.argv.slice(2));
@@ -213,6 +215,7 @@ function validateImportMcpSqliteFlags(flags) {
     "paperclip-api-key",
     "paperclip-run-id",
     "atendimento-agent-id",
+    "closer-agent-id",
     "timeout-ms",
   ]);
   for (const flag of Object.keys(flags)) {
@@ -238,6 +241,10 @@ function buildAutoWakeOptions(flags) {
       flags["atendimento-agent-id"] ||
       process.env.WHATSAPP_ATENDIMENTO_AGENT_ID ||
       DEFAULT_ATENDIMENTO_AGENT_ID,
+    closerAgentId:
+      flags["closer-agent-id"] ||
+      process.env.WHATSAPP_CLOSER_AGENT_ID ||
+      DEFAULT_CLOSER_AGENT_ID,
     timeoutMs: parsePositiveInt(flags["timeout-ms"] || "15000", "--timeout-ms"),
   };
 }
@@ -264,7 +271,8 @@ function autoWakeForInbound(root, event, options) {
       )
       .get(clean(event.bridge_message_id));
 
-    if (!inbound || !shouldWakeAtendimento(inbound)) return 0;
+    const route = inbound ? whatsappWakeRouteForInbound(inbound, options) : null;
+    if (!route) return 0;
 
     const existing = database
       .prepare(
@@ -276,7 +284,7 @@ function autoWakeForInbound(root, event, options) {
          order by id desc
          limit 1`,
       )
-      .get(inbound.id, options.atendimentoAgentId, WHATSAPP_WAKE_TYPE);
+      .get(inbound.id, route.targetAgentId, route.wakeType);
 
     if (["created", "creating"].includes(existing?.status)) return 0;
 
@@ -295,8 +303,8 @@ function autoWakeForInbound(root, event, options) {
         .run(
           inbound.id,
           inbound.lead_id,
-          options.atendimentoAgentId,
-          WHATSAPP_WAKE_TYPE,
+          route.targetAgentId,
+          route.wakeType,
           "creating",
           timestamp,
           timestamp,
@@ -310,7 +318,7 @@ function autoWakeForInbound(root, event, options) {
         apiKey: options.apiKey,
         runId: options.runId,
         timeoutMs: options.timeoutMs,
-        payload: buildAtendimentoWakePayload(inbound, options.atendimentoAgentId),
+        payload: route.payload,
       });
       database
         .prepare(
@@ -328,8 +336,8 @@ function autoWakeForInbound(root, event, options) {
           clean(issue.identifier),
           new Date().toISOString(),
           inbound.id,
-          options.atendimentoAgentId,
-          WHATSAPP_WAKE_TYPE,
+          route.targetAgentId,
+          route.wakeType,
         );
       return 1;
     } catch (error) {
@@ -341,7 +349,7 @@ function autoWakeForInbound(root, event, options) {
              and target_agent_id = ?
              and wake_type = ?`,
         )
-        .run(new Date().toISOString(), inbound.id, options.atendimentoAgentId, WHATSAPP_WAKE_TYPE);
+        .run(new Date().toISOString(), inbound.id, route.targetAgentId, route.wakeType);
       throw error;
     }
   } finally {
@@ -349,9 +357,42 @@ function autoWakeForInbound(root, event, options) {
   }
 }
 
-function shouldWakeAtendimento(inbound) {
-  return ["resposta_permissao", "resposta_pediu_exemplo", "resposta_recebida"].includes(
-    clean(inbound.classification),
+function whatsappWakeRouteForInbound(inbound, options) {
+  const classification = clean(inbound.classification);
+  const state = clean(inbound.whatsapp_state);
+
+  if (state === "encerrado" || classification === "resposta_sem_interesse") return null;
+
+  if (shouldWakeCloser(classification, state)) {
+    return {
+      targetAgentId: options.closerAgentId,
+      wakeType: WHATSAPP_CLOSER_WAKE_TYPE,
+      payload: buildCloserWakePayload(inbound, options.closerAgentId),
+    };
+  }
+
+  if (["resposta_permissao", "resposta_pediu_exemplo", "resposta_recebida"].includes(classification)) {
+    return {
+      targetAgentId: options.atendimentoAgentId,
+      wakeType: WHATSAPP_ATENDIMENTO_WAKE_TYPE,
+      payload: buildAtendimentoWakePayload(inbound, options.atendimentoAgentId),
+    };
+  }
+
+  return null;
+}
+
+function shouldWakeCloser(classification, state) {
+  return (
+    ["resposta_pediu_preco", "resposta_lead_quente", "resposta_objecao"].includes(classification) ||
+    [
+      "preco_pedido",
+      "lead_quente",
+      "objecao_comercial",
+      "handoff_luiz",
+      "qualificacao_preco_pendente",
+      "bloqueado_guardiao",
+    ].includes(state)
   );
 }
 
@@ -382,6 +423,48 @@ function buildAtendimentoWakePayload(inbound, atendimentoAgentId) {
     priority: "high",
     status: "todo",
   };
+}
+
+function buildCloserWakePayload(inbound, closerAgentId) {
+  return {
+    title: `WhatsApp - ${inbound.lead_name}: ${labelForCloserWake(inbound)}`,
+    description: [
+      "## Handoff WhatsApp para Jhon Snow",
+      "",
+      `Lead: ${inbound.lead_name}`,
+      `chat_id: ${inbound.chat_id}`,
+      `classification: ${inbound.classification}`,
+      `whatsapp_state: ${inbound.whatsapp_state || "nao_definido"}`,
+      `inbound_event_id: ${inbound.id}`,
+      "",
+      "## Mensagem recebida",
+      "",
+      inbound.body,
+      "",
+      "## Trabalho",
+      "",
+      "- Assumir como Atendimento e Fechamento quando houver preco, objeção, lead quente, bloqueio de guardiao ou handoff.",
+      "- Preparar resposta comercial curta, contextual e segura; se precisar falar preco/proposta, manter criterio comercial.",
+      "- Registrar a resposta ou proxima acao no CRM/Paperclip.",
+      "- Nao envie WhatsApp. Nao chame bridge.",
+    ].join("\n"),
+    assigneeAgentId: closerAgentId,
+    priority: "high",
+    status: "todo",
+  };
+}
+
+function labelForCloserWake(inbound) {
+  if (inbound.classification === "resposta_pediu_preco" || inbound.whatsapp_state === "preco_pedido") {
+    return "pedido de preco";
+  }
+  if (inbound.classification === "resposta_lead_quente" || inbound.whatsapp_state === "lead_quente") {
+    return "lead quente";
+  }
+  if (inbound.classification === "resposta_objecao" || inbound.whatsapp_state === "objecao_comercial") {
+    return "objecao comercial";
+  }
+  return "fechamento";
 }
 
 function labelForWhatsAppClassification(classification) {
@@ -791,6 +874,7 @@ function watchMcpSqlite(root, flags) {
     "paperclip-api-key",
     "paperclip-run-id",
     "atendimento-agent-id",
+    "closer-agent-id",
   ]);
   for (const flag of Object.keys(flags)) {
     if (!allowedFlags.has(flag)) {
@@ -812,6 +896,7 @@ function watchMcpSqlite(root, flags) {
         "paperclip-api-key",
         "paperclip-run-id",
         "atendimento-agent-id",
+        "closer-agent-id",
         "timeout-ms",
       ]) {
         if (flags[flag] !== undefined) importFlags[flag] = flags[flag];

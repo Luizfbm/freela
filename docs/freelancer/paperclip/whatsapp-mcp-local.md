@@ -117,13 +117,19 @@ node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/program
 
 Sem `--dispatch-approved`, esse watcher apenas repete o import do `messages.db` e alimenta o CRM.
 
-Para acordar automaticamente o worker Atendimento WhatsApp quando chegar uma resposta conhecida como "Pode!" ou pedido de exemplo, use `--auto-wake`:
+Para acordar automaticamente o worker correto, use `--auto-wake`:
 
 ```bash
 node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela watch-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --auto-wake --interval-ms 10000
 ```
 
-O auto-wake cria issue no Paperclip via API direta, usando `--paperclip-api-base`, `--paperclip-company-id`, `--paperclip-api-key`, `--paperclip-run-id` e `--atendimento-agent-id` quando necessario. O dedupe fica em `whatsapp_worker_wakes`, entao a mesma mensagem nao cria tasks repetidas. Ele nao envia WhatsApp e nao chama `/api/send`.
+Roteamento seletivo:
+
+- Atendimento WhatsApp recebe conversa normal: `resposta_permissao`, `resposta_pediu_exemplo` e `resposta_recebida`.
+- Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
+- `resposta_sem_interesse` ou estado `encerrado` nao gera auto-wake.
+
+O auto-wake cria issue no Paperclip via API direta, usando `--paperclip-api-base`, `--paperclip-company-id`, `--paperclip-api-key`, `--paperclip-run-id`, `--atendimento-agent-id` e `--closer-agent-id` quando necessario. O dedupe fica em `whatsapp_worker_wakes`, entao a mesma mensagem nao cria tasks repetidas. Ele nao envia WhatsApp e nao chama `/api/send`.
 
 ## Dispatch Aprovado
 

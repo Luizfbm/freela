@@ -1295,3 +1295,111 @@ test("gateway auto-wake cria task Paperclip para inbound Pode e resposta comum s
     await paperclip.close();
   }
 });
+
+test("gateway auto-wake roteia preco e lead quente para Jhon Snow", async () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+  const leadFile = join(root, "lead.json");
+  writeFileSync(
+    leadFile,
+    JSON.stringify([
+      {
+        canonical_name: "Aghata Massoterapia",
+        phone_or_contact: "+55 27 99999-0000",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]),
+  );
+  assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
+
+  const mcpDb = join(root, "messages.db");
+  createEmptyMcpMessagesDb(mcpDb);
+  const mcp = new DatabaseSync(mcpDb);
+  mcp
+    .prepare("insert into chats (jid, name, last_message_time) values (?, ?, ?)")
+    .run("5527999990000@s.whatsapp.net", "Aghata Massoterapia", "2026-06-21T09:36:27-03:00");
+  const insert = mcp.prepare(
+    `insert into messages (
+      id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename
+    ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  insert.run(
+    "msg-price-001",
+    "5527999990000@s.whatsapp.net",
+    "5527999990000",
+    "Qual o valor?",
+    "2026-06-21T09:35:27-03:00",
+    0,
+    "",
+    "",
+  );
+  insert.run(
+    "msg-hot-001",
+    "5527999990000@s.whatsapp.net",
+    "5527999990000",
+    "Gostei, quero fazer. Como contrato?",
+    "2026-06-21T09:36:27-03:00",
+    0,
+    "",
+    "",
+  );
+  mcp.close();
+
+  const paperclip = await withPaperclipServer((_req, res, requests) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ id: `issue-test-${requests.length}`, identifier: `FRE-TEST-${requests.length}` }));
+  });
+
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "import-mcp-sqlite",
+      "--db",
+      mcpDb,
+      "--auto-wake",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--atendimento-agent-id",
+      "agent-atendimento-test",
+      "--closer-agent-id",
+      "agent-jhon-test",
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Importados: 2/i);
+    assert.match(result.stdout, /Auto-wakes: 2/i);
+    assert.equal(paperclip.requests.length, 2);
+    assert.deepEqual(
+      paperclip.requests.map((request) => request.body.assigneeAgentId),
+      ["agent-jhon-test", "agent-jhon-test"],
+    );
+    assert.match(paperclip.requests[0].body.description, /Jhon Snow|Atendimento e Fechamento/i);
+    assert.match(paperclip.requests[0].body.description, /preco|preço|valor/i);
+    assert.match(paperclip.requests[1].body.title, /lead quente|fechamento|WhatsApp/i);
+
+    const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+    const inbound = database
+      .prepare("select classification from whatsapp_inbound_events order by received_at, id")
+      .all()
+      .map((row) => row.classification);
+    const state = database.prepare("select * from lead_conversation_state").get();
+    const wakes = database
+      .prepare("select target_agent_id, wake_type from whatsapp_worker_wakes order by id")
+      .all()
+      .map((row) => ({ ...row }));
+    database.close();
+
+    assert.deepEqual(inbound, ["resposta_pediu_preco", "resposta_lead_quente"]);
+    assert.equal(state.whatsapp_state, "lead_quente");
+    assert.deepEqual(wakes, [
+      { target_agent_id: "agent-jhon-test", wake_type: "whatsapp_closer" },
+      { target_agent_id: "agent-jhon-test", wake_type: "whatsapp_closer" },
+    ]);
+  } finally {
+    await paperclip.close();
+  }
+});

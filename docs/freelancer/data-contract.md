@@ -241,7 +241,10 @@ Identidade WhatsApp:
 - O MCP pode entregar conversa individual como `@lid` em vez de telefone publico. Esse identificador deve ser salvo em `whatsapp_identity_aliases`.
 - Quando o Gateway nao encontra lead confiavel, ele grava o evento em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`.
 - Para reconciliar, use `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
-- O import/watch com `--auto-wake` cria issue no Paperclip para Atendimento WhatsApp quando houver inbound acionavel; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama bridge e nao cria Outbox.
+- O import/watch com `--auto-wake` cria issue no Paperclip por roteamento seletivo; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama bridge e nao cria Outbox.
+- Atendimento WhatsApp recebe conversa normal: `resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`.
+- Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `resposta_pediu_preco`/`preco_pedido`, `resposta_lead_quente`/`lead_quente`, `resposta_objecao`/`objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
+- Em teste ou ambiente alternativo, `--closer-agent-id` sobrescreve o agente closer padrao.
 
 O `lharries/whatsapp-mcp` e uma entrada local, nao a fonte oficial. O bridge grava conversas em `.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db`; o Gateway Local importa mensagens novas com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite` e cursor em `.scratch/whatsapp-mcp-cursor.json`.
 

@@ -1995,6 +1995,28 @@ test("whatsapp inbound prioritizes price ask over permission words", () => {
   assert.equal(state.whatsapp_state, "preco_pedido");
 });
 
+test("whatsapp inbound classifies hot buying intent for closer routing", () => {
+  const root = makeWhatsAppLeadRoot("wa-hot-lead-001", "Gostei, quero fazer. Como contrato?");
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+  assert.equal(inbound.classification, "resposta_lead_quente");
+  assert.equal(state.whatsapp_state, "lead_quente");
+});
+
+test("whatsapp inbound classifies commercial objections for closer routing", () => {
+  const root = makeWhatsAppLeadRoot("wa-objection-001", "Achei caro, vou pensar um pouco");
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+  assert.equal(inbound.classification, "resposta_objecao");
+  assert.equal(state.whatsapp_state, "objecao_comercial");
+});
+
 test("whatsapp outbox propose cria resposta candidata sem enviar", () => {
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);
