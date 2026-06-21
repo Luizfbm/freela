@@ -142,3 +142,53 @@ test("check is yellow when hourly snapshot is stale but daily snapshot is still 
   assert.equal(status.status, "yellow");
   assert.equal(status.checks.backups.status, "yellow");
 });
+
+test("restore-plan compares snapshot with current DB without restoring", () => {
+  const root = makeRoot();
+  initDb(root);
+  assert.equal(
+    runOps(root, ["snapshot", "--backup-dir", appBackupDir(root), "--now", "2026-06-21T08:00:00.000Z"]).status,
+    0,
+  );
+  const snapshot = readManifest(root).snapshots.find((item) => item.kind === "hourly");
+
+  const leadFile = join(root, "lead-after-snapshot.json");
+  writeFileSync(
+    leadFile,
+    JSON.stringify([{ canonical_name: "Lead Depois Do Snapshot", recommended_offer: "Presenca Local em 72h" }]),
+    "utf8",
+  );
+  assert.equal(runCrm(root, ["lead", "upsert", "--file", leadFile]).status, 0);
+
+  const plan = runOps(root, ["restore-plan", snapshot.path, "--backup-dir", appBackupDir(root)]);
+
+  assert.equal(plan.status, 0, plan.stderr);
+  assert.match(plan.stdout, /restore-plan: ok/i);
+  const files = readdirSync(join(root, ".scratch/ops/restore-plans")).filter((name) => name.endsWith(".json"));
+  assert.equal(files.length, 1);
+  const body = JSON.parse(readFileSync(join(root, ".scratch/ops/restore-plans", files[0]), "utf8"));
+  assert.equal(body.snapshot.path, snapshot.path);
+  assert.equal(body.counts.current.leads, 1);
+  assert.equal(body.counts.snapshot.leads, 0);
+  assert.equal(body.estimatedLoss.leads, 1);
+});
+
+test("restore refuses without confirm and creates forensic snapshot before replacing DB", () => {
+  const root = makeRoot();
+  initDb(root);
+  assert.equal(
+    runOps(root, ["snapshot", "--backup-dir", appBackupDir(root), "--now", "2026-06-21T08:00:00.000Z"]).status,
+    0,
+  );
+  const snapshot = readManifest(root).snapshots.find((item) => item.kind === "hourly");
+
+  const refused = runOps(root, ["restore", "--from", snapshot.path, "--backup-dir", appBackupDir(root)]);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /--confirm/i);
+
+  const restored = runOps(root, ["restore", "--from", snapshot.path, "--confirm", "--backup-dir", appBackupDir(root)]);
+  assert.equal(restored.status, 0, restored.stderr);
+  assert.match(restored.stdout, /restore: ok/i);
+  const forensic = readdirSync(join(root, ".scratch/forensics")).filter((name) => name.startsWith("sqlite-restore-"));
+  assert.equal(forensic.length, 1);
+});

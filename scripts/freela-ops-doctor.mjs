@@ -499,12 +499,113 @@ function commandPublish() {
   throw usageError("Comando publish ainda nao implementado.");
 }
 
-function commandRestorePlan() {
-  throw usageError("Comando restore-plan ainda nao implementado.");
+function commandRestorePlan({ root, args, flags }) {
+  const snapshotPath = resolve(args[0] ?? "");
+  if (!snapshotPath) throw usageError("Informe o caminho do snapshot.");
+  if (!existsSync(snapshotPath)) throw usageError(`Snapshot nao encontrado: ${snapshotPath}`);
+
+  const p = paths(root, flags);
+  mkdirSync(p.restorePlansDir, { recursive: true });
+  const plan = buildRestorePlan(root, flags, snapshotPath);
+  const base = `restore-plan-${timestampForFile(plan.createdAt)}`;
+  const jsonPath = join(p.restorePlansDir, `${base}.json`);
+  const mdPath = join(p.restorePlansDir, `${base}.md`);
+  writeFileSync(jsonPath, `${JSON.stringify(plan, null, 2)}\n`, "utf8");
+  writeFileSync(mdPath, renderRestorePlanMarkdown(plan), "utf8");
+  console.log(`restore-plan: ok (${jsonPath})`);
+  return { exitCode: 0 };
 }
 
-function commandRestore() {
-  throw usageError("Comando restore ainda nao implementado.");
+function buildRestorePlan(root, flags, snapshotPath) {
+  const currentCounts = readCounts(paths(root, flags).dbPath);
+  const snapshotCounts = readCounts(snapshotPath);
+  return {
+    version: 1,
+    createdAt: nowIso(flags),
+    snapshot: {
+      path: snapshotPath,
+      integrityCheck: integrityCheckDatabase(snapshotPath),
+      size: statSync(snapshotPath).size,
+      sha256: sha256File(snapshotPath),
+    },
+    counts: {
+      current: currentCounts,
+      snapshot: snapshotCounts,
+    },
+    estimatedLoss: {
+      leads: Math.max(0, currentCounts.leads - snapshotCounts.leads),
+      audit_log: Math.max(0, currentCounts.audit_log - snapshotCounts.audit_log),
+      interactions: Math.max(0, currentCounts.interactions - snapshotCounts.interactions),
+      whatsapp_outbox: Math.max(0, currentCounts.whatsapp_outbox - snapshotCounts.whatsapp_outbox),
+      worker_handoffs: Math.max(0, currentCounts.worker_handoffs - snapshotCounts.worker_handoffs),
+    },
+    recommendation: "Restaurar somente se o DB atual estiver invalido ou a perda estimada for aceita pelo operador.",
+  };
+}
+
+function readCounts(dbPath) {
+  let database;
+  try {
+    database = new DatabaseSync(dbPath, { readOnly: true });
+    database.exec("PRAGMA busy_timeout = 10000;");
+    return {
+      leads: countRows(database, "leads"),
+      audit_log: countRows(database, "audit_log"),
+      interactions: countRows(database, "interactions"),
+      whatsapp_outbox: countRows(database, "whatsapp_outbox"),
+      worker_handoffs: countRows(database, "worker_handoffs"),
+    };
+  } finally {
+    if (database) database.close();
+  }
+}
+
+function renderRestorePlanMarkdown(plan) {
+  return [
+    "# Restore Plan",
+    "",
+    `Created at: ${plan.createdAt}`,
+    `Snapshot: ${plan.snapshot.path}`,
+    `Integrity: ${plan.snapshot.integrityCheck}`,
+    "",
+    "## Estimated loss",
+    `- leads: ${plan.estimatedLoss.leads}`,
+    `- audit_log: ${plan.estimatedLoss.audit_log}`,
+    `- interactions: ${plan.estimatedLoss.interactions}`,
+    `- whatsapp_outbox: ${plan.estimatedLoss.whatsapp_outbox}`,
+    `- worker_handoffs: ${plan.estimatedLoss.worker_handoffs}`,
+    "",
+    `Recommendation: ${plan.recommendation}`,
+    "",
+  ].join("\n");
+}
+
+function commandRestore({ root, flags }) {
+  if (!flags.confirm) throw usageError("Restore real exige --confirm.");
+  const snapshotPath = resolve(flags.from ?? "");
+  if (!snapshotPath) throw usageError("Informe --from <snapshot>.");
+  if (!existsSync(snapshotPath)) throw usageError(`Snapshot nao encontrado: ${snapshotPath}`);
+  if (integrityCheckDatabase(snapshotPath) !== "ok") throw usageError("Snapshot recusado: integrity_check falhou.");
+
+  const p = paths(root, flags);
+  const forensicDir = join(root, ".scratch/forensics", `sqlite-restore-${timestampForFile(nowIso(flags))}`);
+  mkdirSync(join(forensicDir, "before"), { recursive: true });
+  for (const candidate of [p.dbPath, `${p.dbPath}-wal`, `${p.dbPath}-shm`]) {
+    if (existsSync(candidate)) copyFileSync(candidate, join(forensicDir, "before", basename(candidate)));
+  }
+
+  const staging = join(dirname(p.dbPath), `.${basename(p.dbPath)}.restore-${process.pid}.tmp`);
+  copyFileSync(snapshotPath, staging);
+  if (integrityCheckDatabase(staging) !== "ok") {
+    rmSync(staging, { force: true });
+    throw usageError("Restore abortado: staging falhou no integrity_check.");
+  }
+  renameSync(staging, p.dbPath);
+  rmSync(`${p.dbPath}-wal`, { force: true });
+  rmSync(`${p.dbPath}-shm`, { force: true });
+  console.log(`restore: ok (${p.dbPath})`);
+  console.log(`snapshot forense: ${forensicDir}`);
+  return { exitCode: 0 };
 }
 
 await main();
