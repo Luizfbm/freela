@@ -34,7 +34,7 @@ Documentos base:
 
 Contrato de dados:
 
-- SQLite em `.scratch/db/freela.sqlite` e a fonte de verdade operacional.
+- SQLite oficial acessado pela CLI em `.scratch/db/freela.sqlite`; na instancia local principal esse caminho e compatibilidade/symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`. Nunca mover/copiar/restaurar o DB manualmente; use `node scripts/freela-crm.mjs` e `node scripts/freela-crm.mjs healthcheck`.
 - Use `node scripts/freela-crm.mjs lead status --name [nome]` para conferir estado do lead quando o QA depender do pipeline.
 - Se o QA aprovar ou reprovar uma demo e isso exigir atualizar `demo_path` ou status comercial, acione o Follow-up CRM ou use `node scripts/freela-crm.mjs` conforme o contrato.
 - Use `node scripts/freela-crm.mjs export all` para regenerar espelhos quando houver mudanca de estado.

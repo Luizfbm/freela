@@ -5,7 +5,7 @@ Este checklist comeca depois que o cliente aceitou a proposta e pagou a entrada.
 ## Contrato de dados
 
 - Leia `docs/freelancer/data-contract.md` antes de registrar estado operacional.
-- SQLite em `.scratch/db/freela.sqlite` e a fonte de verdade operacional.
+- SQLite oficial acessado pela CLI em `.scratch/db/freela.sqlite`; na instancia local principal esse caminho e compatibilidade/symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`. Nunca mover/copiar/restaurar o DB manualmente; use `node scripts/freela-crm.mjs` e `node scripts/freela-crm.mjs healthcheck`.
 - Use `node scripts/freela-crm.mjs lead status --name [nome]` para consultar o cliente/lead antes de iniciar entrega.
 - Se precisar registrar fechamento, demo, entrega ou proxima acao comercial, acione o Follow-up CRM ou use `node scripts/freela-crm.mjs` conforme o contrato.
 - Use `node scripts/freela-crm.mjs export all` para regenerar espelhos quando houver mudanca de estado.

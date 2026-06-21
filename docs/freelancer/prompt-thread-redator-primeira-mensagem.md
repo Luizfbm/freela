@@ -48,7 +48,7 @@ Saida obrigatoria:
 
 Contrato de dados:
 
-- SQLite em `.scratch/db/freela.sqlite` e a fonte de verdade operacional.
+- SQLite oficial acessado pela CLI em `.scratch/db/freela.sqlite`; na instancia local principal esse caminho e compatibilidade/symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`. Nunca mover/copiar/restaurar o DB manualmente; use `node scripts/freela-crm.mjs` e `node scripts/freela-crm.mjs healthcheck`.
 - Grave cada mensagem aprovada na fila oficial com `node scripts/freela-crm.mjs queue set-message --name [nome] --message [mensagem]`.
 - Para personalizacao, use o Bio Evidence Pack: `bio_status`, `bio_text`, `bio_link_url`, `bio_link_status`, `commercial_hook` e `friction_points` vindos de `lead_platform_profiles`.
 - Rode `node scripts/freela-crm.mjs export all` depois de registrar mensagens.

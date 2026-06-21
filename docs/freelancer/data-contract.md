@@ -4,16 +4,30 @@ Este contrato define onde a operacao freelancer guarda estado e como os workers 
 
 ## Fonte de Verdade
 
-A fonte de verdade operacional e o SQLite privado:
+A memoria operacional oficial e o SQLite privado acessado pela CLI.
+
+Caminho de compatibilidade usado por scripts e workers:
 
 ```txt
 .scratch/db/freela.sqlite
 ```
 
-Toda escrita de estado deve passar pela CLI:
+Na instancia local principal, esse caminho deve ser um symlink para o arquivo fisico local, fora de `Documents` e fora de storage sincronizado/offloadavel:
+
+```txt
+/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite
+```
+
+Workers devem tratar `.scratch/db/freela.sqlite` como ponto de acesso estavel, nao como garantia de diretorio fisico. Nao mover, copiar, restaurar ou recriar o SQLite manualmente. Toda escrita de estado deve passar pela CLI:
 
 ```bash
 node scripts/freela-crm.mjs <comando>
+```
+
+Antes de operar em caso de duvida, rode:
+
+```bash
+node scripts/freela-crm.mjs healthcheck
 ```
 
 Arquivos em `.scratch/leads/`, `.scratch/crm/`, `.scratch/ops/` e `.scratch/qa-demos/` sao espelhos legiveis ou handoffs privados. Eles podem ser lidos pelos workers, mas nao devem ser editados manualmente como fonte oficial de status.
@@ -46,7 +60,7 @@ O contrato de passagem entre workers fica em `docs/freelancer/paperclip/worker-h
 - `outreach_queue`: fila de envio manual.
 - `message_reviews`: decisoes estruturadas do QA de Mensagens.
 - `worker_handoffs`: passagem estruturada de trabalho entre workers, com `pending_issue`, `issue_created`, `blocked`, `completed` ou `cancelled`; handoffs de um mesmo lote operacional devem preencher `workflow.batch_id`, e handoffs que nao podem duplicar issue podem usar `workflow.dedupe_key`, como `publish_fre7:50a2756c-2942-40c1-90f8-b16807a62ef3:YYYY-MM-DD`.
-- `whatsapp_inbound_events`, `whatsapp_outbox`, `whatsapp_guardian_decisions` e `lead_conversation_state`: automacao local de WhatsApp atras do Guardiao.
+- `whatsapp_inbound_events`, `whatsapp_outbox`, `whatsapp_guardian_decisions` e `lead_conversation_state`: automacao local de WhatsApp atras do Guardiao. `whatsapp_outbox` diferencia aceite de transporte e entrega real com `dispatch_provider`, `provider_message_id`, `delivery_ack`, `delivery_ack_name`, `delivered_at`, `delivery_checked_at` e status `delivery_pending`.
 - `whatsapp_identity_aliases`: vinculos entre leads e identidades WhatsApp/JID, incluindo contatos `@lid` que nao expõem telefone publico.
 - `whatsapp_unmatched_inbound_events`: mensagens inbound sem lead identificado; devem ser reconciliadas com `whatsapp identity link` e `whatsapp unmatched reconcile`, nao descartadas.
 - `whatsapp_worker_wakes`: dedupe de issues criadas automaticamente para workers por inbound WhatsApp, agente alvo e tipo de wake.
@@ -239,8 +253,9 @@ SQLite e a fonte oficial tambem para automacao WhatsApp. Mensagens recebidas de 
 Identidade WhatsApp:
 
 - O MCP pode entregar conversa individual como `@lid` em vez de telefone publico. Esse identificador deve ser salvo em `whatsapp_identity_aliases`.
-- `@lid` e identidade de leitura/match, nao destinatario de envio. Quando uma Outbox nasce de inbound `@lid`, a CLI deve usar o telefone real do lead como `target_chat_id` enviavel, por exemplo `5527999990000`; se nao houver telefone real, a proposta deve falhar cedo em vez de tentar enviar para `@lid`.
+- `@lid` e identidade de leitura/match, nao destinatario direto salvo na Outbox. Quando uma Outbox nasce de inbound `@lid`, a CLI deve usar o telefone real do lead como `target_chat_id` enviavel, por exemplo `5527999990000`; se nao houver telefone real, a proposta deve falhar cedo em vez de tentar enviar para `@lid`.
 - O Gateway bloqueia qualquer Outbox legada cujo `target_chat_id` termine em `@lid`, nao chama `/api/send` e move a conversa para `handoff_luiz` com motivo explicito para vincular telefone real.
+- No provider WAHA, o Gateway consulta `check-exists` com telefone real. Se a WAHA devolver `chatId` `@lid`, esse `@lid` resolvido pela propria WAHA pode ser usado em `/api/sendText`; isso nao autoriza salvar `@lid` direto na Outbox.
 - Quando o Gateway nao encontra lead confiavel, ele grava o evento em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`.
 - Para reconciliar, use `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
 - O import/watch com `--auto-wake` cria issue no Paperclip por roteamento seletivo; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama bridge e nao cria Outbox.

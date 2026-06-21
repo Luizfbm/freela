@@ -55,8 +55,21 @@ function main() {
       }
     } else {
       console.log(`Enviados: ${result.sent}`);
+      console.log(`Pendentes: ${result.pending || 0}`);
       console.log(`Falhas: ${result.failed}`);
       console.log(`Ignorados: ${result.skipped}`);
+    }
+    return;
+  }
+
+  if (command === "import-waha-event") {
+    const result = importWahaEvent(root, flags);
+    if (result.event === "message.ack") {
+      console.log(`WAHA ack atualizado: ${result.updated}`);
+    } else if (result.event === "message.waiting") {
+      console.log(`WAHA waiting atualizado: ${result.updated}`);
+    } else {
+      console.log(`WAHA evento ignorado: ${result.event || "desconhecido"}`);
     }
     return;
   }
@@ -569,7 +582,17 @@ function readDispatchableOutbox(database, limit) {
 }
 
 function validateDispatchApprovedOutboxFlags(flags) {
-  const allowed = new Set(["dry-run", "limit", "crm-db", "bridge-api-base", "timeout-ms"]);
+  const allowed = new Set([
+    "dry-run",
+    "limit",
+    "crm-db",
+    "provider",
+    "bridge-api-base",
+    "waha-api-base",
+    "waha-session",
+    "waha-api-key",
+    "timeout-ms",
+  ]);
   for (const flag of Object.keys(flags)) {
     if (!allowed.has(flag)) {
       throw new Error(`Opcao desconhecida para dispatch-approved-outbox: --${flag}`);
@@ -578,13 +601,40 @@ function validateDispatchApprovedOutboxFlags(flags) {
 }
 
 function buildDispatchOptions(flags) {
+  const provider = clean(flags.provider || process.env.WHATSAPP_DISPATCH_PROVIDER || "bridge").toLowerCase();
+  if (!["bridge", "waha"].includes(provider)) {
+    throw new Error(`--provider invalido: ${provider}`);
+  }
+  const timeoutMs = parsePositiveInt(flags["timeout-ms"] || "15000", "--timeout-ms");
+  if (provider === "waha") {
+    const wahaApiBase =
+      flags["waha-api-base"] ||
+      process.env.WHATSAPP_WAHA_API_BASE ||
+      "http://127.0.0.1:3000";
+    const session = clean(flags["waha-session"] || process.env.WHATSAPP_WAHA_SESSION || "default");
+    const apiKey = clean(flags["waha-api-key"] || process.env.WHATSAPP_WAHA_API_KEY || process.env.WAHA_API_KEY);
+    if (!session) throw new Error("--waha-session obrigatorio");
+    try {
+      const base = new URL(wahaApiBase);
+      return {
+        provider,
+        wahaApiBase: base.toString().replace(/\/$/, ""),
+        session,
+        apiKey,
+        timeoutMs,
+      };
+    } catch {
+      throw new Error(`--waha-api-base invalido: ${clean(wahaApiBase)}`);
+    }
+  }
+
   const bridgeApiBase =
     flags["bridge-api-base"] ||
     process.env.WHATSAPP_BRIDGE_API_BASE ||
     "http://127.0.0.1:8080";
-  const timeoutMs = parsePositiveInt(flags["timeout-ms"] || "15000", "--timeout-ms");
   try {
     return {
+      provider,
       sendUrl: new URL("/api/send", bridgeApiBase).toString(),
       timeoutMs,
     };
@@ -597,6 +647,7 @@ function dispatchOutboxItems(database, items, dispatchOptions) {
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  let pending = 0;
   for (const item of items) {
     const locked = lockOutboxForDispatch(database, item.id);
     if (!locked) {
@@ -612,15 +663,33 @@ function dispatchOutboxItems(database, items, dispatchOptions) {
       failed += 1;
       continue;
     }
-    const result = sendBridgeMessage({
-      sendUrl: dispatchOptions.sendUrl,
-      recipient: item.target_chat_id,
-      message: item.body,
-      timeoutMs: dispatchOptions.timeoutMs,
-    });
+    const result =
+      dispatchOptions.provider === "waha"
+        ? sendWahaMessage({
+            options: dispatchOptions,
+            recipient: item.target_chat_id,
+            message: item.body,
+          })
+        : sendBridgeMessage({
+            sendUrl: dispatchOptions.sendUrl,
+            recipient: item.target_chat_id,
+            message: item.body,
+            timeoutMs: dispatchOptions.timeoutMs,
+          });
     if (result.success) {
-      markOutboxSent(database, item, result.messageId);
+      if (dispatchOptions.provider === "waha") {
+        markWahaOutboxDelivered(database, item, {
+          messageId: result.messageId,
+          ack: result.ack,
+          ackName: result.ackName,
+        });
+      } else {
+        markOutboxSent(database, item, result.messageId);
+      }
       sent += 1;
+    } else if (result.pending) {
+      markWahaOutboxDeliveryPending(database, item, result);
+      pending += 1;
     } else if (result.ambiguous) {
       markOutboxAmbiguousFailure(database, item, result.error);
       failed += 1;
@@ -629,7 +698,7 @@ function dispatchOutboxItems(database, items, dispatchOptions) {
       failed += 1;
     }
   }
-  return { sent, failed, skipped, items };
+  return { sent, pending, failed, skipped, items };
 }
 
 function lockOutboxForDispatch(database, outboxId) {
@@ -762,6 +831,237 @@ function extractConfirmedBridgeMessageId(parsed) {
   return candidate;
 }
 
+function sendWahaMessage({ options, recipient, message }) {
+  const chatTarget = wahaChatTargetFromRecipient(recipient);
+  if (!chatTarget.phone && !chatTarget.chatId) {
+    return {
+      success: false,
+      ambiguous: false,
+      error: `destinatario WAHA invalido: ${clean(recipient)}`,
+    };
+  }
+
+  const resolved = chatTarget.phone
+    ? resolveWahaChatId(options, chatTarget.phone)
+    : { success: true, chatId: chatTarget.chatId };
+  if (!resolved.success) return resolved;
+
+  for (const path of ["/api/sendSeen", "/api/startTyping", "/api/stopTyping"]) {
+    const step = requestJsonSync({
+      method: "POST",
+      url: `${options.wahaApiBase}${path}`,
+      apiKey: options.apiKey,
+      timeoutMs: options.timeoutMs,
+      body: {
+        session: options.session,
+        chatId: resolved.chatId,
+      },
+    });
+    if (!step.ok) {
+      return {
+        success: false,
+        ambiguous: true,
+        error: `WAHA ${path} falhou: ${step.error || `HTTP ${step.status}`}`,
+      };
+    }
+  }
+
+  const sent = requestJsonSync({
+    method: "POST",
+    url: `${options.wahaApiBase}/api/sendText`,
+    apiKey: options.apiKey,
+    timeoutMs: options.timeoutMs,
+    body: {
+      session: options.session,
+      chatId: resolved.chatId,
+      text: message,
+    },
+  });
+  if (!sent.ok) {
+    return {
+      success: false,
+      ambiguous: true,
+      error: `WAHA sendText falhou: ${sent.error || `HTTP ${sent.status}`}`,
+    };
+  }
+
+  const messageId = extractWahaMessageId(sent.parsed);
+  if (!messageId) {
+    return {
+      success: false,
+      ambiguous: true,
+      error: "confirmacao ambigua do WAHA: sendText sem id de mensagem",
+    };
+  }
+
+  const ack = wahaAckFromPayload(sent.parsed);
+  if (isStrongWahaAck(ack)) {
+    return { success: true, messageId, ack: ack.ack, ackName: ack.ackName };
+  }
+
+  return {
+    success: false,
+    pending: true,
+    messageId,
+    ack: ack.ack,
+    ackName: ack.ackName,
+  };
+}
+
+function resolveWahaChatId(options, phone) {
+  const query = new URLSearchParams({ phone, session: options.session });
+  const checked = requestJsonSync({
+    method: "GET",
+    url: `${options.wahaApiBase}/api/contacts/check-exists?${query.toString()}`,
+    apiKey: options.apiKey,
+    timeoutMs: options.timeoutMs,
+  });
+  if (!checked.ok) {
+    return {
+      success: false,
+      ambiguous: true,
+      error: `WAHA check-exists falhou: ${checked.error || `HTTP ${checked.status}`}`,
+    };
+  }
+  if (checked.parsed?.numberExists === false) {
+    return {
+      success: false,
+      ambiguous: false,
+      error: `numero nao existe no WhatsApp segundo WAHA: ${phone}`,
+    };
+  }
+  const chatId = clean(checked.parsed?.chatId || `${phone}@c.us`);
+  if (!chatId.endsWith("@c.us") && !isWhatsAppLidRecipient(chatId)) {
+    return {
+      success: false,
+      ambiguous: true,
+      error: `WAHA check-exists retornou chatId nao enviavel: ${chatId}`,
+    };
+  }
+  return { success: true, chatId };
+}
+
+function wahaChatTargetFromRecipient(recipient) {
+  const value = clean(recipient);
+  if (!value || isWhatsAppLidRecipient(value)) return { phone: "", chatId: "" };
+  if (value.endsWith("@c.us")) return { phone: "", chatId: value };
+  const phone = wahaPhoneFromRecipient(value);
+  return phone ? { phone, chatId: "" } : { phone: "", chatId: "" };
+}
+
+function wahaPhoneFromRecipient(value) {
+  const jidPhone = phoneFromValue(value);
+  if (jidPhone) return jidPhone;
+  const digits = clean(value).replace(/\D+/g, "");
+  if (digits.startsWith("55") && digits.length >= 12 && digits.length <= 13) return digits;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return "";
+}
+
+function requestJsonSync({ method, url, body, apiKey, timeoutMs }) {
+  const headers = { Accept: "application/json" };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (apiKey) headers["X-Api-Key"] = apiKey;
+  const result = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), Number(process.argv[5]));
+        try {
+          const body = process.argv[3] ? JSON.parse(process.argv[3]) : undefined;
+          const response = await fetch(process.argv[2], {
+            method: process.argv[1],
+            headers: JSON.parse(process.argv[4]),
+            body: body === undefined ? undefined : JSON.stringify(body),
+            signal: controller.signal
+          });
+          const text = await response.text();
+          console.log(JSON.stringify({ ok: response.ok, status: response.status, text }));
+        } catch (error) {
+          console.error(error.message);
+          process.exit(2);
+        } finally {
+          clearTimeout(timeout);
+        }
+      `,
+      method,
+      url,
+      body === undefined ? "" : JSON.stringify(body),
+      JSON.stringify(headers),
+      String(timeoutMs),
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      status: 0,
+      error: [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
+      parsed: null,
+    };
+  }
+  try {
+    const response = JSON.parse(result.stdout);
+    let parsed = null;
+    if (response.text) parsed = JSON.parse(response.text);
+    return {
+      ok: response.ok,
+      status: response.status,
+      error: response.ok ? "" : clean(parsed?.message || response.text || `HTTP ${response.status}`),
+      parsed,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: `resposta WAHA invalida: ${error.message}`,
+      parsed: null,
+    };
+  }
+}
+
+function extractWahaMessageId(payload) {
+  return firstWahaMessageId(
+    payload?.id,
+    payload?.messageId,
+    payload?.message_id,
+    payload?.key?.id,
+    payload?._data?.id,
+  );
+}
+
+function firstWahaMessageId(...candidates) {
+  for (const candidate of candidates) {
+    const messageId = wahaMessageIdValue(candidate);
+    if (messageId) return messageId;
+  }
+  return "";
+}
+
+function wahaMessageIdValue(candidate) {
+  if (!candidate) return "";
+  if (typeof candidate === "string" || typeof candidate === "number") return clean(candidate);
+  if (typeof candidate !== "object") return "";
+  return clean(candidate._serialized || candidate.serialized || candidate.id || candidate.messageId || candidate.message_id);
+}
+
+function wahaAckFromPayload(payload) {
+  const ackName = clean(payload?.ackName || payload?.ack?.ackName || payload?.payload?.ackName).toUpperCase();
+  const rawAck = payload?.ack ?? payload?.payload?.ack;
+  const ack = Number.isInteger(rawAck) ? rawAck : Number.parseInt(clean(rawAck || ""), 10);
+  return {
+    ack: Number.isFinite(ack) ? ack : null,
+    ackName,
+  };
+}
+
+function isStrongWahaAck(ack) {
+  if (["DEVICE", "READ", "PLAYED"].includes(clean(ack.ackName).toUpperCase())) return true;
+  return Number.isFinite(ack.ack) && ack.ack >= 2;
+}
+
 function markOutboxSent(database, item, bridgeMessageId) {
   const sentAt = new Date().toISOString();
   database
@@ -794,6 +1094,88 @@ function markOutboxSent(database, item, bridgeMessageId) {
        where lead_id = ?`,
     )
     .run(item.id, sentAt, item.lead_id);
+}
+
+function markWahaOutboxDeliveryPending(database, item, result) {
+  const checkedAt = new Date().toISOString();
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'delivery_pending',
+           dispatch_provider = 'waha',
+           provider_message_id = ?,
+           delivery_ack = ?,
+           delivery_ack_name = ?,
+           delivery_checked_at = ?,
+           attempts = attempts + 1,
+           failed_at = null,
+           dispatch_error = null,
+           dispatch_locked_at = null
+       where id = ?`,
+    )
+    .run(
+      clean(result.messageId),
+      Number.isFinite(result.ack) ? result.ack : null,
+      clean(result.ackName) || null,
+      checkedAt,
+      item.id,
+    );
+}
+
+function markWahaOutboxDelivered(database, item, delivery) {
+  const deliveredAt = new Date().toISOString();
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'sent',
+           dispatch_provider = 'waha',
+           provider_message_id = ?,
+           delivery_ack = ?,
+           delivery_ack_name = ?,
+           delivered_at = ?,
+           delivery_checked_at = ?,
+           sent_at = ?,
+           failed_at = null,
+           dispatch_error = null,
+           dispatch_locked_at = null
+       where id = ?`,
+    )
+    .run(
+      clean(delivery.messageId),
+      Number.isFinite(delivery.ack) ? delivery.ack : null,
+      clean(delivery.ackName) || null,
+      deliveredAt,
+      deliveredAt,
+      deliveredAt,
+      item.id,
+    );
+  insertOutboundWhatsAppInteraction(database, item, deliveredAt);
+  database
+    .prepare(
+      `update lead_conversation_state
+       set last_outbox_id = ?, updated_at = ?
+       where lead_id = ?`,
+    )
+    .run(item.id, deliveredAt, item.lead_id);
+}
+
+function insertOutboundWhatsAppInteraction(database, item, occurredAt) {
+  database
+    .prepare(
+      `insert into interactions (
+        lead_id, direction, channel, body, occurred_at, raw_file, classification, created_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      item.lead_id,
+      "outbound",
+      "whatsapp",
+      item.body,
+      occurredAt,
+      `whatsapp_outbox:${item.id}`,
+      "automatico_enviado",
+      occurredAt,
+    );
 }
 
 function markOutboxFailed(database, item, error) {
@@ -835,6 +1217,127 @@ function markOutboxAmbiguousFailure(database, item, error) {
        where lead_id = ?`,
     )
     .run(`confirmacao ambigua do envio pelo bridge: ${reason}`.slice(0, 1000), failedAt, item.lead_id);
+}
+
+function importWahaEvent(root, flags) {
+  validateImportWahaEventFlags(flags);
+  const explicitCrmDb = flags["crm-db"] !== undefined;
+  const crmDbPath = resolve(root, flags["crm-db"] || ".scratch/db/freela.sqlite");
+  ensureCrmInitialized(root, crmDbPath, explicitCrmDb);
+  const event = JSON.parse(readFileSync(resolve(root, requireFlag(flags, "file")), "utf8"));
+  const database = new DatabaseSync(crmDbPath);
+  try {
+    if (event.event === "message.ack") {
+      return { event: event.event, updated: applyWahaAckEvent(database, event) };
+    }
+    if (event.event === "message.waiting") {
+      return { event: event.event, updated: applyWahaWaitingEvent(database, event) };
+    }
+    return { event: clean(event.event), updated: 0 };
+  } finally {
+    database.close();
+  }
+}
+
+function validateImportWahaEventFlags(flags) {
+  const allowed = new Set(["file", "crm-db"]);
+  for (const flag of Object.keys(flags)) {
+    if (!allowed.has(flag)) {
+      throw new Error(`Opcao desconhecida para import-waha-event: --${flag}`);
+    }
+  }
+}
+
+function applyWahaAckEvent(database, event) {
+  const messageId = extractWahaEventMessageId(event);
+  if (!messageId) return 0;
+  const ack = wahaAckFromPayload(event.payload || event);
+  const checkedAt = new Date().toISOString();
+  const outbox = database
+    .prepare(
+      `select *
+       from whatsapp_outbox
+       where dispatch_provider = 'waha'
+         and provider_message_id = ?
+       order by id desc
+       limit 1`,
+    )
+    .get(messageId);
+  if (!outbox) return 0;
+  if (!isStrongWahaAck(ack)) {
+    database
+      .prepare(
+        `update whatsapp_outbox
+         set delivery_ack = ?, delivery_ack_name = ?, delivery_checked_at = ?
+         where id = ?`,
+      )
+      .run(Number.isFinite(ack.ack) ? ack.ack : null, clean(ack.ackName) || null, checkedAt, outbox.id);
+    return 0;
+  }
+  if (outbox.status === "sent" && outbox.sent_at) {
+    database
+      .prepare(
+        `update whatsapp_outbox
+         set delivery_ack = ?, delivery_ack_name = ?, delivery_checked_at = ?
+         where id = ?`,
+      )
+      .run(Number.isFinite(ack.ack) ? ack.ack : null, clean(ack.ackName) || null, checkedAt, outbox.id);
+    return 0;
+  }
+  markWahaOutboxDelivered(database, outbox, {
+    messageId,
+    ack: ack.ack,
+    ackName: ack.ackName,
+  });
+  return 1;
+}
+
+function applyWahaWaitingEvent(database, event) {
+  const messageId = extractWahaEventMessageId(event);
+  if (!messageId) return 0;
+  const failedAt = new Date().toISOString();
+  const reason = "WAHA message.waiting: Aguardando mensagem no destinatario";
+  const outbox = database
+    .prepare(
+      `select *
+       from whatsapp_outbox
+       where dispatch_provider = 'waha'
+         and provider_message_id = ?
+       order by id desc
+       limit 1`,
+    )
+    .get(messageId);
+  if (!outbox) return 0;
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'dispatch_ambiguous',
+           failed_at = ?,
+           dispatch_error = ?,
+           delivery_checked_at = ?,
+           dispatch_locked_at = null
+       where id = ?`,
+    )
+    .run(failedAt, reason, failedAt, outbox.id);
+  database
+    .prepare(
+      `update lead_conversation_state
+       set whatsapp_state = 'handoff_luiz', handoff_reason = ?, updated_at = ?
+       where lead_id = ?`,
+    )
+    .run(reason, failedAt, outbox.lead_id);
+  return 1;
+}
+
+function extractWahaEventMessageId(event) {
+  return firstWahaMessageId(
+    event?.payload?.id,
+    event?.payload?.messageId,
+    event?.payload?.message_id,
+    event?.payload?.message?.id,
+    event?.id,
+    event?.messageId,
+  );
 }
 
 function readMcpRows(database, cursor, limit) {
@@ -913,7 +1416,11 @@ function watchMcpSqlite(root, flags) {
     "state-file",
     "interval-ms",
     "dispatch-approved",
+    "provider",
     "bridge-api-base",
+    "waha-api-base",
+    "waha-session",
+    "waha-api-key",
     "timeout-ms",
     "limit",
     "crm-db",
@@ -957,12 +1464,22 @@ function watchMcpSqlite(root, flags) {
       );
       if (dispatchApproved) {
         const dispatchFlags = {};
-        for (const flag of ["bridge-api-base", "timeout-ms", "limit", "crm-db", "dry-run"]) {
+        for (const flag of [
+          "provider",
+          "bridge-api-base",
+          "waha-api-base",
+          "waha-session",
+          "waha-api-key",
+          "timeout-ms",
+          "limit",
+          "crm-db",
+          "dry-run",
+        ]) {
           if (flags[flag] !== undefined) dispatchFlags[flag] = flags[flag];
         }
         const dispatch = dispatchApprovedOutbox(root, dispatchFlags);
         console.log(
-          `[${new Date().toISOString()}] enviados=${dispatch.sent} dispatch_falhas=${dispatch.failed} dispatch_ignorados=${dispatch.skipped}`,
+          `[${new Date().toISOString()}] enviados=${dispatch.sent} dispatch_pendentes=${dispatch.pending || 0} dispatch_falhas=${dispatch.failed} dispatch_ignorados=${dispatch.skipped}`,
         );
       }
     } catch (error) {

@@ -49,7 +49,7 @@ Documentos base:
 
 Contrato de dados:
 
-- SQLite em `.scratch/db/freela.sqlite` e a fonte de verdade operacional.
+- SQLite oficial acessado pela CLI em `.scratch/db/freela.sqlite`; na instancia local principal esse caminho e compatibilidade/symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`. Nunca mover/copiar/restaurar o DB manualmente; use `node scripts/freela-crm.mjs` e `node scripts/freela-crm.mjs healthcheck`.
 - Use `node scripts/freela-crm.mjs lead status --name [nome]` para consultar estado quando precisar decidir prioridade.
 - Se precisar gravar ou alterar fila/status, acione o Follow-up CRM ou use `node scripts/freela-crm.mjs queue generate` e `node scripts/freela-crm.mjs export all` conforme o contrato.
 - Quando receber rodada do Lead Scout, confirme que ele executou `node scripts/freela-crm.mjs lead upsert --file .scratch/prospeccao-vitoria/YYYY-MM-DD/crm-upsert-leads.json`, `node scripts/freela-crm.mjs queue generate` e `node scripts/freela-crm.mjs export all`.

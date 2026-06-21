@@ -42,8 +42,10 @@ Separacao Fila do Dia vs CRM Historico:
 ## Consistencia de dados
 
 - Contrato oficial: `docs/freelancer/data-contract.md`.
-- Fonte de verdade local: SQLite em `.scratch/db/freela.sqlite`.
-- CLI obrigatoria de escrita: `node scripts/freela-crm.mjs`.
+- Fonte de verdade local: SQLite acessado por `.scratch/db/freela.sqlite`.
+- Na instancia local principal, `.scratch/db/freela.sqlite` deve resolver via symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`.
+- Workers devem usar sempre `node scripts/freela-crm.mjs`; nao devem mover, copiar, restaurar ou recriar o SQLite manualmente.
+- Verificacao obrigatoria quando houver duvida: `node scripts/freela-crm.mjs healthcheck`.
 - Espelhos como `.scratch/leads/master-leads.csv` e `.scratch/crm/pipeline.md` sao gerados pela CLI.
 - Workers nao devem editar arquivos em `.scratch` manualmente como fonte oficial de estado.
 - Issues do Paperclip coordenam trabalho; elas nao substituem o SQLite como memoria operacional.
@@ -66,7 +68,7 @@ node scripts/freela-crm.mjs commercial status --date YYYY-MM-DD
 node scripts/freela-crm.mjs commercial export --date YYYY-MM-DD
 ```
 
-`commercial export` gera `.scratch/crm/commercial-funnel.md` e `.scratch/ops/commercial-status.md`. Esses arquivos sao espelhos privados; a fonte oficial continua sendo as views do SQLite em `.scratch/db/freela.sqlite`.
+`commercial export` gera `.scratch/crm/commercial-funnel.md` e `.scratch/ops/commercial-status.md`. Esses arquivos sao espelhos privados; a fonte oficial continua sendo as views do SQLite acessadas pela CLI em `.scratch/db/freela.sqlite`, caminho de compatibilidade que aponta para o DB fisico local.
 
 ## Handoff e auto-delegacao
 
@@ -333,13 +335,15 @@ Fluxos implementados:
 
 O setup local do `lharries/whatsapp-mcp` esta em `docs/freelancer/paperclip/whatsapp-mcp-local.md`. Ele deve ficar em `.scratch/whatsapp-mcp`, parear por QR e ser lido pelo Gateway Local via `store/messages.db`.
 
-Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox` chama o bridge `/api/send`.
+WAHA fica documentado em `docs/freelancer/paperclip/whatsapp-waha-local.md` como laboratorio de envio automatico. Use somente pelo Gateway com `dispatch-approved-outbox --provider waha`; workers nao chamam `/api/sendText`. Enquanto o ACK forte nao chega, a Outbox fica em `delivery_pending`, sem contar como envio concluido. O CRM so considera entregue quando `message.ack` chega com `DEVICE`, `READ` ou `PLAYED`; `message.waiting` marca risco de placeholder e move para handoff. `@lid` continua identidade de leitura e nao deve ser salvo como destino direto na Outbox; telefone real pode virar `@c.us`, mas o Gateway tambem pode usar `@lid` quando ele vier resolvido pelo `check-exists` da WAHA a partir desse telefone real.
+
+Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox` chama o motor de envio autorizado: bridge `/api/send` ou WAHA `/api/sendText` em laboratorio.
 
 Workers nao acessam `send_message`, `send_file` ou `send_audio_message`. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite`.
 
 Identidade WhatsApp e parte do contrato operacional. Se o MCP entregar um contato como `@lid` ou outro JID que nao bate com telefone publico, o Gateway nao descarta: ele registra em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`. Vincule o lead com `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois rode `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
 
-`@lid` e identidade de leitura, nao destino de envio. A Outbox deve despachar para telefone real em formato enviavel, como `5527999990000`. Se uma Outbox legada ainda tiver destino `@lid`, o Gateway bloqueia antes de chamar `/api/send` e move o lead para `handoff_luiz`.
+`@lid` e identidade de leitura, nao destino direto de Outbox. A Outbox deve despachar para telefone real em formato enviavel, como `5527999990000`. Se uma Outbox legada ainda tiver destino `@lid`, o Gateway bloqueia antes de chamar `/api/send` e move o lead para `handoff_luiz`. No provider WAHA, depois que o telefone real passa por `check-exists`, um `chatId` resolvido como `@lid` pode ser usado pelo Gateway em `/api/sendText`.
 
 Com `--auto-wake`, o Gateway roteia seletivamente por classificacao/estado. Atendimento WhatsApp recebe conversa normal (`resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`). Jhon Snow / Atendimento e Fechamento recebe fechamento comercial (`preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente`, `bloqueado_guardiao`). Use `--closer-agent-id` para sobrescrever o agente closer em teste. O dedupe fica em `whatsapp_worker_wakes`, sem enviar mensagem e sem chamar bridge.
 

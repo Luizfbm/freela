@@ -1,6 +1,18 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, extname, join, resolve } from "node:path";
+import {
+  closeSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 const VALID_STATUSES = new Set([
@@ -94,6 +106,8 @@ const HANDOFF_STATUSES = new Set([
   "completed",
   "cancelled",
 ]);
+const SQLITE_HEADER = Buffer.from("SQLite format 3\0", "ascii");
+const DEFAULT_DB_BACKUP_LIMIT = 20;
 
 async function main() {
   try {
@@ -129,6 +143,15 @@ function sleepSync(ms) {
 async function dispatch({ root, dbPath, command, args }) {
   if (!command.length) {
     throw usageError("Comando obrigatorio. Ex.: init, lead upsert --file leads.json");
+  }
+
+  if (command[0] === "healthcheck") {
+    const report = healthcheckDatabase(root, dbPath);
+    console.log("SQLite healthcheck: ok");
+    console.log(`path: ${report.path}`);
+    console.log(`integrity_check: ${report.integrityCheck}`);
+    if (report.materialized) console.log("materialized: true");
+    return;
   }
 
   if (command[0] === "init") {
@@ -568,11 +591,46 @@ function databasePath(root, explicitPath) {
   return explicitPath ?? join(root, ".scratch/db/freela.sqlite");
 }
 
+function healthcheckDatabase(root, explicitPath) {
+  const path = databasePath(root, explicitPath);
+  if (!existsSync(path)) {
+    throw usageError(`SQLite nao encontrado: ${path}. Rode init antes de operar.`);
+  }
+
+  const validation = ensureUsableDatabaseFile(root, path);
+  let database = null;
+  try {
+    database = new DatabaseSync(path, { readOnly: true });
+    database.exec("PRAGMA busy_timeout = 10000;");
+    const result = database.prepare("pragma integrity_check").get().integrity_check;
+    if (result !== "ok") {
+      const snapshot = snapshotInvalidDatabase(root, path, `integrity_check: ${result}`);
+      throw usageError(`SQLite invalido: integrity_check retornou ${result}. Snapshot forense: ${snapshot}`);
+    }
+    return {
+      path,
+      integrityCheck: result,
+      materialized: validation.materialized,
+    };
+  } catch (error) {
+    if (error.exitCode) throw error;
+    const snapshot = snapshotInvalidDatabase(root, path, error.message);
+    throw usageError(`SQLite invalido: ${error.message}. Snapshot forense: ${snapshot}`);
+  } finally {
+    if (database) database.close();
+  }
+}
+
 function openDatabase(root, explicitPath) {
   const path = databasePath(root, explicitPath);
   mkdirSync(dirname(path), { recursive: true });
   mkdirSync(join(root, ".scratch/leads"), { recursive: true });
   mkdirSync(join(root, ".scratch/crm"), { recursive: true });
+
+  if (existsSync(path)) {
+    ensureUsableDatabaseFile(root, path);
+    createRotatingDatabaseBackup(root, path);
+  }
 
   const database = new DatabaseSync(path);
   database.exec("PRAGMA busy_timeout = 10000;");
@@ -581,6 +639,172 @@ function openDatabase(root, explicitPath) {
   database.exec(schemaSql());
   migrateDatabase(database);
   return database;
+}
+
+function ensureUsableDatabaseFile(root, path) {
+  const initial = inspectSqliteFile(path);
+  if (initial.ok) return { materialized: false };
+
+  if (initial.datalessCandidate) {
+    materializeDatalessCandidate(path);
+    const afterMaterialize = inspectSqliteFile(path);
+    if (afterMaterialize.ok) return { materialized: true };
+  }
+
+  const snapshot = snapshotInvalidDatabase(root, path, initial.reason);
+  throw usageError(`SQLite invalido: ${initial.reason}. Snapshot forense: ${snapshot}`);
+}
+
+function inspectSqliteFile(path) {
+  let stat;
+  try {
+    stat = statSync(path);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `stat falhou para ${path}: ${error.message}`,
+      datalessCandidate: false,
+    };
+  }
+
+  if (stat.size === 0) {
+    return {
+      ok: false,
+      reason: `arquivo vazio: ${path}`,
+      datalessCandidate: false,
+    };
+  }
+
+  const header = Buffer.alloc(SQLITE_HEADER.length);
+  let fd = null;
+  try {
+    fd = openSync(path, "r");
+    const bytesRead = readSync(fd, header, 0, SQLITE_HEADER.length, 0);
+    if (bytesRead !== SQLITE_HEADER.length) {
+      return {
+        ok: false,
+        reason: `header SQLite incompleto em ${path}: ${bytesRead} bytes`,
+        datalessCandidate: isDatalessCandidate(stat),
+      };
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `falha lendo header SQLite em ${path}: ${error.message}`,
+      datalessCandidate: isDatalessCandidate(stat),
+    };
+  } finally {
+    if (fd !== null) closeSync(fd);
+  }
+
+  if (!header.equals(SQLITE_HEADER)) {
+    return {
+      ok: false,
+      reason: `header SQLite ausente em ${path}`,
+      datalessCandidate: isDatalessCandidate(stat),
+    };
+  }
+
+  return { ok: true, stat, datalessCandidate: false };
+}
+
+function isDatalessCandidate(stat) {
+  return stat.size > 0 && Number(stat.blocks) === 0;
+}
+
+function materializeDatalessCandidate(path) {
+  const tempPath = join(dirname(path), `.${basename(path)}.hydrate-${process.pid}-${timestampForFile()}.tmp`);
+  try {
+    copyFileSync(path, tempPath);
+  } finally {
+    rmSync(tempPath, { force: true });
+  }
+}
+
+function createRotatingDatabaseBackup(root, path) {
+  const backupDir = join(dirname(path), "backups");
+  mkdirSync(backupDir, { recursive: true });
+  const base = sanitizeBackupName(basename(path, extname(path)) || "sqlite");
+  const backupPath = join(backupDir, `${base}-${timestampForFile()}.sqlite`);
+  let database = null;
+
+  try {
+    database = new DatabaseSync(path, { readOnly: true });
+    database.exec("PRAGMA busy_timeout = 10000;");
+    database.exec(`VACUUM INTO ${sqlStringLiteral(backupPath)};`);
+  } catch (error) {
+    rmSync(backupPath, { force: true });
+    if (isSqliteBusy(error)) throw error;
+    const snapshot = snapshotInvalidDatabase(root, path, `backup falhou: ${error.message}`);
+    throw usageError(`Backup SQLite falhou antes de operar: ${error.message}. Snapshot forense: ${snapshot}`);
+  } finally {
+    if (database) database.close();
+  }
+
+  pruneDatabaseBackups(backupDir, base, backupRetentionLimit());
+  return backupPath;
+}
+
+function backupRetentionLimit() {
+  const configured = process.env.FREELA_CRM_BACKUP_LIMIT;
+  if (!configured) return DEFAULT_DB_BACKUP_LIMIT;
+  const parsed = Number.parseInt(configured, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) return DEFAULT_DB_BACKUP_LIMIT;
+  return parsed;
+}
+
+function pruneDatabaseBackups(backupDir, base, limit) {
+  const backups = readdirSync(backupDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.startsWith(`${base}-`) && entry.name.endsWith(".sqlite"))
+    .map((entry) => {
+      const path = join(backupDir, entry.name);
+      return { path, name: entry.name, mtimeMs: statSync(path).mtimeMs };
+    })
+    .sort((left, right) => right.mtimeMs - left.mtimeMs || right.name.localeCompare(left.name));
+
+  for (const backup of backups.slice(limit)) {
+    rmSync(backup.path, { force: true });
+  }
+}
+
+function snapshotInvalidDatabase(root, path, reason) {
+  const snapshotDir = join(root, ".scratch/forensics", `sqlite-invalid-${timestampForFile()}`);
+  const dbDir = join(snapshotDir, "db");
+  mkdirSync(dbDir, { recursive: true });
+  const metadata = [
+    `created_at=${new Date().toISOString()}`,
+    `path=${path}`,
+    `reason=${reason}`,
+  ];
+
+  for (const candidate of [path, `${path}-wal`, `${path}-shm`]) {
+    if (!existsSync(candidate)) continue;
+    try {
+      const stat = statSync(candidate);
+      metadata.push(
+        `file=${candidate} size=${stat.size} blocks=${stat.blocks ?? "unknown"} mtime=${stat.mtime.toISOString()}`,
+      );
+      copyFileSync(candidate, join(dbDir, basename(candidate)));
+    } catch (error) {
+      metadata.push(`copy_error=${candidate}: ${error.message}`);
+    }
+  }
+
+  writeFileSync(join(snapshotDir, "metadata.txt"), `${metadata.join("\n")}\n`, "utf8");
+  return snapshotDir;
+}
+
+function sanitizeBackupName(value) {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
+function timestampForFile() {
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "");
+  return `${stamp}-${process.hrtime.bigint().toString(36)}`;
+}
+
+function sqlStringLiteral(value) {
+  return `'${value.replaceAll("'", "''")}'`;
 }
 
 function migrateDatabase(database) {
@@ -599,6 +823,12 @@ function migrateDatabase(database) {
   ensureColumn(database, "whatsapp_outbox", "humanizer_notes", "text");
   ensureColumn(database, "whatsapp_outbox", "dispatch_error", "text");
   ensureColumn(database, "whatsapp_outbox", "dispatch_locked_at", "text");
+  ensureColumn(database, "whatsapp_outbox", "dispatch_provider", "text");
+  ensureColumn(database, "whatsapp_outbox", "provider_message_id", "text");
+  ensureColumn(database, "whatsapp_outbox", "delivery_ack", "integer");
+  ensureColumn(database, "whatsapp_outbox", "delivery_ack_name", "text");
+  ensureColumn(database, "whatsapp_outbox", "delivered_at", "text");
+  ensureColumn(database, "whatsapp_outbox", "delivery_checked_at", "text");
   ensureColumn(database, "whatsapp_unmatched_inbound_events", "classification", "text");
   ensureColumn(database, "whatsapp_unmatched_inbound_events", "matched_lead_id", "integer references leads(id)");
   ensureColumn(database, "whatsapp_unmatched_inbound_events", "matched_inbound_event_id", "integer references whatsapp_inbound_events(id)");
@@ -1175,6 +1405,12 @@ function schemaSql() {
       humanizer_notes text,
       dispatch_error text,
       dispatch_locked_at text,
+      dispatch_provider text,
+      provider_message_id text,
+      delivery_ack integer,
+      delivery_ack_name text,
+      delivered_at text,
+      delivery_checked_at text,
       guardian_decision text,
       guardian_reason text,
       attempts integer not null default 0,

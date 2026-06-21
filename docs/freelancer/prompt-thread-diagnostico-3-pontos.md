@@ -34,7 +34,7 @@ Documentos base:
 
 Contrato de dados:
 
-- SQLite em `.scratch/db/freela.sqlite` e a fonte de verdade operacional.
+- SQLite oficial acessado pela CLI em `.scratch/db/freela.sqlite`; na instancia local principal esse caminho e compatibilidade/symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`. Nunca mover/copiar/restaurar o DB manualmente; use `node scripts/freela-crm.mjs` e `node scripts/freela-crm.mjs healthcheck`.
 - Use `node scripts/freela-crm.mjs lead status --name [nome]` quando precisar validar etapa ou historico do lead.
 - Nao edite arquivos em `.scratch` manualmente como fonte oficial de estado.
 - Diagnostico 3 Pontos gera evidencia; Atendimento e Fechamento registra a resposta final no CRM quando houver mensagem pronta.

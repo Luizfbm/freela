@@ -48,7 +48,7 @@ Documentos base:
 
 Contrato de dados:
 
-- SQLite em `.scratch/db/freela.sqlite` e a fonte de verdade operacional.
+- SQLite oficial acessado pela CLI em `.scratch/db/freela.sqlite`; na instancia local principal esse caminho e compatibilidade/symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`. Nunca mover/copiar/restaurar o DB manualmente; use `node scripts/freela-crm.mjs` e `node scripts/freela-crm.mjs healthcheck`.
 - Use `node scripts/freela-crm.mjs lead mark-contacted --name [nome]` para registrar envio manual.
 - Use `node scripts/freela-crm.mjs lead mark-response --name [nome] --message [resposta]` para registrar resposta.
 - Use `node scripts/freela-crm.mjs lead update --name [nome]` para atualizar status comercial, `demo_path`, `handoff_status` ou notas sem criar resposta falsa de cliente.
