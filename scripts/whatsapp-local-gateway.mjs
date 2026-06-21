@@ -298,11 +298,7 @@ function sendBridgeMessage({ sendUrl, recipient, message, timeoutMs }) {
             signal: controller.signal
           });
           const text = await response.text();
-          if (!response.ok) {
-            console.error(text || response.statusText);
-            process.exit(1);
-          }
-          console.log(text);
+          console.log(JSON.stringify({ ok: response.ok, status: response.status, text }));
         } catch (error) {
           console.error(error.message);
           process.exit(2);
@@ -320,13 +316,14 @@ function sendBridgeMessage({ sendUrl, recipient, message, timeoutMs }) {
   if (result.status !== 0) {
     return {
       success: false,
-      ambiguous: result.status !== 1,
+      ambiguous: true,
       error: [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
     };
   }
   try {
-    const parsed = JSON.parse(result.stdout);
-    if (parsed.success === true) {
+    const response = JSON.parse(result.stdout);
+    const parsed = JSON.parse(response.text);
+    if (parsed.success === true && response.ok) {
       return { success: true, messageId: parsed.message || "" };
     }
     if (parsed.success === false) {
@@ -339,7 +336,9 @@ function sendBridgeMessage({ sendUrl, recipient, message, timeoutMs }) {
     return {
       success: false,
       ambiguous: true,
-      error: "confirmacao ambigua do bridge: success true ausente",
+      error: response.ok
+        ? "confirmacao ambigua do bridge: success true ausente"
+        : `confirmacao ambigua do bridge: HTTP ${response.status}`,
     };
   } catch (error) {
     return {
@@ -501,7 +500,11 @@ function watchMcpSqlite(root, flags) {
 }
 
 function parsePositiveInt(value, flagName) {
-  const parsed = Number.parseInt(value, 10);
+  const normalized = clean(value);
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`${flagName} deve ser inteiro positivo`);
+  }
+  const parsed = Number.parseInt(normalized, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(`${flagName} deve ser inteiro positivo`);
   }

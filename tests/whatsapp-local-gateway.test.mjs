@@ -333,6 +333,67 @@ test("gateway treats bridge responses without explicit success true as ambiguous
   }
 });
 
+test("gateway treats http 500 success false json as confirmed failed dispatch", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, message: "bridge down" }));
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Falhas: 1/i);
+
+    const { outbox, outbound, state } = readLatestDispatchAudit(root);
+    assert.equal(outbox.status, "failed");
+    assert.equal(outbox.attempts, 1);
+    assert.equal(outbox.dispatch_error, "bridge down");
+    assert.equal(outbox.sent_at, null);
+    assert.equal(outbound.length, 0);
+    assert.notEqual(state.whatsapp_state, "handoff_luiz");
+  } finally {
+    await bridge.close();
+  }
+});
+
+test("gateway treats http 500 empty body as ambiguous handoff", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.end("");
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Falhas: 1/i);
+
+    const { outbox, outbound, state } = readLatestDispatchAudit(root);
+    assert.equal(outbox.status, "dispatch_ambiguous");
+    assert.equal(outbox.sent_at, null);
+    assert.equal(outbound.length, 0);
+    assert.equal(state.whatsapp_state, "handoff_luiz");
+    assert.match(state.handoff_reason, /confirmacao|ambigua/i);
+  } finally {
+    await bridge.close();
+  }
+});
+
 test("gateway rejects invalid timeout before locking outbox", () => {
   const root = makeRoot();
   seedApprovedOutbox(root);
@@ -342,11 +403,56 @@ test("gateway rejects invalid timeout before locking outbox", () => {
     "--root",
     root,
     "dispatch-approved-outbox",
+    "--bridge-api-base",
+    "http://127.0.0.1:9",
     "--timeout-ms",
     "nope",
   ]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /--timeout-ms deve ser inteiro positivo/i);
+
+  const outbox = readLatestOutbox(root);
+  assert.equal(outbox.status, "approved");
+  assert.equal(outbox.dispatch_locked_at, null);
+});
+
+test("gateway rejects timeout with numeric prefix before locking outbox", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+
+  const result = runNode([
+    gateway,
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--bridge-api-base",
+    "http://127.0.0.1:9",
+    "--timeout-ms",
+    "1000abc",
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--timeout-ms deve ser inteiro positivo/i);
+
+  const outbox = readLatestOutbox(root);
+  assert.equal(outbox.status, "approved");
+  assert.equal(outbox.dispatch_locked_at, null);
+});
+
+test("gateway rejects limit with numeric prefix in dry-run without mutating outbox", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+
+  const result = runNode([
+    gateway,
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--limit",
+    "1abc",
+    "--dry-run",
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--limit deve ser inteiro positivo/i);
 
   const outbox = readLatestOutbox(root);
   assert.equal(outbox.status, "approved");
