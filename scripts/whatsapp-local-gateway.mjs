@@ -723,7 +723,13 @@ function sendBridgeMessage({ sendUrl, recipient, message, timeoutMs }) {
     const response = JSON.parse(result.stdout);
     const parsed = JSON.parse(response.text);
     if (parsed.success === true && response.ok) {
-      return { success: true, messageId: parsed.message || "" };
+      const messageId = extractConfirmedBridgeMessageId(parsed);
+      if (messageId) return { success: true, messageId };
+      return {
+        success: false,
+        ambiguous: true,
+        error: "confirmacao ambigua do bridge: success=true sem id real de mensagem WhatsApp",
+      };
     }
     if (parsed.success === false && response.ok) {
       return {
@@ -746,6 +752,14 @@ function sendBridgeMessage({ sendUrl, recipient, message, timeoutMs }) {
       error: `confirmacao ambigua do bridge: ${error.message}`,
     };
   }
+}
+
+function extractConfirmedBridgeMessageId(parsed) {
+  const candidate = clean(parsed.message_id || parsed.messageId || parsed.id || parsed.message);
+  if (!candidate) return "";
+  if (/^message sent to\b/i.test(candidate)) return "";
+  if (!/^[A-Z0-9]{16,80}$/.test(candidate)) return "";
+  return candidate;
 }
 
 function markOutboxSent(database, item, bridgeMessageId) {

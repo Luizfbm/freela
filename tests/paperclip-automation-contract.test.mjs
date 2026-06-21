@@ -513,12 +513,14 @@ test("WhatsApp MCP local fica atras do gateway e nao vira tool direta dos worker
   const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
 
   assert.match(guide, /lharries\/whatsapp-mcp/i);
-  assert.match(guide, /go run main\.go/i);
+  assert.match(guide, /go run .*main\.go/i);
   assert.match(guide, /QR/i);
   assert.match(guide, /store\/messages\.db/i);
   assert.match(guide, /whatsapp-local-gateway\.mjs --root .* import-mcp-sqlite/i);
   assert.match(guide, /watch-mcp-sqlite/i);
   assert.match(guide, /dispatch-approved-outbox/i);
+  assert.match(guide, /message_id/i);
+  assert.match(guide, /dispatch_ambiguous/i);
   assert.match(guide, /nao expor|não expor/i);
   assert.match(guide, /send_message|send_file|send_audio_message/i);
   assert.match(guide, /automacao controlada|automação controlada/i);

@@ -499,7 +499,7 @@ test("gateway dispatches approved outbox once through bridge api", async () => {
     assert.equal(locked.status, "sending");
     assert.ok(locked.dispatch_locked_at);
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: true, message: "sent-by-test-bridge" }));
+    res.end(JSON.stringify({ success: true, message_id: "3EB0AABDF3A653A54BE7197D9935D44694A2EB5D" }));
   });
   try {
     const result = await runNodeAsync([
@@ -519,7 +519,7 @@ test("gateway dispatches approved outbox once through bridge api", async () => {
     const { outbox, outbound, state } = readLatestDispatchAudit(root);
     assert.equal(outbox.status, "sent");
     assert.ok(outbox.sent_at);
-    assert.equal(outbox.bridge_message_id, "sent-by-test-bridge");
+    assert.equal(outbox.bridge_message_id, "3EB0AABDF3A653A54BE7197D9935D44694A2EB5D");
     assert.equal(outbound.length, 1);
     assert.equal(state.last_outbox_id, outbox.id);
   } finally {
@@ -599,6 +599,36 @@ test("gateway treats bridge responses without explicit success true as ambiguous
     } finally {
       await bridge.close();
     }
+  }
+});
+
+test("gateway treats generic bridge success without WhatsApp message id as ambiguous handoff", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true, message: "Message sent to 5527992635649" }));
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Falhas: 1/i);
+
+    const { outbox, outbound, state } = readLatestDispatchAudit(root);
+    assert.equal(outbox.status, "dispatch_ambiguous");
+    assert.equal(outbox.sent_at, null);
+    assert.equal(outbound.length, 0);
+    assert.equal(state.whatsapp_state, "handoff_luiz");
+    assert.match(state.handoff_reason, /id real|confirmacao|ambigua/i);
+  } finally {
+    await bridge.close();
   }
 });
 

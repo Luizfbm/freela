@@ -26,7 +26,7 @@ Instale dentro de `.scratch/`, porque o bridge grava banco local com conversas p
 mkdir -p /Users/luiz_fbm/Documents/programacao/freela/.scratch
 git clone https://github.com/lharries/whatsapp-mcp.git /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp
 cd /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge
-go run main.go
+go run -buildvcs=false main.go
 ```
 
 Na primeira execucao, o terminal mostra um QR. No celular, abra WhatsApp > Dispositivos conectados > Conectar dispositivo e leia o QR.
@@ -38,6 +38,22 @@ O bridge cria:
 ```
 
 Esse e o banco que o Gateway Local le. O servidor REST do bridge expoe `/api/send`, mas somente `scripts/whatsapp-local-gateway.mjs` pode chamar essa rota, e apenas para Outbox aprovada pelo Guardiao com `humanizer_pass = true`.
+
+Depois do pareamento, para deixar o bridge rodando em background no macOS sem fechar por falta de stdin/TTY:
+
+```bash
+cd /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge
+go build -buildvcs=false -o whatsapp-bridge-local .
+nohup script -q /dev/null ./whatsapp-bridge-local > /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/bridge.log 2>&1 &
+```
+
+Confirme que a porta esta viva sem enviar mensagem real:
+
+```bash
+curl -i http://127.0.0.1:8080/api/send
+```
+
+O esperado em `GET` e `405 Method Not Allowed`; isso confirma que o endpoint existe sem disparar envio.
 
 ## Importar Uma Vez
 
@@ -152,6 +168,8 @@ Somente o Gateway chama `/api/send`. Workers continuam sem acesso a `send_messag
 
 Antes de ligar envio continuo, rode `dispatch-approved-outbox --dry-run` e confirme que nenhum item aprovado tem `target_chat_id` em `@lid`. O dispatcher bloqueia esse caso, mas o correto e manter o cadastro do lead com telefone real e o LID apenas em `whatsapp_identity_aliases`.
 
+O Gateway so marca Outbox como `sent` quando o bridge retorna um ID real de mensagem WhatsApp em `message_id`, `messageId`, `id` ou `message`. Respostas genericas como `Message sent to 5527...` sao tratadas como `dispatch_ambiguous`, sem criar interacao outbound e com handoff para Luiz. Isso evita considerar "enviado" uma mensagem que o WhatsApp aceitou no transporte mas que pode aparecer como placeholder no celular do lead.
+
 ## Variavel Opcional
 
 Para nao passar `--db` sempre:
@@ -196,7 +214,7 @@ Se `deviceCount` for `0`, repita com ambiente limpo:
 cd /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge
 rm -rf store
 go clean -cache
-go run main.go
+go run -buildvcs=false main.go
 ```
 
 Se o QR aparecer, escaneie em ate 3 minutos. Se cair de novo antes do QR:
@@ -204,7 +222,7 @@ Se o QR aparecer, escaneie em ate 3 minutos. Se cair de novo antes do QR:
 - confirme que o Mac esta online e sem VPN/proxy bloqueando websocket;
 - abra `https://web.whatsapp.com` no navegador para confirmar acesso normal;
 - confirme que o celular tem espaco para novo dispositivo conectado em WhatsApp > Dispositivos conectados;
-- rode novamente `go run main.go`.
+- rode novamente `go run -buildvcs=false main.go`.
 
 Nao apague `store` depois que `deviceCount` estiver maior que `0`, porque ali ja existe sessao pareada.
 
@@ -224,7 +242,7 @@ Depois dessa correcao, rode:
 ```bash
 cd /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge
 rm -rf store
-go run main.go
+go run -buildvcs=false main.go
 ```
 
 Se o clone local for apagado e recriado, reaplicar essa correcao antes de tentar parear.
