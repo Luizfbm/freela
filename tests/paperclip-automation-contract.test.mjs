@@ -458,8 +458,11 @@ test("Paperclip orienta agentes a usar deploy automatico, nao cPanel manual", ()
 
 test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
+  const readme = paperclipReadme();
+  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
   const oldSpec = read("docs/superpowers/specs/2026-06-19-whatsapp-local-automation-design.md");
   const controlledSpec = read("docs/superpowers/specs/2026-06-21-whatsapp-controlled-automation-design.md");
+  const controlledDocs = `${controlledSpec}\n${guide}\n${readme}`;
   const scriptSendCallers = walkFiles(join(rootDir, "scripts"))
     .filter((path) => readFileSync(path, "utf8").includes("/api/send"))
     .map((path) => relative(rootDir, path))
@@ -475,6 +478,20 @@ test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
   assert.match(oldSpec, /Outbox WhatsApp/i);
   assert.match(controlledSpec, /humanizer_pass = true/i);
   assert.match(controlledSpec, /scripts\/whatsapp-local-gateway\.mjs/i);
+  for (const term of [/Humanizer/i, /Outbox/i, /Guardiao|Guardião/i, /Gateway/i]) {
+    assert.match(controlledDocs, term);
+  }
+});
+
+test("README documenta fronteira atual de automacao WhatsApp", () => {
+  const readme = paperclipReadme();
+
+  assert.match(readme, /primeira abordagem fria continua manual/i);
+  assert.match(readme, /workers nao recebem ferramentas cruas de envio/i);
+  assert.match(readme, /depois do "Pode!".*automaticamente.*Gateway.*Outbox aprovada.*Humanizer.*Guardiao/is);
+  assert.match(readme, /preco.*fechamento.*handoff.*Luiz/is);
+  assert.doesNotMatch(readme, /WhatsApp continua manual/i);
+  assert.doesNotMatch(readme, /sem envio automatico de WhatsApp/i);
 });
 
 test("WhatsApp workers exigem Humanizer antes de qualquer Outbox automatica", () => {
