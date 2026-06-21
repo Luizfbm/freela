@@ -1839,6 +1839,17 @@ test("whatsapp inbound classifies custo and investimento as price requests", () 
   }
 });
 
+test("whatsapp inbound prioritizes price ask over permission words", () => {
+  const root = makeWhatsAppLeadRoot("wa-price-priority-001", "Pode mandar a proposta?");
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+  assert.equal(inbound.classification, "resposta_pediu_preco");
+  assert.equal(state.whatsapp_state, "preco_pedido");
+});
+
 test("whatsapp outbox propose cria resposta candidata sem enviar", () => {
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);
@@ -2351,6 +2362,37 @@ test("whatsapp guardian review is idempotent for approved neutral price qualific
   after.close();
   assert.equal(reviewed.status, "approved");
   assert.equal(state.whatsapp_state, "qualificacao_preco_pendente");
+  assert.equal(decisionsAfter, decisionsBefore);
+});
+
+test("whatsapp guardian repeated blocked review stays localized and idempotent", () => {
+  const root = makeWhatsAppLeadRoot("wa-guard-block-idempotent-001");
+  const first = proposeAndReviewSafeWhatsApp(root, "Aghata Massoterapia", "Fica R$ 1200 para fazer.");
+  assert.match(first.stdout, /bloqueado/i);
+
+  const before = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = before.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  const decisionsBefore = before.prepare("select count(*) as count from whatsapp_guardian_decisions").get().count;
+  before.close();
+
+  const second = runNode([
+    crm,
+    "--root",
+    root,
+    "whatsapp",
+    "guardian",
+    "review",
+    "--outbox-id",
+    String(outbox.id),
+  ]);
+  assert.equal(second.status, 0, second.stderr);
+  assert.match(second.stdout, /bloqueado/i);
+
+  const after = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const reviewed = after.prepare("select * from whatsapp_outbox where id = ?").get(outbox.id);
+  const decisionsAfter = after.prepare("select count(*) as count from whatsapp_guardian_decisions").get().count;
+  after.close();
+  assert.equal(reviewed.status, "blocked");
   assert.equal(decisionsAfter, decisionsBefore);
 });
 

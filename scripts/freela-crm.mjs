@@ -2404,7 +2404,7 @@ function reviewWhatsAppOutbox(database, outboxId) {
   if (!outbox) throw usageError(`Outbox nao encontrado: ${outboxId}`);
   if (outbox.status !== "pending_guardian") {
     return {
-      decision: outbox.status === "approved" ? "aprovado" : outbox.status,
+      decision: outbox.status === "approved" ? "aprovado" : outbox.status === "blocked" ? "bloqueado" : outbox.status,
       reason: outbox.guardian_reason || "decisao ja registrada",
       rules: outbox.guardian_reason ? outbox.guardian_reason.split("; ") : [],
     };
@@ -4103,7 +4103,6 @@ function buildMergeKey(lead) {
 
 function classifyResponse(message) {
   const normalized = normalizeName(message);
-  if (/\bpode\b|\bclaro\b|\bsim\b/.test(normalized)) return "resposta_permissao";
   if (
     /\bpreco\b|\bvalor\b|\bquanto\b|\borcamento\b|\bcusto\b|\binvestimento\b|\bpagamento\b|\bdesconto\b|\bproposta\b/.test(
       normalized,
@@ -4111,6 +4110,7 @@ function classifyResponse(message) {
   ) {
     return "resposta_pediu_preco";
   }
+  if (/\bpode\b|\bclaro\b|\bsim\b/.test(normalized)) return "resposta_permissao";
   if (/\bexemplo\b|\blink\b|\bsite\b/.test(normalized)) return "resposta_pediu_exemplo";
   if (/\bnao\b|\bsem interesse\b/.test(normalized)) return "resposta_sem_interesse";
   return "resposta_recebida";
