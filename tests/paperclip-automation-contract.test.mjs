@@ -456,18 +456,57 @@ test("Paperclip orienta agentes a usar deploy automatico, nao cPanel manual", ()
   assert.match(ops.capabilities, /deploy automatico|deploy automático/i);
 });
 
-test("WhatsApp Gateway nao expoe envio cru aos workers comerciais", () => {
+test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
-  const specs = read("docs/superpowers/specs/2026-06-19-whatsapp-local-automation-design.md");
+  const readme = paperclipReadme();
+  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const oldSpec = read("docs/superpowers/specs/2026-06-19-whatsapp-local-automation-design.md");
+  const controlledSpec = read("docs/superpowers/specs/2026-06-21-whatsapp-controlled-automation-design.md");
+  const controlledDocs = `${controlledSpec}\n${guide}\n${readme}`;
+  const scriptSendCallers = walkFiles(join(rootDir, "scripts"))
+    .filter((path) => readFileSync(path, "utf8").includes("/api/send"))
+    .map((path) => relative(rootDir, path))
+    .sort();
 
   assert.match(gateway, /import-jsonl/i);
   assert.match(gateway, /import-mcp-sqlite/i);
   assert.match(gateway, /watch-mcp-sqlite/i);
-  assert.match(gateway, /WHATSAPP_MCP_MESSAGES_DB/i);
+  assert.match(gateway, /dispatch-approved-outbox/i);
+  assert.match(gateway, /\/api\/send/i);
+  assert.deepEqual(scriptSendCallers, ["scripts/whatsapp-local-gateway.mjs"]);
   assert.doesNotMatch(gateway, /send_message|send_file|send_audio_message/i);
-  assert.doesNotMatch(gateway, /\/api\/send/i);
-  assert.match(specs, /Guardiao de Envio/i);
-  assert.match(specs, /Outbox WhatsApp/i);
+  assert.match(oldSpec, /Outbox WhatsApp/i);
+  assert.match(controlledSpec, /humanizer_pass = true/i);
+  assert.match(controlledSpec, /scripts\/whatsapp-local-gateway\.mjs/i);
+  for (const term of [/Humanizer/i, /Outbox/i, /Guardiao|Guardião/i, /Gateway/i]) {
+    assert.match(controlledDocs, term);
+  }
+});
+
+test("README documenta fronteira atual de automacao WhatsApp", () => {
+  const readme = paperclipReadme();
+
+  assert.match(readme, /primeira abordagem fria continua manual/i);
+  assert.match(readme, /workers nao recebem ferramentas cruas de envio/i);
+  assert.match(readme, /depois do "Pode!".*automaticamente.*Gateway.*Outbox aprovada.*Humanizer.*Guardiao/is);
+  assert.match(readme, /preco.*fechamento.*handoff.*Luiz/is);
+  assert.doesNotMatch(readme, /WhatsApp continua manual/i);
+  assert.doesNotMatch(readme, /sem envio automatico de WhatsApp/i);
+});
+
+test("WhatsApp workers exigem Humanizer antes de qualquer Outbox automatica", () => {
+  const atendimentoWa = read("docs/freelancer/prompt-thread-whatsapp-atendimento.md");
+  const guardiaoWa = read("docs/freelancer/prompt-thread-whatsapp-guardiao.md");
+  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+
+  assert.match(atendimentoWa, /humanizer/i);
+  assert.match(atendimentoWa, /humanizer_pass\s*=\s*true/i);
+  assert.match(atendimentoWa, /used_last_inbound\s*=\s*true/i);
+  assert.match(atendimentoWa, /contextual_reply\s*=\s*true/i);
+  assert.match(guardiaoWa, /humanizer_pass\s*=\s*true/i);
+  assert.match(guardiaoWa, /5 respostas automaticas|5 respostas automáticas/i);
+  assert.match(guide, /dispatch-approved-outbox/i);
+  assert.match(guide, /--dispatch-approved/i);
 });
 
 test("WhatsApp MCP local fica atras do gateway e nao vira tool direta dos workers", () => {
@@ -479,9 +518,10 @@ test("WhatsApp MCP local fica atras do gateway e nao vira tool direta dos worker
   assert.match(guide, /store\/messages\.db/i);
   assert.match(guide, /whatsapp-local-gateway\.mjs --root .* import-mcp-sqlite/i);
   assert.match(guide, /watch-mcp-sqlite/i);
+  assert.match(guide, /dispatch-approved-outbox/i);
   assert.match(guide, /nao expor|não expor/i);
   assert.match(guide, /send_message|send_file|send_audio_message/i);
-  assert.match(guide, /read-only assistido/i);
+  assert.match(guide, /automacao controlada|automação controlada/i);
 });
 
 test("WhatsApp handoff notifica Luiz sem enviar mensagem", () => {

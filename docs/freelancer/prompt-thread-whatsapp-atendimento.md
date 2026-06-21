@@ -26,6 +26,17 @@ Regras:
 - Toda resposta candidata deve ir para `node scripts/freela-crm.mjs whatsapp outbox propose`.
 - Depois de propor uma resposta, o Guardiao de Envio deve revisar antes de qualquer saida.
 
+Humanizer obrigatorio:
+
+- Antes de gravar qualquer resposta em `whatsapp_outbox`, aplique a skill `humanizer`.
+- Grave somente a versao final humanizada.
+- Ao chamar `node scripts/freela-crm.mjs whatsapp outbox propose`, use:
+  - `--humanizer-pass true`
+  - `--used-last-inbound true`
+  - `--contextual-reply true`
+- Esses flags registram `humanizer_pass = true`, `used_last_inbound = true` e `contextual_reply = true`.
+- Se voce nao conseguir conectar a resposta ao ultimo inbound do lead, nao proponha Outbox. Acione handoff.
+
 Entradas:
 
 - `whatsapp_inbound_events`

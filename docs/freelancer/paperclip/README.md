@@ -1,6 +1,6 @@
 # Paperclip local - operacao freelancer
 
-Este setup roda o Paperclip localmente neste Mac como o sistema diario da operacao freelancer, usando o Codex local autenticado via ChatGPT. Nao usa `OPENAI_API_KEY` nem envio automatico de WhatsApp.
+Este setup roda o Paperclip localmente neste Mac como o sistema diario da operacao freelancer, usando o Codex local autenticado via ChatGPT. Nao usa `OPENAI_API_KEY`; primeira abordagem fria continua manual, e respostas depois do "Pode!" so podem sair por Gateway + Outbox aprovada + Humanizer + Guardiao.
 
 ## Acesso
 
@@ -88,8 +88,10 @@ Esse script usa API direta do Paperclip, nao `npx`/`paperclipai`, para nao depen
 ## Regras de seguranca
 
 - O Paperclip pode pesquisar, organizar informacoes e criar arquivos locais.
-- O Paperclip nao envia mensagem para cliente.
-- WhatsApp continua manual.
+- Primeira abordagem fria continua manual.
+- Workers nao recebem ferramentas cruas de envio.
+- Respostas depois do "Pode!" podem ser despachadas automaticamente somente via Gateway + Outbox aprovada + Humanizer + Guardiao.
+- Preco, fechamento e handoff continuam com Luiz.
 - Dados privados de leads ficam em `.scratch/`, nao em `docs/`, `demos/` ou `outputs/`.
 - Leads com demo existente em `demos/` nao devem ser pesquisados nem incluidos em novas listas.
 - Navegador assistido segue `docs/freelancer/paperclip/browser-automation.md`.
@@ -325,15 +327,21 @@ Fluxos implementados:
 - Resumo diario executivo: CRM gera placar de acoes manuais, workers acionados, riscos e proximo melhor passo.
 - Master de leads: Lead Scout grava no SQLite via `node scripts/freela-crm.mjs lead upsert --file .scratch/prospeccao-vitoria/YYYY-MM-DD/crm-upsert-leads.json`, roda `node scripts/freela-crm.mjs queue generate` e `node scripts/freela-crm.mjs export all`; `.scratch/leads/master-leads.csv` e eventual planilha sao espelhos.
 - Cards de envio na UI: `node scripts/freela-crm.mjs export paperclip-cards` gera `.scratch/crm/paperclip-lead-cards.md`; `node scripts/paperclip-sync-lead-cards.mjs` publica esse conteudo como documento `lead-cards` no `FRE-7` via API direta, sem depender de cache npm.
-- Superficies operacionais na UI: `node scripts/paperclip-sync-operational-surfaces.mjs` publica `lead-cards` e `ops-status` juntos depois de mudancas de CRM, QA ou fila, sem envio automatico de WhatsApp.
+- Superficies operacionais na UI: `node scripts/paperclip-sync-operational-surfaces.mjs` publica `lead-cards` e `ops-status` juntos depois de mudancas de CRM, QA ou fila; dispatch de WhatsApp segue separado pelo Gateway + Outbox aprovada + Humanizer + Guardiao.
 
 ## WhatsApp Local Automation
 
 O setup local do `lharries/whatsapp-mcp` esta em `docs/freelancer/paperclip/whatsapp-mcp-local.md`. Ele deve ficar em `.scratch/whatsapp-mcp`, parear por QR e ser lido pelo Gateway Local via `store/messages.db`.
 
+Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox` chama o bridge `/api/send`.
+
 Workers nao acessam `send_message`, `send_file` ou `send_audio_message`. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite`.
 
+Primeira abordagem fria continua manual. Respostas depois do "Pode!" podem ser despachadas automaticamente somente via Gateway + Outbox aprovada + Humanizer + Guardiao.
+
 Notificador Luiz cria issue no Paperclip quando a conversa chega em `preco_pedido`, `lead_quente`, `handoff_luiz` ou `bloqueado_guardiao`. Ele nao envia WhatsApp; apenas entrega contexto e proxima acao para o operador.
+
+Preco, fechamento e handoff continuam com Luiz.
 
 ## Comandos uteis
 

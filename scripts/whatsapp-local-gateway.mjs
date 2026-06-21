@@ -35,6 +35,21 @@ function main() {
     return;
   }
 
+  if (command === "dispatch-approved-outbox") {
+    const result = dispatchApprovedOutbox(root, flags);
+    if (parseBooleanFlag(flags["dry-run"])) {
+      console.log(`Dry-run dispatchaveis: ${result.dispatchable}`);
+      for (const item of result.items) {
+        console.log(`- ${item.lead_name}: outbox ${item.id}`);
+      }
+    } else {
+      console.log(`Enviados: ${result.sent}`);
+      console.log(`Falhas: ${result.failed}`);
+      console.log(`Ignorados: ${result.skipped}`);
+    }
+    return;
+  }
+
   if (command === "watch-mcp-sqlite") {
     watchMcpSqlite(root, flags);
     return;
@@ -58,9 +73,12 @@ function parseArgs(argv) {
   while (args.length) {
     const key = args.shift();
     if (!key.startsWith("--")) throw new Error(`Opcao invalida: ${key}`);
-    const value = args.shift();
-    if (!value || value.startsWith("--")) throw new Error(`Valor obrigatorio para ${key}`);
-    flags[key.slice(2)] = value;
+    const value = args[0];
+    if (value === undefined || value.startsWith("--")) {
+      flags[key.slice(2)] = "true";
+    } else {
+      flags[key.slice(2)] = args.shift();
+    }
   }
 
   return { root, command, flags };
@@ -80,6 +98,20 @@ function runCrm(root, args) {
       encoding: "utf8",
     },
   );
+  if (result.status !== 0) {
+    throw new Error([result.stdout, result.stderr].filter(Boolean).join("\n"));
+  }
+  return result;
+}
+
+function ensureCrmInitialized(root, crmDbPath, explicitCrmDb) {
+  const args = ["scripts/freela-crm.mjs", "--root", root];
+  if (explicitCrmDb) args.push("--db", crmDbPath);
+  args.push("init");
+  const result = spawnSync(process.execPath, args, {
+    cwd: new URL("..", import.meta.url).pathname,
+    encoding: "utf8",
+  });
   if (result.status !== 0) {
     throw new Error([result.stdout, result.stderr].filter(Boolean).join("\n"));
   }
@@ -147,6 +179,267 @@ function importMcpSqlite(root, flags) {
   }
 
   return { imported, skipped, failed };
+}
+
+function dispatchApprovedOutbox(root, flags) {
+  validateDispatchApprovedOutboxFlags(flags);
+  const dryRun = parseBooleanFlag(flags["dry-run"]);
+  const limit = parsePositiveInt(flags.limit || "10", "--limit");
+  const explicitCrmDb = flags["crm-db"] !== undefined;
+  const crmDbPath = resolve(root, flags["crm-db"] || ".scratch/db/freela.sqlite");
+  ensureCrmInitialized(root, crmDbPath, explicitCrmDb);
+  if (!existsSync(crmDbPath)) {
+    throw new Error(`CRM SQLite nao encontrado: ${crmDbPath}`);
+  }
+  const database = new DatabaseSync(crmDbPath);
+  try {
+    const items = readDispatchableOutbox(database, limit);
+    if (dryRun) return { dispatchable: items.length, items, sent: 0, failed: 0, skipped: 0 };
+    return dispatchOutboxItems(database, items, buildDispatchOptions(flags));
+  } finally {
+    database.close();
+  }
+}
+
+function readDispatchableOutbox(database, limit) {
+  return database
+    .prepare(
+      `select
+        o.*,
+        l.canonical_name as lead_name,
+        s.whatsapp_state
+      from whatsapp_outbox o
+      join leads l on l.id = o.lead_id
+      join lead_conversation_state s on s.lead_id = o.lead_id
+      where o.status in ('approved', 'failed')
+        and o.guardian_decision = 'enviar'
+        and o.humanizer_pass = 1
+        and o.sent_at is null
+        and o.attempts < 2
+        and coalesce(s.whatsapp_state, '') not in ('handoff_luiz', 'bloqueado_guardiao', 'encerrado')
+      order by o.approved_at asc, o.id asc
+      limit ?`,
+    )
+    .all(limit);
+}
+
+function validateDispatchApprovedOutboxFlags(flags) {
+  const allowed = new Set(["dry-run", "limit", "crm-db", "bridge-api-base", "timeout-ms"]);
+  for (const flag of Object.keys(flags)) {
+    if (!allowed.has(flag)) {
+      throw new Error(`Opcao desconhecida para dispatch-approved-outbox: --${flag}`);
+    }
+  }
+}
+
+function buildDispatchOptions(flags) {
+  const bridgeApiBase =
+    flags["bridge-api-base"] ||
+    process.env.WHATSAPP_BRIDGE_API_BASE ||
+    "http://127.0.0.1:8080";
+  const timeoutMs = parsePositiveInt(flags["timeout-ms"] || "15000", "--timeout-ms");
+  try {
+    return {
+      sendUrl: new URL("/api/send", bridgeApiBase).toString(),
+      timeoutMs,
+    };
+  } catch {
+    throw new Error(`--bridge-api-base invalido: ${clean(bridgeApiBase)}`);
+  }
+}
+
+function dispatchOutboxItems(database, items, dispatchOptions) {
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+  for (const item of items) {
+    const locked = lockOutboxForDispatch(database, item.id);
+    if (!locked) {
+      skipped += 1;
+      continue;
+    }
+    const result = sendBridgeMessage({
+      sendUrl: dispatchOptions.sendUrl,
+      recipient: item.target_chat_id,
+      message: item.body,
+      timeoutMs: dispatchOptions.timeoutMs,
+    });
+    if (result.success) {
+      markOutboxSent(database, item, result.messageId);
+      sent += 1;
+    } else if (result.ambiguous) {
+      markOutboxAmbiguousFailure(database, item, result.error);
+      failed += 1;
+    } else {
+      markOutboxFailed(database, item, result.error);
+      failed += 1;
+    }
+  }
+  return { sent, failed, skipped, items };
+}
+
+function lockOutboxForDispatch(database, outboxId) {
+  const result = database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'sending', dispatch_locked_at = ?
+       where id = ?
+         and status in ('approved', 'failed')
+         and guardian_decision = 'enviar'
+         and humanizer_pass = 1
+         and sent_at is null
+         and attempts < 2
+         and exists (
+           select 1
+           from lead_conversation_state s
+           where s.lead_id = whatsapp_outbox.lead_id
+             and coalesce(s.whatsapp_state, '') not in ('handoff_luiz', 'bloqueado_guardiao', 'encerrado')
+         )`,
+    )
+    .run(new Date().toISOString(), outboxId);
+  return result.changes === 1;
+}
+
+function sendBridgeMessage({ sendUrl, recipient, message, timeoutMs }) {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), Number(process.argv[4]));
+        try {
+          const response = await fetch(process.argv[1], {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recipient: process.argv[2], message: process.argv[3] }),
+            signal: controller.signal
+          });
+          const text = await response.text();
+          console.log(JSON.stringify({ ok: response.ok, status: response.status, text }));
+        } catch (error) {
+          console.error(error.message);
+          process.exit(2);
+        } finally {
+          clearTimeout(timeout);
+        }
+      `,
+      sendUrl,
+      recipient,
+      message,
+      String(timeoutMs),
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) {
+    return {
+      success: false,
+      ambiguous: true,
+      error: [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
+    };
+  }
+  try {
+    const response = JSON.parse(result.stdout);
+    const parsed = JSON.parse(response.text);
+    if (parsed.success === true && response.ok) {
+      return { success: true, messageId: parsed.message || "" };
+    }
+    if (parsed.success === false && response.ok) {
+      return {
+        success: false,
+        ambiguous: false,
+        error: parsed.message || "bridge retornou success=false",
+      };
+    }
+    return {
+      success: false,
+      ambiguous: true,
+      error: response.ok
+        ? "confirmacao ambigua do bridge: success true ausente"
+        : `confirmacao ambigua do bridge: HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ambiguous: true,
+      error: `confirmacao ambigua do bridge: ${error.message}`,
+    };
+  }
+}
+
+function markOutboxSent(database, item, bridgeMessageId) {
+  const sentAt = new Date().toISOString();
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'sent', bridge_message_id = ?, sent_at = ?, failed_at = null, dispatch_error = null
+       where id = ?`,
+    )
+    .run(bridgeMessageId, sentAt, item.id);
+  database
+    .prepare(
+      `insert into interactions (
+        lead_id, direction, channel, body, occurred_at, raw_file, classification, created_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      item.lead_id,
+      "outbound",
+      "whatsapp",
+      item.body,
+      sentAt,
+      `whatsapp_outbox:${item.id}`,
+      "automatico_enviado",
+      sentAt,
+    );
+  database
+    .prepare(
+      `update lead_conversation_state
+       set last_outbox_id = ?, updated_at = ?
+       where lead_id = ?`,
+    )
+    .run(item.id, sentAt, item.lead_id);
+}
+
+function markOutboxFailed(database, item, error) {
+  const failedAt = new Date().toISOString();
+  const reason = clean(error || "falha ao enviar pelo bridge");
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'failed', attempts = attempts + 1, failed_at = ?, dispatch_error = ?
+       where id = ?`,
+    )
+    .run(failedAt, reason.slice(0, 1000), item.id);
+  const updated = database.prepare("select attempts from whatsapp_outbox where id = ?").get(item.id);
+  if (updated?.attempts >= 2) {
+    database
+      .prepare(
+        `update lead_conversation_state
+         set whatsapp_state = 'handoff_luiz', handoff_reason = ?, updated_at = ?
+         where lead_id = ?`,
+      )
+      .run(`falha no envio automatico WhatsApp: ${reason.slice(0, 300)}`, failedAt, item.lead_id);
+  }
+}
+
+function markOutboxAmbiguousFailure(database, item, error) {
+  const failedAt = new Date().toISOString();
+  const reason = clean(error || "confirmacao ambigua do bridge");
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'dispatch_ambiguous', attempts = attempts + 1, failed_at = ?, dispatch_error = ?
+       where id = ?`,
+    )
+    .run(failedAt, reason.slice(0, 1000), item.id);
+  database
+    .prepare(
+      `update lead_conversation_state
+       set whatsapp_state = 'handoff_luiz', handoff_reason = ?, updated_at = ?
+       where lead_id = ?`,
+    )
+    .run(`confirmacao ambigua do envio pelo bridge: ${reason}`.slice(0, 1000), failedAt, item.lead_id);
 }
 
 function readMcpRows(database, cursor, limit) {
@@ -219,6 +512,25 @@ function writeCursor(path, cursor) {
 }
 
 function watchMcpSqlite(root, flags) {
+  const dispatchApproved = parseBooleanFlag(flags["dispatch-approved"]);
+  if (dispatchApproved) {
+    const allowedFlags = new Set([
+      "db",
+      "state-file",
+      "interval-ms",
+      "dispatch-approved",
+      "bridge-api-base",
+      "timeout-ms",
+      "limit",
+      "crm-db",
+      "dry-run",
+    ]);
+    for (const flag of Object.keys(flags)) {
+      if (!allowedFlags.has(flag)) {
+        throw new Error(`Opcao desconhecida para watch-mcp-sqlite --dispatch-approved: --${flag}`);
+      }
+    }
+  }
   const intervalMs = parsePositiveInt(flags["interval-ms"] || "10000", "--interval-ms");
   console.log(`Observando whatsapp-mcp messages.db a cada ${intervalMs}ms`);
   const run = () => {
@@ -227,6 +539,16 @@ function watchMcpSqlite(root, flags) {
       console.log(
         `[${new Date().toISOString()}] importados=${result.imported} ignorados=${result.skipped} falhas=${result.failed}`,
       );
+      if (dispatchApproved) {
+        const dispatchFlags = {};
+        for (const flag of ["bridge-api-base", "timeout-ms", "limit", "crm-db", "dry-run"]) {
+          if (flags[flag] !== undefined) dispatchFlags[flag] = flags[flag];
+        }
+        const dispatch = dispatchApprovedOutbox(root, dispatchFlags);
+        console.log(
+          `[${new Date().toISOString()}] enviados=${dispatch.sent} dispatch_falhas=${dispatch.failed} dispatch_ignorados=${dispatch.skipped}`,
+        );
+      }
     } catch (error) {
       console.error(`[${new Date().toISOString()}] ${error.message}`);
     }
@@ -236,11 +558,23 @@ function watchMcpSqlite(root, flags) {
 }
 
 function parsePositiveInt(value, flagName) {
-  const parsed = Number.parseInt(value, 10);
+  const normalized = clean(value);
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`${flagName} deve ser inteiro positivo`);
+  }
+  const parsed = Number.parseInt(normalized, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(`${flagName} deve ser inteiro positivo`);
   }
   return parsed;
+}
+
+function parseBooleanFlag(value) {
+  const normalized = clean(value).toLowerCase();
+  if (!normalized) return false;
+  if (["1", "true", "yes", "sim"].includes(normalized)) return true;
+  if (["0", "false", "no", "nao", "não"].includes(normalized)) return false;
+  throw new Error(`Valor booleano invalido: ${clean(value)}`);
 }
 
 function phoneFromValue(value) {

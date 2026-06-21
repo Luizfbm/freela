@@ -310,6 +310,10 @@ async function dispatch({ root, dbPath, command, args }) {
     const outbox = proposeWhatsAppOutbox(database, lead, {
       body: flags.body,
       source: flags.source,
+      humanizerPass: parseBooleanFlag(flags["humanizer-pass"]),
+      usedLastInbound: parseBooleanFlag(flags["used-last-inbound"]),
+      contextualReply: parseBooleanFlag(flags["contextual-reply"]),
+      humanizerNotes: flags["humanizer-notes"] ?? "",
     });
     console.log(`Outbox pendente de guardiao: ${outbox.id}`);
     return;
@@ -533,6 +537,12 @@ function migrateDatabase(database) {
   ensureColumn(database, "lead_platform_profiles", "browser_evidence_status", "text");
   ensureColumn(database, "lead_platform_profiles", "browser_evidence_method", "text");
   ensureColumn(database, "lead_platform_profiles", "instagram_session_status", "text");
+  ensureColumn(database, "whatsapp_outbox", "humanizer_pass", "integer not null default 0");
+  ensureColumn(database, "whatsapp_outbox", "used_last_inbound", "integer not null default 0");
+  ensureColumn(database, "whatsapp_outbox", "contextual_reply", "integer not null default 0");
+  ensureColumn(database, "whatsapp_outbox", "humanizer_notes", "text");
+  ensureColumn(database, "whatsapp_outbox", "dispatch_error", "text");
+  ensureColumn(database, "whatsapp_outbox", "dispatch_locked_at", "text");
   normalizeQueueCardMetadata(database);
   normalizeStoredLegacyOffers(database);
   database.exec(`
@@ -1062,6 +1072,12 @@ function schemaSql() {
       body text not null,
       source text not null,
       status text not null default 'pending_guardian',
+      humanizer_pass integer not null default 0,
+      used_last_inbound integer not null default 0,
+      contextual_reply integer not null default 0,
+      humanizer_notes text,
+      dispatch_error text,
+      dispatch_locked_at text,
       guardian_decision text,
       guardian_reason text,
       attempts integer not null default 0,
@@ -2325,7 +2341,18 @@ function upsertLeadConversationState(database, lead, input) {
     );
 }
 
-function proposeWhatsAppOutbox(database, lead, { body, source }) {
+function proposeWhatsAppOutbox(
+  database,
+  lead,
+  {
+    body,
+    source,
+    humanizerPass = false,
+    usedLastInbound = false,
+    contextualReply = false,
+    humanizerNotes = "",
+  },
+) {
   const state = database
     .prepare("select * from lead_conversation_state where lead_id = ?")
     .get(lead.id);
@@ -2343,17 +2370,45 @@ function proposeWhatsAppOutbox(database, lead, { body, source }) {
   database
     .prepare(
       `insert into whatsapp_outbox (
-        lead_id, inbound_event_id, target_chat_id, body, source, status, created_at
-      ) values (?, ?, ?, ?, ?, ?, ?)`,
+        lead_id, inbound_event_id, target_chat_id, body, source, status,
+        humanizer_pass, used_last_inbound, contextual_reply, humanizer_notes, created_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(lead.id, inbound.id, inbound.chat_id, body, source, "pending_guardian", now());
+    .run(
+      lead.id,
+      inbound.id,
+      inbound.chat_id,
+      body,
+      source,
+      "pending_guardian",
+      humanizerPass ? 1 : 0,
+      usedLastInbound ? 1 : 0,
+      contextualReply ? 1 : 0,
+      clean(humanizerNotes),
+      now(),
+    );
 
   return database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
 }
 
+const WHATSAPP_AUTO_REPLY_LIMIT_REASON = "limite de 5 respostas automaticas atingido";
+const WHATSAPP_PRICE_QUALIFICATION_HANDOFF_REASON = "qualificacao de preco ja enviada; handoff Luiz";
+const NEUTRAL_PRICE_QUALIFICATION_REPLY = [
+  "Depende um pouco do que precisa aparecer na pagina e do objetivo principal.",
+  "",
+  "Para eu te direcionar melhor: voce quer usar essa pagina mais como apresentacao oficial do seu trabalho, ou mais para organizar o caminho de quem vem do Instagram/WhatsApp?",
+].join("\n");
+
 function reviewWhatsAppOutbox(database, outboxId) {
   const outbox = database.prepare("select * from whatsapp_outbox where id = ?").get(outboxId);
   if (!outbox) throw usageError(`Outbox nao encontrado: ${outboxId}`);
+  if (outbox.status !== "pending_guardian") {
+    return {
+      decision: outbox.status === "approved" ? "aprovado" : outbox.status === "blocked" ? "bloqueado" : outbox.status,
+      reason: outbox.guardian_reason || "decisao ja registrada",
+      rules: outbox.guardian_reason ? outbox.guardian_reason.split("; ") : [],
+    };
+  }
   const lead = database.prepare("select * from leads where id = ?").get(outbox.lead_id);
   const state = database
     .prepare("select * from lead_conversation_state where lead_id = ?")
@@ -2379,13 +2434,36 @@ function reviewWhatsAppOutbox(database, outboxId) {
     )
     .run(status, decision, reason, decision === "enviar" ? now() : null, outbox.id);
 
-  if (decision === "enviar") {
+  if (decision === "enviar" && state?.whatsapp_state === "preco_pedido") {
+    markPriceQualificationPending(database, outbox.lead_id, outbox.id);
+  } else if (decision === "enviar") {
     incrementAutoReplies(database, outbox.lead_id, outbox.id);
   } else {
-    setWhatsAppHandoff(database, outbox.lead_id, "bloqueado_guardiao", reason);
+    setBlockedWhatsAppState(database, outbox, state, reason, rules);
   }
 
   return { decision: status === "approved" ? "aprovado" : "bloqueado", reason, rules };
+}
+
+function setBlockedWhatsAppState(database, outbox, state, reason, rules) {
+  const handoff = blockedWhatsAppHandoffForRules(rules, reason, state);
+  setWhatsAppHandoff(database, outbox.lead_id, handoff.state, handoff.reason);
+}
+
+function blockedWhatsAppHandoffForRules(rules, reason, state) {
+  if (state?.whatsapp_state === "handoff_luiz") {
+    return { state: "handoff_luiz", reason: state.handoff_reason || reason };
+  }
+  if (state?.whatsapp_state === "encerrado") {
+    return { state: "encerrado", reason: state.handoff_reason || reason };
+  }
+  if (rules.includes(WHATSAPP_AUTO_REPLY_LIMIT_REASON)) {
+    return { state: "handoff_luiz", reason };
+  }
+  if (rules.includes(WHATSAPP_PRICE_QUALIFICATION_HANDOFF_REASON)) {
+    return { state: "handoff_luiz", reason: "preco_pedido" };
+  }
+  return { state: "bloqueado_guardiao", reason };
 }
 
 function guardianRules({ outbox, state }) {
@@ -2394,10 +2472,21 @@ function guardianRules({ outbox, state }) {
 
   if (!state) rules.push("lead sem estado de conversa WhatsApp");
   if (state?.whatsapp_state === "handoff_luiz") rules.push("lead em handoff_luiz");
-  if (state?.auto_replies_since_human >= 4) {
-    rules.push("limite de respostas automaticas atingido");
+  if (state?.whatsapp_state === "bloqueado_guardiao") rules.push("lead bloqueado pelo guardiao");
+  if (state?.whatsapp_state === "encerrado") rules.push("conversa encerrada");
+  if (state?.whatsapp_state === "qualificacao_preco_pendente") {
+    rules.push(WHATSAPP_PRICE_QUALIFICATION_HANDOFF_REASON);
   }
-  if (/\bpreco\b|\bvalor\b|\borcamento\b|\bpagamento\b|\bdesconto\b|\bproposta\b|\bfechado\b|\bcontrato\b/.test(body)) {
+  if (state?.whatsapp_state === "preco_pedido" && !isNeutralPriceQualificationReply(outbox.body)) {
+    rules.push("preco_pedido exige qualificacao neutra");
+  }
+  if (state?.auto_replies_since_human >= 5) {
+    rules.push(WHATSAPP_AUTO_REPLY_LIMIT_REASON);
+  }
+  if (!outbox.humanizer_pass) rules.push("humanizer_pass ausente");
+  if (!outbox.used_last_inbound) rules.push("used_last_inbound ausente");
+  if (!outbox.contextual_reply) rules.push("contextual_reply ausente");
+  if (containsCommercialValue(body, outbox.body)) {
     rules.push("mensagem contem preco/proposta/fechamento");
   }
   if (/\benxuta\b|\bversao menor\b|\b397\b|\br\s*397\b/.test(body)) {
@@ -2406,12 +2495,82 @@ function guardianRules({ outbox, state }) {
   if (/\bgaranto\b|\bgarantia\b|\bmais clientes\b|\bmais pacientes\b|\bprimeiro no google\b/.test(body)) {
     rules.push("mensagem promete resultado comercial");
   }
+  if (/\botima pergunta\b|\bcom certeza\b|\bfico a disposicao\b|\bentendi perfeitamente\b/.test(body)) {
+    rules.push("mensagem generica com cara de IA");
+  }
+  if (/—|–|--/.test(outbox.body)) rules.push("mensagem contem travessao ou marcador artificial");
+  if (/^\s*(?:[-*]|\d+[.)]|\d+\s*[-])\s+\S/m.test(outbox.body)) {
+    rules.push("mensagem contem lista artificial");
+  }
   if (outbox.body.length > 700) rules.push("mensagem longa demais");
-  if (/ignore as regras|ignore instrucoes|modo desenvolvedor|prompt/i.test(outbox.body)) {
+  if (containsPromptInjection(body)) {
     rules.push("possivel prompt injection");
+  }
+  if (containsLinkLikeText(body, outbox.body) && state?.whatsapp_state !== "exemplo_aprovado_para_envio") {
+    rules.push("link de exemplo sem estado exemplo_aprovado_para_envio");
   }
 
   return rules;
+}
+
+function containsCommercialValue(body, rawBody) {
+  return (
+    /\bpreco\b|\bvalor\b|\borcamento\b|\bpagamento\b|\bdesconto\b|\bproposta\b|\bfechado\b|\bcontrato\b|\binvestimento\b|\breais\b/.test(
+      body,
+    ) ||
+    /r\s*\$\s*\d+/i.test(clean(rawBody)) ||
+    /\b(?:fica|sai|por|custa|cobro)\s+\d{3,}\b/.test(body)
+  );
+}
+
+function containsPromptInjection(body) {
+  return (
+    /\b(ignore|ignora|ignorar|desconsidere|desconsiderar)\b.{0,80}\b(instrucoes|regras|prompt|sistema|anteriores|acima)\b/.test(
+      body,
+    ) ||
+    /\bmodo desenvolvedor\b|\bprompt\b/.test(body)
+  );
+}
+
+function isNeutralPriceQualificationReply(body) {
+  return normalizeWhatsAppReplyText(body) === normalizeWhatsAppReplyText(NEUTRAL_PRICE_QUALIFICATION_REPLY);
+}
+
+function normalizeWhatsAppReplyText(value) {
+  return clean(value)
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function containsLinkLikeText(body, rawBody) {
+  const raw = clean(rawBody);
+  return (
+    /https?:\/\//i.test(raw) ||
+    /(?:^|[\s([<{])(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*\.[a-z]{2,}(?:\/[^\s)\]}>]*)?/i.test(raw) ||
+    /\b(?:www|instagram|bit|wa) (?:com|ly|me)\b/.test(body)
+  );
+}
+
+function markPriceQualificationPending(database, leadId, outboxId) {
+  const existing = database
+    .prepare("select * from lead_conversation_state where lead_id = ?")
+    .get(leadId);
+  database
+    .prepare(
+      `update lead_conversation_state
+       set whatsapp_state = ?, handoff_reason = ?, auto_replies_since_human = ?, last_outbox_id = ?, updated_at = ?
+       where lead_id = ?`,
+    )
+    .run(
+      "qualificacao_preco_pendente",
+      "preco_pedido",
+      (existing?.auto_replies_since_human ?? 0) + 1,
+      outboxId,
+      now(),
+      leadId,
+    );
 }
 
 function incrementAutoReplies(database, leadId, outboxId) {
@@ -3956,8 +4115,14 @@ function buildMergeKey(lead) {
 
 function classifyResponse(message) {
   const normalized = normalizeName(message);
+  if (
+    /\bpreco\b|\bvalor\b|\bquanto\b|\borcamento\b|\bcusto\b|\binvestimento\b|\bpagamento\b|\bdesconto\b|\bproposta\b/.test(
+      normalized,
+    )
+  ) {
+    return "resposta_pediu_preco";
+  }
   if (/\bpode\b|\bclaro\b|\bsim\b/.test(normalized)) return "resposta_permissao";
-  if (/\bpreco\b|\bvalor\b|\bquanto\b/.test(normalized)) return "resposta_pediu_preco";
   if (/\bexemplo\b|\blink\b|\bsite\b/.test(normalized)) return "resposta_pediu_exemplo";
   if (/\bnao\b|\bsem interesse\b/.test(normalized)) return "resposta_sem_interesse";
   return "resposta_recebida";
