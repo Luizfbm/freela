@@ -525,7 +525,7 @@ async function findOpsHealthIssue(flags) {
     payload: {
       title: DEFAULT_OPS_ISSUE_TITLE,
       description: "Standing issue for Freela operational reliability status.",
-      status: "in_progress",
+      status: "todo",
       priority: "high",
     },
     flags,

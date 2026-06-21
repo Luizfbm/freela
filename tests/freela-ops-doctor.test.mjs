@@ -130,6 +130,58 @@ async function withOpsHealthServer(run) {
   }
 }
 
+async function withOpsHealthCreateServer(run) {
+  const requests = [];
+  const documents = new Map();
+  const server = createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const bodyText = Buffer.concat(chunks).toString("utf8");
+    const body = bodyText ? JSON.parse(bodyText) : null;
+    requests.push({ method: req.method, url: req.url, headers: req.headers, body });
+    res.setHeader("Content-Type", "application/json");
+
+    if (req.method === "GET" && req.url?.startsWith("/api/companies/company-test/issues")) {
+      res.end(JSON.stringify({ issues: [] }));
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/companies/company-test/issues") {
+      if (body.status !== "todo" || body.assigneeAgentId) {
+        res.statusCode = 422;
+        res.end(JSON.stringify({ error: "in_progress issues require an assignee" }));
+        return;
+      }
+      res.end(JSON.stringify({ id: "ops-created-id", identifier: "FRE-OPS", title: body.title, status: body.status }));
+      return;
+    }
+
+    const docMatch = req.url?.match(/^\/api\/issues\/([^/]+)\/documents\/([^/]+)$/);
+    if (docMatch && req.method === "PUT") {
+      const key = `${decodeURIComponent(docMatch[1])}/${decodeURIComponent(docMatch[2])}`;
+      const next = { key: decodeURIComponent(docMatch[2]), ...body, latestRevisionId: "rev-created-1" };
+      documents.set(key, next);
+      res.end(JSON.stringify({ document: next }));
+      return;
+    }
+
+    res.statusCode = 404;
+    res.end(JSON.stringify({ error: "not found" }));
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const { port } = server.address();
+    return await run(`http://127.0.0.1:${port}`, requests, documents);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
 test("check writes red status when SQLite header is invalid", () => {
   const root = makeRoot();
   const dbDir = join(root, ".scratch/db");
@@ -312,6 +364,37 @@ test("publish updates Paperclip Ops Health without leaking private lead data", a
     assert.match(body, /Ultimo snapshot integro/i);
     assert.doesNotMatch(body, /Lidiane Privada/i);
     assert.doesNotMatch(body, /99999-1111/i);
+    assert.equal(documents.has("FRE-OPS/reliability-status"), true);
+  });
+});
+
+test("publish creates missing Ops Health issue as todo before updating document", async () => {
+  const root = makeRoot();
+  initDb(root);
+  assert.equal(
+    runOps(root, ["snapshot", "--backup-dir", appBackupDir(root), "--now", "2026-06-21T12:00:00.000Z"]).status,
+    0,
+  );
+
+  await withOpsHealthCreateServer(async (apiBase, requests, documents) => {
+    const result = await runOpsAsync(root, [
+      "publish",
+      "--backup-dir",
+      appBackupDir(root),
+      "--api-base",
+      apiBase,
+      "--company-id",
+      "company-test",
+      "--now",
+      "2026-06-21T12:05:00.000Z",
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const post = requests.find((request) => request.method === "POST");
+    assert.ok(post);
+    assert.equal(post.body.title, "Ops Health");
+    assert.equal(post.body.status, "todo");
+    assert.equal(post.body.assigneeAgentId, undefined);
     assert.equal(documents.has("FRE-OPS/reliability-status"), true);
   });
 });
