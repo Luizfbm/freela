@@ -168,6 +168,7 @@ function importMcpSqlite(root, flags) {
 }
 
 function dispatchApprovedOutbox(root, flags) {
+  validateDispatchApprovedOutboxFlags(flags);
   const dryRun = parseBooleanFlag(flags["dry-run"]);
   const limit = parsePositiveInt(flags.limit || "10", "--limit");
   const crmDbPath = resolve(root, flags["crm-db"] || ".scratch/db/freela.sqlite");
@@ -193,7 +194,7 @@ function readDispatchableOutbox(database, limit) {
         s.whatsapp_state
       from whatsapp_outbox o
       join leads l on l.id = o.lead_id
-      left join lead_conversation_state s on s.lead_id = o.lead_id
+      join lead_conversation_state s on s.lead_id = o.lead_id
       where o.status = 'approved'
         and o.guardian_decision = 'enviar'
         and o.humanizer_pass = 1
@@ -203,6 +204,15 @@ function readDispatchableOutbox(database, limit) {
       limit ?`,
     )
     .all(limit);
+}
+
+function validateDispatchApprovedOutboxFlags(flags) {
+  const allowed = new Set(["dry-run", "limit", "crm-db"]);
+  for (const flag of Object.keys(flags)) {
+    if (!allowed.has(flag)) {
+      throw new Error(`Opcao desconhecida para dispatch-approved-outbox: --${flag}`);
+    }
+  }
 }
 
 function dispatchOutboxItems(database, items, flags) {

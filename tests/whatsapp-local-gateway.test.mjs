@@ -116,6 +116,15 @@ function updateLatestLeadState(root, whatsappState) {
   db.close();
 }
 
+function deleteLatestLeadState(root) {
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = db
+    .prepare("select lead_id from whatsapp_outbox order by id desc limit 1")
+    .get();
+  db.prepare("delete from lead_conversation_state where lead_id = ?").run(outbox.lead_id);
+  db.close();
+}
+
 function assertDryRunDispatchableCount(root, expected) {
   const result = runNode([gateway, "--root", root, "dispatch-approved-outbox", "--dry-run"]);
   assert.equal(result.status, 0, result.stderr);
@@ -182,6 +191,19 @@ test("gateway dry-runs approved whatsapp outbox without sending", () => {
   assert.equal(outbox.sent_at, null);
 });
 
+test("gateway rejects unknown dispatch flags without mutating outbox", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+
+  const result = runNode([gateway, "--root", root, "dispatch-approved-outbox", "--dryrun"]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Opcao desconhecida para dispatch-approved-outbox: --dryrun/i);
+
+  const outbox = readLatestOutbox(root);
+  assert.equal(outbox.status, "approved");
+  assert.equal(outbox.sent_at, null);
+});
+
 test("gateway rejects invalid dry-run boolean without mutating outbox", () => {
   const root = makeRoot();
   seedApprovedOutbox(root);
@@ -222,6 +244,14 @@ test("gateway dry-run skips already sent outbox", () => {
   const root = makeRoot();
   seedApprovedOutbox(root);
   updateLatestOutbox(root, "sent_at = ?", ["2026-06-21T12:00:00-03:00"]);
+
+  assertDryRunDispatchableCount(root, 0);
+});
+
+test("gateway dry-run skips outbox without lead conversation state", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  deleteLatestLeadState(root);
 
   assertDryRunDispatchableCount(root, 0);
 });
