@@ -18,6 +18,77 @@ function runNode(args, options = {}) {
   return spawnSync(process.execPath, args, { cwd: repoRoot, encoding: "utf8", ...options });
 }
 
+function seedApprovedOutbox(root) {
+  const leadFile = join(root, "lead.json");
+  writeFileSync(
+    leadFile,
+    JSON.stringify([
+      {
+        canonical_name: "Aghata Massoterapia",
+        phone_or_contact: "+55 27 99999-0000",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]),
+  );
+  assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
+  const inboundFile = join(root, "inbound.json");
+  writeFileSync(
+    inboundFile,
+    JSON.stringify({
+      bridge_message_id: "wa-dispatch-001",
+      chat_id: "5527999990000@s.whatsapp.net",
+      sender_name: "Aghata Massoterapia",
+      sender_phone: "+55 27 99999-0000",
+      body: "Pode sim",
+      received_at: "2026-06-21T11:00:00-03:00",
+    }),
+  );
+  assert.equal(
+    runNode([crm, "--root", root, "whatsapp", "inbound", "ingest", "--file", inboundFile])
+      .status,
+    0,
+  );
+  assert.equal(
+    runNode([
+      crm,
+      "--root",
+      root,
+      "whatsapp",
+      "outbox",
+      "propose",
+      "--name",
+      "Aghata Massoterapia",
+      "--body",
+      "Vi seu retorno. Vou te mandar os 3 pontos de forma bem objetiva.",
+      "--source",
+      "atendimento-whatsapp",
+      "--humanizer-pass",
+      "true",
+      "--used-last-inbound",
+      "true",
+      "--contextual-reply",
+      "true",
+    ]).status,
+    0,
+  );
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = db.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  db.close();
+  assert.equal(
+    runNode([
+      crm,
+      "--root",
+      root,
+      "whatsapp",
+      "guardian",
+      "review",
+      "--outbox-id",
+      String(outbox.id),
+    ]).status,
+    0,
+  );
+}
+
 test("gateway importa evento normalizado em dry-run sem expor send direto", () => {
   const root = makeRoot();
   assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
@@ -53,6 +124,32 @@ test("gateway importa evento normalizado em dry-run sem expor send direto", () =
 
   const source = readFileSync(gateway, "utf8");
   assert.doesNotMatch(source, /send_message|send_file|send_audio_message/i);
+});
+
+test("gateway dry-runs approved whatsapp outbox without sending", () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+  seedApprovedOutbox(root);
+
+  const result = runNode([
+    gateway,
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--dry-run",
+    "true",
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Dry-run dispatchaveis: 1/i);
+  assert.match(result.stdout, /Aghata Massoterapia/i);
+
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = db
+    .prepare("select status, sent_at from whatsapp_outbox order by id desc limit 1")
+    .get();
+  db.close();
+  assert.equal(outbox.status, "approved");
+  assert.equal(outbox.sent_at, null);
 });
 
 test("gateway importa mensagens novas do messages.db do whatsapp-mcp sem duplicar", () => {

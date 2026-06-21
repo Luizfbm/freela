@@ -35,6 +35,21 @@ function main() {
     return;
   }
 
+  if (command === "dispatch-approved-outbox") {
+    const result = dispatchApprovedOutbox(root, flags);
+    if (parseBooleanFlag(flags["dry-run"])) {
+      console.log(`Dry-run dispatchaveis: ${result.dispatchable}`);
+      for (const item of result.items) {
+        console.log(`- ${item.lead_name}: outbox ${item.id}`);
+      }
+    } else {
+      console.log(`Enviados: ${result.sent}`);
+      console.log(`Falhas: ${result.failed}`);
+      console.log(`Ignorados: ${result.skipped}`);
+    }
+    return;
+  }
+
   if (command === "watch-mcp-sqlite") {
     watchMcpSqlite(root, flags);
     return;
@@ -149,6 +164,48 @@ function importMcpSqlite(root, flags) {
   return { imported, skipped, failed };
 }
 
+function dispatchApprovedOutbox(root, flags) {
+  const dryRun = parseBooleanFlag(flags["dry-run"]);
+  const limit = parsePositiveInt(flags.limit || "10", "--limit");
+  const crmDbPath = resolve(root, flags["crm-db"] || ".scratch/db/freela.sqlite");
+  if (!existsSync(crmDbPath)) {
+    throw new Error(`CRM SQLite nao encontrado: ${crmDbPath}`);
+  }
+  const database = new DatabaseSync(crmDbPath);
+  try {
+    const items = readDispatchableOutbox(database, limit);
+    if (dryRun) return { dispatchable: items.length, items, sent: 0, failed: 0, skipped: 0 };
+    return dispatchOutboxItems(database, items, flags);
+  } finally {
+    database.close();
+  }
+}
+
+function readDispatchableOutbox(database, limit) {
+  return database
+    .prepare(
+      `select
+        o.*,
+        l.canonical_name as lead_name,
+        s.whatsapp_state
+      from whatsapp_outbox o
+      join leads l on l.id = o.lead_id
+      left join lead_conversation_state s on s.lead_id = o.lead_id
+      where o.status = 'approved'
+        and o.guardian_decision = 'enviar'
+        and o.humanizer_pass = 1
+        and o.sent_at is null
+        and coalesce(s.whatsapp_state, '') not in ('handoff_luiz', 'bloqueado_guardiao', 'encerrado')
+      order by o.approved_at asc, o.id asc
+      limit ?`,
+    )
+    .all(limit);
+}
+
+function dispatchOutboxItems(database, items, flags) {
+  return { sent: 0, failed: 0, skipped: items.length, items };
+}
+
 function readMcpRows(database, cursor, limit) {
   return database
     .prepare(
@@ -241,6 +298,10 @@ function parsePositiveInt(value, flagName) {
     throw new Error(`${flagName} deve ser inteiro positivo`);
   }
   return parsed;
+}
+
+function parseBooleanFlag(value) {
+  return ["1", "true", "yes", "sim"].includes(clean(value).toLowerCase());
 }
 
 function phoneFromValue(value) {
