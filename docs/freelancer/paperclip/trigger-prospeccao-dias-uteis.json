@@ -1,0 +1,7 @@
+{
+  "kind": "schedule",
+  "label": "Dias uteis as 09:30",
+  "enabled": true,
+  "cronExpression": "30 9 * * 1-5",
+  "timezone": "America/Sao_Paulo"
+}

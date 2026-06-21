@@ -1,0 +1,55 @@
+{
+  "name": "OZZY - Criador Presença 72h",
+  "role": "designer",
+  "title": "One-pages de Presença Local em 72h",
+  "icon": "rocket",
+  "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
+  "capabilities": "Cria demonstrações one-page de Presença Local em 72h somente depois de receber demo-brief.md com objetivo, lead, oferta, nivel Presenca Local em 72h, tom, dados permitidos/proibidos, CTA, WhatsApp correto e criterios de QA. Sem copy de WhatsApp, prints ou galeria por padrão.",
+  "desiredSkills": [],
+  "adapterType": "codex_local",
+  "adapterConfig": {
+    "command": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin/codex",
+    "extraArgs": [
+      "--skip-git-repo-check",
+      "-C",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--sandbox",
+      "workspace-write",
+      "-c",
+      "approval_policy=\"never\"",
+      "-c",
+      "sandbox_workspace_write.network_access=true"
+    ],
+    "cwd": "/Users/luiz_fbm/Documents/programacao/freela",
+    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/prompt-thread-criacao-72h.md",
+    "model": "gpt-5.5",
+    "modelReasoningEffort": "xhigh",
+    "search": false,
+    "dangerouslyBypassApprovalsAndSandbox": false,
+    "timeoutSec": 1500,
+    "graceSec": 20,
+    "env": {
+      "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      "CODEX_HOME": "/Users/luiz_fbm/.codex"
+    }
+  },
+  "instructionsBundle": {
+    "entryFile": "README.md",
+    "files": {
+      "README.md": "Paperclip agent for the daily freelancer operation. The operational instructions are loaded from adapterConfig.instructionsFilePath in this repository."
+    }
+  },
+  "budgetMonthlyCents": 0,
+  "permissions": {
+    "canCreateAgents": false,
+    "trustPreset": "standard"
+  },
+  "metadata": {
+    "noAutomaticMessaging": true,
+    "noOpenAiApiKey": true,
+    "paperclipOperationKey": "presenca72h"
+  },
+  "id": "b69b7667-0e3d-4b07-b1ad-e0c788224300"
+}

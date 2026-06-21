@@ -1,0 +1,10 @@
+{
+  "projectId": "9082cb60-ff80-47de-a502-555c876a52a6",
+  "title": "Rotina diaria - follow-up CRM",
+  "description": "Revisar pipeline comercial em .scratch/crm, separar CRM Historico (pipeline.md, historico-atendimento.md e status-commands-log.md) da Fila do Dia acionavel (hoje-enviar.md e lead-cards), processar comandos simples de status, gerar hoje-enviar.md somente com envios de hoje, gerar resumo-executivo-YYYY-MM-DD.md, identificar follow-ups vencidos e respostas que precisam de atendimento. Nao misturar CRM Historico com Fila do Dia; lead-cards deve ser somente a fila acionavel de hoje e ops-status deve ser status_executivo. Depois de mudanca em CRM/fila/QA/status que exija republicacao, criar handoff unico para COO Freelancer publicar o FRE-7 com dedupe_key publish_fre7. Nao enviar mensagens automaticamente. Acionar Redator de Primeira Mensagem, QA de Mensagens, Diagnostico 3 Pontos, Atendimento, Criacao ou Entrega quando necessario.",
+  "assigneeAgentId": "27b8359c-0059-4952-8da1-71f775d7530a",
+  "priority": "medium",
+  "status": "active",
+  "concurrencyPolicy": "skip_if_active",
+  "catchUpPolicy": "skip_missed"
+}

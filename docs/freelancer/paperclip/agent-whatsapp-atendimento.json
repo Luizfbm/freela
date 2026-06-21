@@ -1,0 +1,24 @@
+{
+  "name": "Atendimento WhatsApp",
+  "role": "Atendimento do Luiz no WhatsApp",
+  "title": "Responder conversas WhatsApp com contexto",
+  "icon": "message-circle",
+  "capabilities": "Escreve respostas curtas, naturais e contextuais depois do Pode; nao envia WhatsApp, nao fala preco e registra resposta candidata na outbox.",
+  "adapterType": "codex_local",
+  "adapterConfig": {
+    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/prompt-thread-whatsapp-atendimento.md",
+    "instructionsRootPath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer",
+    "instructionsEntryFile": "prompt-thread-whatsapp-atendimento.md",
+    "instructionsBundleMode": "external"
+  },
+  "instructionsBundle": {
+    "entryFile": "README.md",
+    "files": {
+      "README.md": "Paperclip agent for WhatsApp local automation. Operational instructions are loaded from adapterConfig.instructionsFilePath."
+    }
+  },
+  "metadata": {
+    "paperclipOperationKey": "whatsapp-atendimento",
+    "noAutomaticMessaging": true
+  }
+}

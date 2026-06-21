@@ -1,0 +1,55 @@
+{
+  "name": "Scout - Lead Searcher GV",
+  "role": "researcher",
+  "title": "Volume qualificado de prospecção local",
+  "icon": "search",
+  "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
+  "capabilities": "Volume qualificado de prospeccao: pesquisa ao menos 25 candidatos brutos, entrega no minimo 15 leads novos qualificados, deduplica, roda paperclip-chrome-scout-smoke.mjs no perfil Paperclip Scout antes de Instagram, alimenta o CRM via SQLite comercial, gera Bio Evidence Pack em lead_platform_profiles com browser_evidence_status, browser_evidence_method chrome_operational_profile e instagram_session_status, atualiza commercial_pending_validation e commercial_ready_for_writer com commercial export, entrega pacote de decisao/dossies e registra worker_handoffs antes de auto-delegar para Validador de Dados. Planilha e apenas espelho opcional. Nao envia mensagens automaticamente.",
+  "desiredSkills": [],
+  "adapterType": "codex_local",
+  "adapterConfig": {
+    "command": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin/codex",
+    "extraArgs": [
+      "--skip-git-repo-check",
+      "-C",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--sandbox",
+      "danger-full-access",
+      "-c",
+      "approval_policy=\"never\"",
+      "-c",
+      "sandbox_workspace_write.network_access=true"
+    ],
+    "cwd": "/Users/luiz_fbm/Documents/programacao/freela",
+    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/prompt-thread-prospeccao-leads.md",
+    "model": "gpt-5.5",
+    "modelReasoningEffort": "xhigh",
+    "search": true,
+    "dangerouslyBypassApprovalsAndSandbox": false,
+    "timeoutSec": 3600,
+    "graceSec": 20,
+    "env": {
+      "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      "CODEX_HOME": "/Users/luiz_fbm/.codex"
+    }
+  },
+  "instructionsBundle": {
+    "entryFile": "README.md",
+    "files": {
+      "README.md": "Paperclip agent for the daily freelancer operation. The operational instructions are loaded from adapterConfig.instructionsFilePath in this repository."
+    }
+  },
+  "budgetMonthlyCents": 0,
+  "permissions": {
+    "canCreateAgents": false,
+    "trustPreset": "standard"
+  },
+  "metadata": {
+    "noAutomaticMessaging": true,
+    "noOpenAiApiKey": true,
+    "paperclipOperationKey": "prospeccao"
+  },
+  "id": "d846f1b7-f6ae-4005-9ef4-53a32b13635e"
+}

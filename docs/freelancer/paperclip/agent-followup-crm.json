@@ -1,0 +1,55 @@
+{
+  "name": "Polina - Follow-up CRM",
+  "role": "pm",
+  "title": "Fila comercial e follow-ups",
+  "icon": "radar",
+  "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
+  "capabilities": "Mantem pipeline comercial pelo SQLite comercial, usando commercial_followups_today e commercial_ready_lead_cards para separar Fila do Dia/lead-cards como acao_manual_hoje, ops-status como status_executivo e CRM Historico como memoria. Faz triagem de respostas, gera resumo executivo, follow-up inteligente, exige QA de Mensagens antes de lead-cards, nao publica FRE-7 diretamente, cria handoff para COO Freelancer republicar superficies com dedupe_key publish_fre7 quando necessario, registra worker_handoffs, aciona Diagnostico 3 Pontos, cria demo-brief e coordena Atendimento/Criador/Entrega quando necessario.",
+  "desiredSkills": [],
+  "adapterType": "codex_local",
+  "adapterConfig": {
+    "command": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin/codex",
+    "extraArgs": [
+      "--skip-git-repo-check",
+      "-C",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--sandbox",
+      "workspace-write",
+      "-c",
+      "approval_policy=\"never\"",
+      "-c",
+      "sandbox_workspace_write.network_access=true"
+    ],
+    "cwd": "/Users/luiz_fbm/Documents/programacao/freela",
+    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/prompt-thread-followup-crm.md",
+    "model": "gpt-5.5",
+    "modelReasoningEffort": "xhigh",
+    "search": false,
+    "dangerouslyBypassApprovalsAndSandbox": false,
+    "timeoutSec": 1200,
+    "graceSec": 20,
+    "env": {
+      "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      "CODEX_HOME": "/Users/luiz_fbm/.codex"
+    }
+  },
+  "instructionsBundle": {
+    "entryFile": "README.md",
+    "files": {
+      "README.md": "Paperclip agent for the daily freelancer operation. The operational instructions are loaded from adapterConfig.instructionsFilePath in this repository."
+    }
+  },
+  "budgetMonthlyCents": 0,
+  "permissions": {
+    "canCreateAgents": false,
+    "trustPreset": "standard"
+  },
+  "metadata": {
+    "noAutomaticMessaging": true,
+    "noOpenAiApiKey": true,
+    "paperclipOperationKey": "followup-crm"
+  },
+  "id": "27b8359c-0059-4952-8da1-71f775d7530a"
+}

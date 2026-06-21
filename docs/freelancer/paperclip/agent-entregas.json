@@ -1,0 +1,55 @@
+{
+  "name": "Tony - Ops de Entrega",
+  "role": "pm",
+  "title": "Checklist de entrega e pós-venda",
+  "icon": "target",
+  "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
+  "capabilities": "Conduz checklist de entrega, publicacao, deploy automatico via GitHub Actions/cPanel, ajustes e proximos passos apos fechamento. Nao fala com cliente automaticamente.",
+  "desiredSkills": [],
+  "adapterType": "codex_local",
+  "adapterConfig": {
+    "command": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin/codex",
+    "extraArgs": [
+      "--skip-git-repo-check",
+      "-C",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--sandbox",
+      "workspace-write",
+      "-c",
+      "approval_policy=\"never\"",
+      "-c",
+      "sandbox_workspace_write.network_access=true"
+    ],
+    "cwd": "/Users/luiz_fbm/Documents/programacao/freela",
+    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/checklist-entrega.md",
+    "model": "gpt-5.5",
+    "modelReasoningEffort": "xhigh",
+    "search": false,
+    "dangerouslyBypassApprovalsAndSandbox": false,
+    "timeoutSec": 900,
+    "graceSec": 20,
+    "env": {
+      "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      "CODEX_HOME": "/Users/luiz_fbm/.codex"
+    }
+  },
+  "instructionsBundle": {
+    "entryFile": "README.md",
+    "files": {
+      "README.md": "Paperclip agent for the daily freelancer operation. The operational instructions are loaded from adapterConfig.instructionsFilePath in this repository."
+    }
+  },
+  "budgetMonthlyCents": 0,
+  "permissions": {
+    "canCreateAgents": false,
+    "trustPreset": "standard"
+  },
+  "metadata": {
+    "noAutomaticMessaging": true,
+    "noOpenAiApiKey": true,
+    "paperclipOperationKey": "entregas"
+  },
+  "id": "55d286d6-55ce-4942-b9d5-2e1f3e0c89f2"
+}
