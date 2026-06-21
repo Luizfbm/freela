@@ -111,7 +111,7 @@ function proposeAndReviewSafeWhatsApp(root, name, body) {
   return review;
 }
 
-function makeWhatsAppLeadRoot(bridgeMessageId) {
+function makeWhatsAppLeadRoot(bridgeMessageId, body = "Pode sim") {
   const root = makeRoot();
   assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
   upsertLead(root, {
@@ -124,11 +124,15 @@ function makeWhatsAppLeadRoot(bridgeMessageId) {
     chat_id: "5527999990000@s.whatsapp.net",
     sender_name: "Aghata Massoterapia",
     sender_phone: "+55 27 99999-0000",
-    body: "Pode sim",
+    body,
     received_at: "2026-06-21T10:02:00-03:00",
   });
   return root;
 }
+
+const neutralPriceQualificationReply =
+  "Depende um pouco do que precisa aparecer na pagina e do objetivo principal.\n\n" +
+  "Para eu te direcionar melhor: voce quer usar essa pagina mais como apresentacao oficial do seu trabalho, ou mais para organizar o caminho de quem vem do Instagram/WhatsApp?";
 
 function db(root) {
   return new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
@@ -2166,6 +2170,76 @@ test("whatsapp guardian blocks accented prompt injection", () => {
   const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
   database.close();
   assert.match(outbox.guardian_reason, /prompt injection/i);
+});
+
+test("whatsapp guardian blocks normal reply while price qualification is pending", () => {
+  const root = makeWhatsAppLeadRoot("wa-guard-price-001", "Qual o valor?");
+
+  const review = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Te explico de forma objetiva: a pagina organiza apresentacao, servicos e caminho para WhatsApp.",
+  );
+  assert.match(review.stdout, /bloqueado/i);
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  database.close();
+  assert.match(outbox.guardian_reason, /preco_pedido exige qualificacao neutra/i);
+});
+
+test("whatsapp guardian approves neutral price qualification and marks pending handoff", () => {
+  const root = makeWhatsAppLeadRoot("wa-guard-price-002", "Qual o valor?");
+
+  const review = proposeAndReviewSafeWhatsApp(root, "Aghata Massoterapia", neutralPriceQualificationReply);
+  assert.match(review.stdout, /aprovado/i);
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state where lead_id = ?").get(outbox.lead_id);
+  database.close();
+  assert.equal(state.whatsapp_state, "qualificacao_preco_pendente");
+  assert.equal(state.handoff_reason, "preco_pedido");
+  assert.equal(state.auto_replies_since_human, 1);
+  assert.equal(state.last_outbox_id, outbox.id);
+});
+
+test("whatsapp guardian blocks second reply after neutral price qualification", () => {
+  const root = makeWhatsAppLeadRoot("wa-guard-price-003", "Qual o valor?");
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const lead = database.prepare("select * from leads where canonical_name = ?").get("Aghata Massoterapia");
+  database
+    .prepare("update lead_conversation_state set whatsapp_state = ?, handoff_reason = ? where lead_id = ?")
+    .run("qualificacao_preco_pendente", "preco_pedido", lead.id);
+  database.close();
+
+  const review = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Posso seguir te explicando por aqui de forma simples.",
+  );
+  assert.match(review.stdout, /bloqueado/i);
+
+  const after = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = after.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  after.close();
+  assert.match(outbox.guardian_reason, /qualificacao de preco ja enviada; handoff Luiz/i);
+});
+
+test("whatsapp guardian blocks artificial list markers", () => {
+  const root = makeWhatsAppLeadRoot("wa-guard-list-001");
+
+  const review = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "- ponto um\n- ponto dois",
+  );
+  assert.match(review.stdout, /bloqueado/i);
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  database.close();
+  assert.match(outbox.guardian_reason, /lista artificial/i);
 });
 
 test("queue generate e export all criam espelhos privados legiveis", () => {

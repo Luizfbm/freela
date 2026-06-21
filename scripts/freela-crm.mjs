@@ -2421,7 +2421,9 @@ function reviewWhatsAppOutbox(database, outboxId) {
     )
     .run(status, decision, reason, decision === "enviar" ? now() : null, outbox.id);
 
-  if (decision === "enviar") {
+  if (decision === "enviar" && state?.whatsapp_state === "preco_pedido") {
+    markPriceQualificationPending(database, outbox.lead_id, outbox.id);
+  } else if (decision === "enviar") {
     incrementAutoReplies(database, outbox.lead_id, outbox.id);
   } else {
     setWhatsAppHandoff(database, outbox.lead_id, blockedWhatsAppStateForRules(rules), reason);
@@ -2442,6 +2444,12 @@ function guardianRules({ outbox, state }) {
   if (state?.whatsapp_state === "handoff_luiz") rules.push("lead em handoff_luiz");
   if (state?.whatsapp_state === "bloqueado_guardiao") rules.push("lead bloqueado pelo guardiao");
   if (state?.whatsapp_state === "encerrado") rules.push("conversa encerrada");
+  if (state?.whatsapp_state === "qualificacao_preco_pendente") {
+    rules.push("qualificacao de preco ja enviada; handoff Luiz");
+  }
+  if (state?.whatsapp_state === "preco_pedido" && !isNeutralPriceQualificationReply(outbox.body)) {
+    rules.push("preco_pedido exige qualificacao neutra");
+  }
   if (state?.auto_replies_since_human >= 5) {
     rules.push(WHATSAPP_AUTO_REPLY_LIMIT_REASON);
   }
@@ -2461,6 +2469,9 @@ function guardianRules({ outbox, state }) {
     rules.push("mensagem generica com cara de IA");
   }
   if (/—|–|--/.test(outbox.body)) rules.push("mensagem contem travessao ou marcador artificial");
+  if (/^\s*(?:[-*]|\d+[.)])\s+\S/m.test(outbox.body)) {
+    rules.push("mensagem contem lista artificial");
+  }
   if (outbox.body.length > 700) rules.push("mensagem longa demais");
   if (/ignore as regras|ignore instrucoes|modo desenvolvedor|prompt/.test(body)) {
     rules.push("possivel prompt injection");
@@ -2472,6 +2483,16 @@ function guardianRules({ outbox, state }) {
   return rules;
 }
 
+function isNeutralPriceQualificationReply(body) {
+  const normalized = normalizeName(body);
+  return (
+    normalized.includes("depende um pouco do que precisa aparecer na pagina") &&
+    normalized.includes("objetivo principal") &&
+    normalized.includes("apresentacao oficial") &&
+    normalized.includes("instagram whatsapp")
+  );
+}
+
 function containsLinkLikeText(body, rawBody) {
   const raw = clean(rawBody);
   return (
@@ -2479,6 +2500,26 @@ function containsLinkLikeText(body, rawBody) {
     /(?:^|[\s([<{])(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*\.[a-z]{2,}(?:\/[^\s)\]}>]*)?/i.test(raw) ||
     /\b(?:www|instagram|bit|wa) (?:com|ly|me)\b/.test(body)
   );
+}
+
+function markPriceQualificationPending(database, leadId, outboxId) {
+  const existing = database
+    .prepare("select * from lead_conversation_state where lead_id = ?")
+    .get(leadId);
+  database
+    .prepare(
+      `update lead_conversation_state
+       set whatsapp_state = ?, handoff_reason = ?, auto_replies_since_human = ?, last_outbox_id = ?, updated_at = ?
+       where lead_id = ?`,
+    )
+    .run(
+      "qualificacao_preco_pendente",
+      "preco_pedido",
+      (existing?.auto_replies_since_human ?? 0) + 1,
+      outboxId,
+      now(),
+      leadId,
+    );
 }
 
 function incrementAutoReplies(database, leadId, outboxId) {
