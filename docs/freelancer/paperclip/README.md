@@ -331,6 +331,8 @@ Fluxos implementados:
 
 O setup local do `lharries/whatsapp-mcp` esta em `docs/freelancer/paperclip/whatsapp-mcp-local.md`. Ele deve ficar em `.scratch/whatsapp-mcp`, parear por QR e ser lido pelo Gateway Local via `store/messages.db`.
 
+Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox` chama o bridge `/api/send`.
+
 Workers nao acessam `send_message`, `send_file` ou `send_audio_message`. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite`.
 
 Notificador Luiz cria issue no Paperclip quando a conversa chega em `preco_pedido`, `lead_quente`, `handoff_luiz` ou `bloqueado_guardiao`. Ele nao envia WhatsApp; apenas entrega contexto e proxima acao para o operador.

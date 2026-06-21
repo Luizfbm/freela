@@ -1,8 +1,8 @@
 # WhatsApp MCP Local
 
-Este guia configura `lharries/whatsapp-mcp` como ponte local de leitura do WhatsApp atual do Luiz. O MCP fica atras do nosso Gateway Local; workers Paperclip nao recebem acesso direto a tools cruas do WhatsApp.
+Este guia configura `lharries/whatsapp-mcp` como ponte local do WhatsApp atual do Luiz. O MCP fica atras do nosso Gateway Local; workers Paperclip nao recebem acesso direto a tools cruas do WhatsApp.
 
-Modo atual: read-only assistido. Ele le mensagens recebidas, grava no SQLite do CRM e deixa respostas/decisoes para Atendimento WhatsApp, Guardiao e Outbox.
+Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, Atendimento WhatsApp escreve resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente o Gateway despacha Outbox aprovada.
 
 ## Por Que Nao Expor O MCP Direto
 
@@ -11,10 +11,11 @@ O projeto `lharries/whatsapp-mcp` oferece leitura e envio: `send_message`, `send
 Regra operacional:
 
 - workers leem somente CRM/Paperclip;
-- `whatsapp-local-gateway.mjs` le `store/messages.db`;
-- Atendimento WhatsApp so cria resposta candidata;
-- Guardiao revisa;
-- envio real so pode existir depois via Gateway/Outbox aprovada.
+- `whatsapp-local-gateway.mjs` importa inbound de `store/messages.db`;
+- Atendimento WhatsApp so cria resposta candidata na Outbox;
+- Humanizer e obrigatorio antes de qualquer Outbox automatica;
+- Guardiao revisa e aprova;
+- envio real so pode existir via `dispatch-approved-outbox`, depois de Outbox aprovada.
 
 ## Instalacao Local
 
@@ -35,7 +36,7 @@ O bridge cria:
 /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
 ```
 
-Esse e o banco que o Gateway Local le. O servidor REST do bridge pode expor `/api/send`, mas a nossa automacao nao usa essa rota no modo atual.
+Esse e o banco que o Gateway Local le. O servidor REST do bridge expoe `/api/send`, mas somente `scripts/whatsapp-local-gateway.mjs` pode chamar essa rota, e apenas para Outbox aprovada pelo Guardiao com `humanizer_pass = true`.
 
 ## Importar Uma Vez
 
@@ -95,7 +96,24 @@ Depois que nao houver task sensivel rodando e o Luiz decidir ativar leitura cont
 node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela watch-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --interval-ms 10000
 ```
 
-Esse watcher ainda nao envia mensagem. Ele apenas repete o import do `messages.db` e alimenta o CRM.
+Sem `--dispatch-approved`, esse watcher apenas repete o import do `messages.db` e alimenta o CRM.
+
+## Dispatch Aprovado
+
+Depois que Atendimento WhatsApp gerar Outbox com `humanizer_pass = true` e Guardiao aprovar, o Gateway pode despachar:
+
+```bash
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela dispatch-approved-outbox --dry-run
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela dispatch-approved-outbox
+```
+
+Watcher com envio:
+
+```bash
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela watch-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --dispatch-approved --interval-ms 10000
+```
+
+Somente o Gateway chama `/api/send`. Workers continuam sem acesso a `send_message`, `send_file` e `send_audio_message`.
 
 ## Variavel Opcional
 
