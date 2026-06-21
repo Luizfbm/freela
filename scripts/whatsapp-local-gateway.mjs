@@ -506,7 +506,7 @@ function watchMcpSqlite(root, flags) {
       );
       if (parseBooleanFlag(flags["dispatch-approved"])) {
         const dispatchFlags = {};
-        for (const flag of ["bridge-api-base", "timeout-ms", "limit", "crm-db"]) {
+        for (const flag of ["bridge-api-base", "timeout-ms", "limit", "crm-db", "dry-run"]) {
           if (flags[flag] !== undefined) dispatchFlags[flag] = flags[flag];
         }
         const dispatch = dispatchApprovedOutbox(root, dispatchFlags);

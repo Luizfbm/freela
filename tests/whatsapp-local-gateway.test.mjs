@@ -38,6 +38,51 @@ function runNodeAsync(args, options = {}) {
   });
 }
 
+function runNodeUntilStdout(args, pattern, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, { cwd: repoRoot, ...options });
+    let stdout = "";
+    let stderr = "";
+    let matched = false;
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGTERM");
+      reject(new Error(`Timed out waiting for ${pattern}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    }, 5000);
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+      if (!matched && pattern.test(stdout)) {
+        matched = true;
+        child.kill("SIGTERM");
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", (status, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (matched) {
+        resolve({ status, signal, stdout, stderr });
+        return;
+      }
+      reject(new Error(`Process exited before ${pattern}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    });
+  });
+}
+
 function withBridgeServer(handler) {
   return new Promise((resolve, reject) => {
     const requests = [];
@@ -189,6 +234,34 @@ function assertDryRunDispatchableCount(root, expected) {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, new RegExp(`Dry-run dispatchaveis: ${expected}`, "i"));
   return result;
+}
+
+function createEmptyMcpMessagesDb(path) {
+  const mcp = new DatabaseSync(path);
+  mcp.exec(`
+    create table chats (
+      jid text primary key,
+      name text,
+      last_message_time timestamp
+    );
+    create table messages (
+      id text,
+      chat_jid text,
+      sender text,
+      content text,
+      timestamp timestamp,
+      is_from_me boolean,
+      media_type text,
+      filename text,
+      url text,
+      media_key blob,
+      file_sha256 blob,
+      file_enc_sha256 blob,
+      file_length integer,
+      primary key (id, chat_jid)
+    );
+  `);
+  mcp.close();
 }
 
 test("gateway importa evento normalizado em dry-run sem expor send direto", () => {
@@ -615,6 +688,45 @@ test("watcher supports optional approved outbox dispatch flag", () => {
     /importMcpSqlite\(root, flags\)[\s\S]+parseBooleanFlag\(flags\["dispatch-approved"\]\)[\s\S]+dispatchApprovedOutbox\(root, dispatchFlags\)/,
   );
   assert.doesNotMatch(watcher, /dispatchApprovedOutbox\(root, flags\)/);
+});
+
+test("watcher dispatch dry-run does not send approved outbox", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  const mcpDb = join(root, "empty-messages.db");
+  createEmptyMcpMessagesDb(mcpDb);
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true, message: "sent-by-test-bridge" }));
+  });
+
+  try {
+    const result = await runNodeUntilStdout(
+      [
+        gateway,
+        "--root",
+        root,
+        "watch-mcp-sqlite",
+        "--db",
+        mcpDb,
+        "--interval-ms",
+        "60000",
+        "--dispatch-approved",
+        "--dry-run",
+        "--bridge-api-base",
+        bridge.baseUrl,
+      ],
+      /dispatch_falhas=/i,
+    );
+    assert.match(result.stdout, /importados=0/i);
+    assert.equal(bridge.requests.length, 0);
+
+    const outbox = readLatestOutbox(root);
+    assert.equal(outbox.status, "approved");
+    assert.equal(outbox.sent_at, null);
+  } finally {
+    await bridge.close();
+  }
 });
 
 test("gateway rejects unknown dispatch flags without mutating outbox", () => {
