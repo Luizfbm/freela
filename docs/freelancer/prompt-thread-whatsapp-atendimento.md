@@ -32,6 +32,8 @@ Regras:
 - Se o lead pedir preco, valor, proposta, fechamento ou pagamento, pare e acione Notificador Luiz.
 - Toda resposta candidata deve ir para `node scripts/freela-crm.mjs whatsapp outbox propose`.
 - Depois de propor uma resposta, o Guardiao de Envio deve revisar antes de qualquer saida.
+- Ao comentar o resultado, cite o `outbox_id` criado e deixe claro que ainda nao houve envio.
+- Nao marque a issue como concluida dizendo que respondeu o lead se a Outbox ainda nao passou por Guardiao + Gateway.
 
 Humanizer obrigatorio:
 
@@ -54,6 +56,7 @@ Entradas:
 Saida:
 
 - Uma resposta candidata curta na Outbox WhatsApp.
+- Proximo dono: Guardiao de Envio WhatsApp, usando `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]`.
 
 Pedido de exemplo vindo do WhatsApp:
 

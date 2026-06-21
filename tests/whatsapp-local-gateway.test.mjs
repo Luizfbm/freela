@@ -268,7 +268,7 @@ function withPaperclipServer(handler) {
   });
 }
 
-function seedApprovedOutbox(root) {
+function seedApprovedOutbox(root, suffix = "001") {
   assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
   const leadFile = join(root, "lead.json");
   writeFileSync(
@@ -282,15 +282,15 @@ function seedApprovedOutbox(root) {
     ]),
   );
   assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
-  const inboundFile = join(root, "inbound.json");
+  const inboundFile = join(root, `inbound-${suffix}.json`);
   writeFileSync(
     inboundFile,
     JSON.stringify({
-      bridge_message_id: "wa-dispatch-001",
+      bridge_message_id: `wa-dispatch-${suffix}`,
       chat_id: "5527999990000@s.whatsapp.net",
       sender_name: "Aghata Massoterapia",
       sender_phone: "+55 27 99999-0000",
-      body: "Pode sim",
+      body: suffix === "001" ? "Pode sim" : `Pode sim ${suffix}`,
       received_at: "2026-06-21T11:00:00-03:00",
     }),
   );
@@ -338,6 +338,7 @@ function seedApprovedOutbox(root) {
     ]).status,
     0,
   );
+  return outbox.id;
 }
 
 function readLatestOutbox(root) {
@@ -578,6 +579,46 @@ test("gateway dispatches approved outbox once through bridge api", async () => {
     assert.equal(outbox.bridge_message_id, "3EB0AABDF3A653A54BE7197D9935D44694A2EB5D");
     assert.equal(outbound.length, 1);
     assert.equal(state.last_outbox_id, outbox.id);
+  } finally {
+    await bridge.close();
+  }
+});
+
+test("gateway dispatches only the requested approved outbox id", async () => {
+  const root = makeRoot();
+  const firstOutboxId = seedApprovedOutbox(root, "001");
+  const secondOutboxId = seedApprovedOutbox(root, "002");
+  const bridge = await withBridgeServer((req, res) => {
+    assert.equal(req.method, "POST");
+    assert.equal(req.url, "/api/send");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true, message_id: "3EB0AABDF3A653A54BE7197D9935D44694A2EB5D" }));
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--outbox-id",
+      String(secondOutboxId),
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Enviados: 1/i);
+    assert.equal(bridge.requests.length, 1);
+
+    const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+    const rows = database
+      .prepare("select id, status, sent_at from whatsapp_outbox order by id")
+      .all();
+    database.close();
+
+    assert.equal(rows.find((row) => row.id === firstOutboxId).status, "approved");
+    assert.equal(rows.find((row) => row.id === firstOutboxId).sent_at, null);
+    assert.equal(rows.find((row) => row.id === secondOutboxId).status, "sent");
+    assert.ok(rows.find((row) => row.id === secondOutboxId).sent_at);
   } finally {
     await bridge.close();
   }

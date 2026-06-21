@@ -643,6 +643,25 @@ test("Workers WhatsApp separam atendimento de guardiao e nao enviam direto", () 
   assert.match(guardiaoAgent.capabilities, /outbox/i);
 });
 
+test("Guardiao WhatsApp despacha somente via Gateway com outbox id explicito", () => {
+  const guardiaoWa = read("docs/freelancer/prompt-thread-whatsapp-guardiao.md");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
+  const readme = paperclipReadme();
+  const guardiaoAgent = agentConfig("agent-whatsapp-guardiao.json");
+
+  for (const doc of [guardiaoWa, guide, readme]) {
+    assert.match(doc, /whatsapp outbox status/i);
+    assert.match(doc, /dispatch-approved-outbox/i);
+    assert.match(doc, /--outbox-id/i);
+    assert.match(doc, /delivery_pending/i);
+    assert.match(doc, /message\.ack/i);
+  }
+
+  assert.match(guardiaoWa, /nao chamar.*\/api\/sendText|não chamar.*\/api\/sendText/is);
+  assert.match(guardiaoAgent.capabilities, /Gateway/i);
+  assert.match(guardiaoAgent.capabilities, /outbox-id/i);
+});
+
 test("Pedido de exemplo no WhatsApp passa por demo completa e QA antes do envio", () => {
   const followup = followupCrm();
   const criador = criacao72h();

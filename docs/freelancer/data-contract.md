@@ -287,7 +287,7 @@ Identidade WhatsApp:
 
 WAHA e a entrada local autorizada. O Gateway Local recebe eventos pelo webhook com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela serve-waha-webhook --auto-wake` ou reprocessa um evento salvo com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-waha-event --file .scratch/waha-event.json --auto-wake`.
 
-Nenhum worker comercial envia WhatsApp diretamente. Somente o Gateway Local pode enviar itens `approved` da Outbox.
+Nenhum worker comercial envia WhatsApp diretamente. Somente o Gateway Local pode enviar itens `approved` da Outbox. Antes de despachar, o worker deve consultar `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]`; se `Pode despachar: sim`, o envio permitido e `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --provider waha --outbox-id [id]`. O modo sem `--outbox-id` fica reservado para operacao assistida em lote, nao para workers. `delivery_pending` nao e entrega: o CRM so conta como enviado quando `message.ack` forte (`DEVICE`, `READ`, `PLAYED` ou `ack >= 2`) atualizar a Outbox.
 
 ## Privacidade
 

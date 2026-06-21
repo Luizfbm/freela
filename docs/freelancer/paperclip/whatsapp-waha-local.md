@@ -107,14 +107,28 @@ export WHATSAPP_WAHA_API_KEY="sua-chave-local"
 
 O dispatch WAHA e explicito e passa sempre pelo Gateway.
 
+Antes do dispatch, consulte a Outbox pelo CLI oficial:
+
+```bash
+node scripts/freela-crm.mjs \
+  --root /Users/luiz_fbm/Developer/freela \
+  whatsapp outbox status \
+  --outbox-id 6
+```
+
+O status deve mostrar `Pode despachar: sim`. Nao use SQL manual para decidir dispatch.
+
 ```bash
 node scripts/whatsapp-local-gateway.mjs \
   --root /Users/luiz_fbm/Developer/freela \
   dispatch-approved-outbox \
   --provider waha \
+  --outbox-id 6 \
   --waha-api-base http://127.0.0.1:3000 \
   --waha-session default
 ```
+
+Regra operacional: em fluxo de worker, sempre usar `--outbox-id`. O modo sem `--outbox-id` fica reservado para operacao assistida em lote, quando o operador explicitamente quiser despachar todos os aprovados elegiveis.
 
 O Gateway recebe telefone real da Outbox e usa `GET /api/contacts/check-exists` antes de enviar. `@lid` continua sendo identidade de leitura no CRM/Outbox, mas o WAHA pode resolver um telefone real para um `chatId` `@lid`; nesse caso o Gateway pode usar esse `chatId` resolvido pela propria WAHA para entregar a mensagem.
 

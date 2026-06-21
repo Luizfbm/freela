@@ -434,6 +434,7 @@ function dispatchApprovedOutbox(root, flags) {
   validateDispatchApprovedOutboxFlags(flags);
   const dryRun = parseBooleanFlag(flags["dry-run"]);
   const limit = parsePositiveInt(flags.limit || "10", "--limit");
+  const outboxId = flags["outbox-id"] ? parsePositiveInt(flags["outbox-id"], "--outbox-id") : null;
   const explicitCrmDb = flags["crm-db"] !== undefined;
   const crmDbPath = resolve(root, flags["crm-db"] || ".scratch/db/freela.sqlite");
   ensureCrmInitialized(root, crmDbPath, explicitCrmDb);
@@ -442,7 +443,7 @@ function dispatchApprovedOutbox(root, flags) {
   }
   const database = new DatabaseSync(crmDbPath);
   try {
-    const items = readDispatchableOutbox(database, limit);
+    const items = readDispatchableOutbox(database, { limit, outboxId });
     if (dryRun) return { dispatchable: items.length, items, sent: 0, failed: 0, skipped: 0 };
     return dispatchOutboxItems(database, items, buildDispatchOptions(flags));
   } finally {
@@ -450,7 +451,9 @@ function dispatchApprovedOutbox(root, flags) {
   }
 }
 
-function readDispatchableOutbox(database, limit) {
+function readDispatchableOutbox(database, { limit, outboxId = null }) {
+  const whereId = outboxId ? "and o.id = ?" : "";
+  const params = outboxId ? [outboxId, limit] : [limit];
   return database
     .prepare(
       `select
@@ -465,17 +468,19 @@ function readDispatchableOutbox(database, limit) {
         and o.humanizer_pass = 1
         and o.sent_at is null
         and o.attempts < 2
+        ${whereId}
         and coalesce(s.whatsapp_state, '') not in ('handoff_luiz', 'bloqueado_guardiao', 'encerrado')
       order by o.approved_at asc, o.id asc
       limit ?`,
     )
-    .all(limit);
+    .all(...params);
 }
 
 function validateDispatchApprovedOutboxFlags(flags) {
   const allowed = new Set([
     "dry-run",
     "limit",
+    "outbox-id",
     "crm-db",
     "provider",
     "bridge-api-base",

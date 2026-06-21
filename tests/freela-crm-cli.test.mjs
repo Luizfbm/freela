@@ -2535,6 +2535,27 @@ test("whatsapp outbox records required humanizer and context metadata", () => {
   assert.equal(outbox.humanizer_notes, "removido tom de template");
 });
 
+test("whatsapp outbox status exposes dispatch contract without manual SQL", () => {
+  const root = makeWhatsAppLeadRoot("wa-status-001");
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Vi aqui seu retorno e vou te mandar os 3 pontos de forma bem objetiva.",
+  );
+  const review = run(root, ["whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+
+  const status = run(root, ["whatsapp", "outbox", "status", "--outbox-id", String(outbox.id)]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.match(status.stdout, /Outbox: 1/i);
+  assert.match(status.stdout, /Lead: Aghata Massoterapia/i);
+  assert.match(status.stdout, /Status: approved/i);
+  assert.match(status.stdout, /Destino: 5527999990000@s\.whatsapp\.net/i);
+  assert.match(status.stdout, /Guardiao: enviar/i);
+  assert.match(status.stdout, /Pode despachar: sim/i);
+  assert.match(status.stdout, /Gateway: node scripts\/whatsapp-local-gateway\.mjs .*--outbox-id 1/s);
+});
+
 test("whatsapp outbox propose defaults humanizer metadata to blocked values", () => {
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);

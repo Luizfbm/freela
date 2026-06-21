@@ -402,6 +402,14 @@ async function dispatch({ root, dbPath, command, args }) {
     return;
   }
 
+  if (command[0] === "whatsapp" && command[1] === "outbox" && command[2] === "status") {
+    const flags = parseFlags(args);
+    requireFlag(flags, "outbox-id");
+    const report = whatsappOutboxStatus(database, parsePositiveInt(flags["outbox-id"], "outbox-id"), root);
+    console.log(formatWhatsAppOutboxStatus(report));
+    return;
+  }
+
   if (command[0] === "whatsapp" && command[1] === "guardian" && command[2] === "review") {
     const flags = parseFlags(args);
     requireFlag(flags, "outbox-id");
@@ -701,6 +709,7 @@ function requiresOperationalWriteGuard(command) {
     "export all",
     "export paperclip-cards",
     "export operator-status",
+    "whatsapp outbox status",
     "profile-evidence export",
   ]);
   if (command[0] === "init") return false;
@@ -714,6 +723,7 @@ function isDatabaseReadOnlyCommand(command) {
     "commercial status",
     "commercial enrichment-plan",
     "commercial duplicate-audit",
+    "whatsapp outbox status",
     "profile-evidence export",
   ]).has(joined);
 }
@@ -3104,6 +3114,75 @@ function whatsappSendPhoneFromValue(value) {
   if (raw.includes("+") && digits.length >= 8 && digits.length <= 15) return digits;
   if (digits.length === 10 || digits.length === 11) return `55${digits}`;
   return "";
+}
+
+function whatsappOutboxStatus(database, outboxId, root) {
+  const row = database
+    .prepare(
+      `select
+        o.*,
+        l.canonical_name as lead_name,
+        s.whatsapp_state,
+        s.handoff_reason
+      from whatsapp_outbox o
+      join leads l on l.id = o.lead_id
+      left join lead_conversation_state s on s.lead_id = o.lead_id
+      where o.id = ?`,
+    )
+    .get(outboxId);
+  if (!row) throw usageError(`Outbox nao encontrada: ${outboxId}`);
+
+  const dispatchCheck = whatsappOutboxDispatchCheck(row);
+  return {
+    ...row,
+    can_dispatch: dispatchCheck.canDispatch,
+    dispatch_blockers: dispatchCheck.blockers,
+    gateway_command:
+      `node scripts/whatsapp-local-gateway.mjs --root ${root} dispatch-approved-outbox ` +
+      `--provider waha --outbox-id ${row.id}`,
+  };
+}
+
+function whatsappOutboxDispatchCheck(outbox) {
+  const blockers = [];
+  if (!["approved", "failed"].includes(outbox.status)) blockers.push(`status ${outbox.status}`);
+  if (outbox.guardian_decision !== "enviar") blockers.push("guardiao nao aprovou envio");
+  if (!outbox.humanizer_pass) blockers.push("humanizer_pass ausente");
+  if (!outbox.used_last_inbound) blockers.push("used_last_inbound ausente");
+  if (!outbox.contextual_reply) blockers.push("contextual_reply ausente");
+  if (outbox.sent_at) blockers.push("ja possui sent_at");
+  if (outbox.attempts >= 2) blockers.push("limite de tentativas atingido");
+  if (["handoff_luiz", "bloqueado_guardiao", "encerrado"].includes(clean(outbox.whatsapp_state))) {
+    blockers.push(`estado ${outbox.whatsapp_state}`);
+  }
+  if (isWhatsAppLid(outbox.target_chat_id)) blockers.push("destino direto @lid");
+  return { canDispatch: blockers.length === 0, blockers };
+}
+
+function formatWhatsAppOutboxStatus(report) {
+  const lines = [
+    `Outbox: ${report.id}`,
+    `Lead: ${report.lead_name}`,
+    `Inbound: ${report.inbound_event_id ?? "-"}`,
+    `Status: ${report.status}`,
+    `Destino: ${report.target_chat_id}`,
+    `Guardiao: ${report.guardian_decision || "-"}`,
+    `Motivo guardiao: ${report.guardian_reason || "-"}`,
+    `WhatsApp state: ${report.whatsapp_state || "-"}`,
+    `Humanizer: ${report.humanizer_pass ? "sim" : "nao"}`,
+    `Usou ultimo inbound: ${report.used_last_inbound ? "sim" : "nao"}`,
+    `Resposta contextual: ${report.contextual_reply ? "sim" : "nao"}`,
+    `Provider: ${report.dispatch_provider || "-"}`,
+    `Provider message id: ${report.provider_message_id || "-"}`,
+    `ACK: ${report.delivery_ack_name || report.delivery_ack || "-"}`,
+    `Sent at: ${report.sent_at || "-"}`,
+    `Pode despachar: ${report.can_dispatch ? "sim" : "nao"}`,
+  ];
+  if (!report.can_dispatch) {
+    lines.push(`Bloqueios: ${report.dispatch_blockers.join("; ")}`);
+  }
+  lines.push(`Gateway: ${report.gateway_command}`);
+  return lines.join("\n");
 }
 
 const WHATSAPP_AUTO_REPLY_LIMIT_REASON = "limite de 5 respostas automaticas atingido";
