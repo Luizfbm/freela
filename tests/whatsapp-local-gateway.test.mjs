@@ -143,6 +143,19 @@ function readLatestOutbox(root) {
   return outbox;
 }
 
+function readLatestDispatchAudit(root) {
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = db.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  const outbound = db
+    .prepare("select * from interactions where lead_id = ? and direction = 'outbound'")
+    .all(outbox.lead_id);
+  const state = db
+    .prepare("select * from lead_conversation_state where lead_id = ?")
+    .get(outbox.lead_id);
+  db.close();
+  return { outbox, outbound, state };
+}
+
 function updateLatestOutbox(root, assignments, values = []) {
   const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
   const outbox = db.prepare("select id from whatsapp_outbox order by id desc limit 1").get();
@@ -268,15 +281,7 @@ test("gateway dispatches approved outbox once through bridge api", async () => {
     assert.equal(bridge.requests[0].body.recipient, "5527999990000@s.whatsapp.net");
     assert.match(bridge.requests[0].body.message, /3 pontos/i);
 
-    const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
-    const outbox = db.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
-    const outbound = db
-      .prepare("select * from interactions where lead_id = ? and direction = 'outbound'")
-      .all(outbox.lead_id);
-    const state = db
-      .prepare("select * from lead_conversation_state where lead_id = ?")
-      .get(outbox.lead_id);
-    db.close();
+    const { outbox, outbound, state } = readLatestDispatchAudit(root);
     assert.equal(outbox.status, "sent");
     assert.ok(outbox.sent_at);
     assert.equal(outbox.bridge_message_id, "sent-by-test-bridge");
@@ -285,6 +290,96 @@ test("gateway dispatches approved outbox once through bridge api", async () => {
   } finally {
     await bridge.close();
   }
+});
+
+test("gateway treats bridge responses without explicit success true as ambiguous handoff", async () => {
+  const cases = [
+    { name: "missing success", body: "{}" },
+    { name: "null success", body: JSON.stringify({ success: null, message: "maybe" }) },
+    { name: "string false success", body: JSON.stringify({ success: "false", message: "maybe" }) },
+    { name: "invalid json", body: "not-json" },
+    { name: "empty body", body: "" },
+  ];
+
+  for (const current of cases) {
+    const root = makeRoot();
+    seedApprovedOutbox(root);
+    const bridge = await withBridgeServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(current.body);
+    });
+    try {
+      const result = await runNodeAsync([
+        gateway,
+        "--root",
+        root,
+        "dispatch-approved-outbox",
+        "--bridge-api-base",
+        bridge.baseUrl,
+      ]);
+      assert.equal(result.status, 0, `${current.name}\n${result.stderr}`);
+      assert.match(result.stdout, /Falhas: 1/i, current.name);
+
+      const { outbox, outbound, state } = readLatestDispatchAudit(root);
+      assert.notEqual(outbox.status, "sent", current.name);
+      assert.equal(outbox.status, "dispatch_ambiguous", current.name);
+      assert.equal(outbox.sent_at, null, current.name);
+      assert.equal(outbound.length, 0, current.name);
+      assert.equal(state.whatsapp_state, "handoff_luiz", current.name);
+      assert.match(state.handoff_reason, /confirmacao|ambigua/i, current.name);
+    } finally {
+      await bridge.close();
+    }
+  }
+});
+
+test("gateway rejects invalid timeout before locking outbox", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+
+  const result = runNode([
+    gateway,
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--timeout-ms",
+    "nope",
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--timeout-ms deve ser inteiro positivo/i);
+
+  const outbox = readLatestOutbox(root);
+  assert.equal(outbox.status, "approved");
+  assert.equal(outbox.dispatch_locked_at, null);
+});
+
+test("gateway rejects invalid bridge base before locking outbox", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+
+  const result = runNode([
+    gateway,
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--bridge-api-base",
+    "http://[::1",
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /bridge-api-base/i);
+
+  const outbox = readLatestOutbox(root);
+  assert.equal(outbox.status, "approved");
+  assert.equal(outbox.dispatch_locked_at, null);
+});
+
+test("gateway lock rechecks lead conversation state before dispatch", () => {
+  const source = readFileSync(gateway, "utf8");
+  const lockFunction = source.match(/function lockOutboxForDispatch[\s\S]+?\n}\n/)[0];
+  assert.match(lockFunction, /lead_conversation_state/i);
+  assert.match(lockFunction, /handoff_luiz/);
+  assert.match(lockFunction, /bloqueado_guardiao/);
+  assert.match(lockFunction, /encerrado/);
 });
 
 test("gateway rejects unknown dispatch flags without mutating outbox", () => {

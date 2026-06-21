@@ -179,7 +179,7 @@ function dispatchApprovedOutbox(root, flags) {
   try {
     const items = readDispatchableOutbox(database, limit);
     if (dryRun) return { dispatchable: items.length, items, sent: 0, failed: 0, skipped: 0 };
-    return dispatchOutboxItems(database, items, flags);
+    return dispatchOutboxItems(database, items, buildDispatchOptions(flags));
   } finally {
     database.close();
   }
@@ -215,7 +215,23 @@ function validateDispatchApprovedOutboxFlags(flags) {
   }
 }
 
-function dispatchOutboxItems(database, items, flags) {
+function buildDispatchOptions(flags) {
+  const bridgeApiBase =
+    flags["bridge-api-base"] ||
+    process.env.WHATSAPP_BRIDGE_API_BASE ||
+    "http://127.0.0.1:8080";
+  const timeoutMs = parsePositiveInt(flags["timeout-ms"] || "15000", "--timeout-ms");
+  try {
+    return {
+      sendUrl: new URL("/api/send", bridgeApiBase).toString(),
+      timeoutMs,
+    };
+  } catch {
+    throw new Error(`--bridge-api-base invalido: ${clean(bridgeApiBase)}`);
+  }
+}
+
+function dispatchOutboxItems(database, items, dispatchOptions) {
   let sent = 0;
   let failed = 0;
   let skipped = 0;
@@ -226,17 +242,17 @@ function dispatchOutboxItems(database, items, flags) {
       continue;
     }
     const result = sendBridgeMessage({
-      bridgeApiBase:
-        flags["bridge-api-base"] ||
-        process.env.WHATSAPP_BRIDGE_API_BASE ||
-        "http://127.0.0.1:8080",
+      sendUrl: dispatchOptions.sendUrl,
       recipient: item.target_chat_id,
       message: item.body,
-      timeoutMs: parsePositiveInt(flags["timeout-ms"] || "15000", "--timeout-ms"),
+      timeoutMs: dispatchOptions.timeoutMs,
     });
     if (result.success) {
       markOutboxSent(database, item, result.messageId);
       sent += 1;
+    } else if (result.ambiguous) {
+      markOutboxAmbiguousFailure(database, item, result.error);
+      failed += 1;
     } else {
       markOutboxFailed(database, item, result.error);
       failed += 1;
@@ -254,14 +270,19 @@ function lockOutboxForDispatch(database, outboxId) {
          and status = 'approved'
          and guardian_decision = 'enviar'
          and humanizer_pass = 1
-         and sent_at is null`,
+         and sent_at is null
+         and exists (
+           select 1
+           from lead_conversation_state s
+           where s.lead_id = whatsapp_outbox.lead_id
+             and coalesce(s.whatsapp_state, '') not in ('handoff_luiz', 'bloqueado_guardiao', 'encerrado')
+         )`,
     )
     .run(new Date().toISOString(), outboxId);
   return result.changes === 1;
 }
 
-function sendBridgeMessage({ bridgeApiBase, recipient, message, timeoutMs }) {
-  const url = new URL("/api/send", bridgeApiBase);
+function sendBridgeMessage({ sendUrl, recipient, message, timeoutMs }) {
   const result = spawnSync(
     process.execPath,
     [
@@ -284,12 +305,12 @@ function sendBridgeMessage({ bridgeApiBase, recipient, message, timeoutMs }) {
           console.log(text);
         } catch (error) {
           console.error(error.message);
-          process.exit(1);
+          process.exit(2);
         } finally {
           clearTimeout(timeout);
         }
       `,
-      url.toString(),
+      sendUrl,
       recipient,
       message,
       String(timeoutMs),
@@ -299,18 +320,33 @@ function sendBridgeMessage({ bridgeApiBase, recipient, message, timeoutMs }) {
   if (result.status !== 0) {
     return {
       success: false,
+      ambiguous: result.status !== 1,
       error: [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
     };
   }
   try {
-    const parsed = result.stdout ? JSON.parse(result.stdout) : {};
+    const parsed = JSON.parse(result.stdout);
+    if (parsed.success === true) {
+      return { success: true, messageId: parsed.message || "" };
+    }
+    if (parsed.success === false) {
+      return {
+        success: false,
+        ambiguous: false,
+        error: parsed.message || "bridge retornou success=false",
+      };
+    }
     return {
-      success: parsed.success !== false,
-      messageId: parsed.message || "",
-      error: parsed.success === false ? parsed.message || "bridge retornou success=false" : "",
+      success: false,
+      ambiguous: true,
+      error: "confirmacao ambigua do bridge: success true ausente",
     };
   } catch (error) {
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      ambiguous: true,
+      error: `confirmacao ambigua do bridge: ${error.message}`,
+    };
   }
 }
 
@@ -357,6 +393,25 @@ function markOutboxFailed(database, item, error) {
        where id = ?`,
     )
     .run(failedAt, clean(error || "falha ao enviar pelo bridge").slice(0, 1000), item.id);
+}
+
+function markOutboxAmbiguousFailure(database, item, error) {
+  const failedAt = new Date().toISOString();
+  const reason = clean(error || "confirmacao ambigua do bridge");
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'dispatch_ambiguous', attempts = attempts + 1, failed_at = ?, dispatch_error = ?
+       where id = ?`,
+    )
+    .run(failedAt, reason.slice(0, 1000), item.id);
+  database
+    .prepare(
+      `update lead_conversation_state
+       set whatsapp_state = 'handoff_luiz', handoff_reason = ?, updated_at = ?
+       where lead_id = ?`,
+    )
+    .run(`confirmacao ambigua do envio pelo bridge: ${reason}`.slice(0, 1000), failedAt, item.lead_id);
 }
 
 function readMcpRows(database, cursor, limit) {
