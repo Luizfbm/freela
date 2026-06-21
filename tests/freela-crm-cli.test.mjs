@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
+  chmodSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   readlinkSync,
+  rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:http";
@@ -178,6 +181,18 @@ function db(root) {
 
 function backupFiles(root) {
   const dir = join(root, ".scratch/db/backups");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((file) => file.endsWith(".sqlite")).sort();
+}
+
+function opsBackupFiles(root) {
+  const dir = join(root, ".scratch/ops/sqlite-backups");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((file) => file.endsWith(".sqlite")).sort();
+}
+
+function workspaceBackupFiles(root) {
+  const dir = join(root, ".scratch/db-backups");
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((file) => file.endsWith(".sqlite")).sort();
 }
@@ -353,6 +368,138 @@ test("escrita critica cria backup SQLite consistente antes de modificar e aplica
 
   backups = backupFiles(root);
   assert.equal(backups.length, 2);
+});
+
+test("escrita critica usa backup privado de ops quando diretorio padrao esta bloqueado", () => {
+  const root = makeRoot();
+
+  assert.equal(run(root, ["init"]).status, 0);
+  const defaultBackupDir = join(root, ".scratch/db/backups");
+  mkdirSync(defaultBackupDir, { recursive: true });
+  chmodSync(defaultBackupDir, 0o555);
+
+  const leadFile = writeJson(root, "fallback-backup-lead.json", [
+    {
+      canonical_name: "Fallback Backup Lead",
+      city: "Vitoria",
+      phone_or_contact: "27 99999-0101",
+      recommended_offer: "Presenca Local em 72h",
+    },
+  ]);
+  const result = run(root, ["lead", "upsert", "--file", leadFile]);
+  chmodSync(defaultBackupDir, 0o755);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(backupFiles(root), []);
+
+  const backups = opsBackupFiles(root);
+  assert.equal(backups.length, 1);
+
+  const backup = new DatabaseSync(join(root, ".scratch/ops/sqlite-backups", backups[0]), {
+    readOnly: true,
+  });
+  assert.equal(backup.prepare("pragma integrity_check").get().integrity_check, "ok");
+  assert.equal(backup.prepare("select count(*) as count from leads").get().count, 0);
+  backup.close();
+
+  const database = db(root);
+  assert.equal(
+    database.prepare("select count(*) as count from leads where canonical_name = ?").get("Fallback Backup Lead")
+      .count,
+    1,
+  );
+  database.close();
+});
+
+test("comando read-only usa DB oficial por symlink sem criar backup", () => {
+  const root = makeRoot();
+  const externalDbDir = mkdtempSync(join(tmpdir(), "Freela Application Support "));
+  const externalDbPath = join(externalDbDir, "freela.sqlite");
+
+  try {
+    assert.equal(run(root, ["--db", externalDbPath, "init"]).status, 0);
+    const leadFile = writeJson(root, "external-symlink-lead.json", [
+      {
+        canonical_name: "Symlink Lead",
+        city: "Vitoria",
+        phone_or_contact: "27 99999-8811",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]);
+    assert.equal(run(root, ["--db", externalDbPath, "lead", "upsert", "--file", leadFile]).status, 0);
+    rmSync(join(externalDbDir, "backups"), { recursive: true, force: true });
+    rmSync(join(root, ".scratch/db-backups"), { recursive: true, force: true });
+
+    mkdirSync(join(root, ".scratch"), { recursive: true });
+    symlinkSync(externalDbDir, join(root, ".scratch/db"), "dir");
+
+    const status = run(root, ["lead", "status", "--name", "Symlink Lead"]);
+
+    assert.equal(status.status, 0, status.stderr);
+    assert.match(status.stdout, /Symlink Lead/);
+    assert.deepEqual(backupFiles(root), []);
+    assert.equal(existsSync(join(root, ".scratch/db-backups")), false);
+  } finally {
+    rmSync(externalDbDir, { recursive: true, force: true });
+  }
+});
+
+test("escrita em DB oficial por symlink cria backup dentro do workspace", () => {
+  const root = makeRoot();
+  const externalDbDir = mkdtempSync(join(tmpdir(), "Freela Application Support "));
+  const externalDbPath = join(externalDbDir, "freela.sqlite");
+
+  try {
+    assert.equal(run(root, ["--db", externalDbPath, "init"]).status, 0);
+    rmSync(join(externalDbDir, "backups"), { recursive: true, force: true });
+
+    mkdirSync(join(root, ".scratch"), { recursive: true });
+    symlinkSync(externalDbDir, join(root, ".scratch/db"), "dir");
+
+    const leadFile = writeJson(root, "external-write-lead.json", [
+      {
+        canonical_name: "External Write Lead",
+        city: "Vitoria",
+        phone_or_contact: "27 99999-8833",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]);
+    const write = run(root, ["lead", "upsert", "--file", leadFile]);
+
+    assert.equal(write.status, 0, write.stderr);
+    assert.deepEqual(backupFiles(root), []);
+    assert.equal(workspaceBackupFiles(root).length, 1);
+  } finally {
+    rmSync(externalDbDir, { recursive: true, force: true });
+  }
+});
+
+test("global --db aceita file URI sem materializar diretorio file colon", () => {
+  const root = makeRoot();
+  const externalDbDir = mkdtempSync(join(tmpdir(), "Freela Application Support "));
+  const externalDbPath = join(externalDbDir, "freela.sqlite");
+
+  try {
+    assert.equal(run(root, ["--db", externalDbPath, "init"]).status, 0);
+    const leadFile = writeJson(root, "file-uri-lead.json", [
+      {
+        canonical_name: "URI Lead",
+        city: "Vitoria",
+        phone_or_contact: "27 99999-8822",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]);
+    assert.equal(run(root, ["--db", externalDbPath, "lead", "upsert", "--file", leadFile]).status, 0);
+
+    const dbUri = `file:${externalDbPath}?mode=rw`;
+    const status = run(root, ["--db", dbUri, "lead", "status", "--name", "URI Lead"]);
+
+    assert.equal(status.status, 0, status.stderr);
+    assert.match(status.stdout, /URI Lead/);
+    assert.equal(existsSync(join(root, "file:")), false);
+  } finally {
+    rmSync(externalDbDir, { recursive: true, force: true });
+  }
 });
 
 test("sqlite localizer moves official DB to local app data and leaves compatibility symlink", () => {

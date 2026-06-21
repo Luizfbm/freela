@@ -65,7 +65,14 @@ const expectedAgentDisplayNames = new Map([
   ["agent-whatsapp-guardiao.json", "Guardiao de Envio WhatsApp"],
 ]);
 const browserRuntimeAgentConfigNames = new Set(["agent-coo-freelancer.json", "agent-prospeccao.json"]);
+const companyId = "50a2756c-2942-40c1-90f8-b16807a62ef3";
+const paperclipInstanceRoot = "/Users/luiz_fbm/.paperclip/instances/default";
 const repoRoot = "/Users/luiz_fbm/Developer/freela";
+const sqliteWritableRoot = "/Users/luiz_fbm/Library/Application Support/freela-paperclip";
+
+function expectedAgentCodexHome(agentId) {
+  return `${paperclipInstanceRoot}/companies/${companyId}/agents/${agentId}/codex-home`;
+}
 
 function walkFiles(dir) {
   if (!existsSync(dir)) {
@@ -2374,12 +2381,16 @@ test("Agentes Paperclip declaram repo como raiz de trabalho e escrita", () => {
   for (const name of agentConfigNames) {
     const agent = agentConfig(name);
     const args = agent.adapterConfig.extraArgs;
+    const addDirs = args.flatMap((arg, index) => (arg === "--add-dir" ? [args[index + 1]] : []));
+    const env = agent.adapterConfig.env ?? {};
 
     assert.equal(agent.adapterConfig.cwd, repoRoot, `${name} cwd`);
     assert.ok(args.includes("-C"), `${name} deve passar -C`);
     assert.equal(args[args.indexOf("-C") + 1], repoRoot, `${name} -C`);
-    assert.ok(args.includes("--add-dir"), `${name} deve passar --add-dir`);
-    assert.equal(args[args.indexOf("--add-dir") + 1], repoRoot, `${name} --add-dir`);
+    assert.ok(addDirs.includes(repoRoot), `${name} deve permitir escrita no repo`);
+    assert.ok(addDirs.includes(sqliteWritableRoot), `${name} deve permitir escrita no DB oficial`);
+    assert.equal(env.CODEX_HOME, expectedAgentCodexHome(agent.id), `${name} CODEX_HOME isolado`);
+    assert.notEqual(env.CODEX_HOME, "/Users/luiz_fbm/.codex", `${name} nao deve usar CODEX_HOME pessoal`);
     assert.ok(args.includes("--sandbox"), `${name} deve manter sandbox`);
     assert.equal(
       args[args.indexOf("--sandbox") + 1],
@@ -2390,6 +2401,9 @@ test("Agentes Paperclip declaram repo como raiz de trabalho e escrita", () => {
 
   assert.match(readme, /-C \/Users\/luiz_fbm\/Developer\/freela/i);
   assert.match(readme, /--add-dir \/Users\/luiz_fbm\/Developer\/freela/i);
+  assert.match(readme, /--add-dir \/Users\/luiz_fbm\/Library\/Application Support\/freela-paperclip/i);
+  assert.match(readme, /CODEX_HOME=.*companies\/.*\/agents\/.*\/codex-home/i);
+  assert.doesNotMatch(readme, /CODEX_HOME=\/Users\/luiz_fbm\/\.codex/i);
   assert.match(readme, /COO Freelancer.*Scout.*danger-full-access|Scout.*COO Freelancer.*danger-full-access/i);
   assert.match(readme, /dangerouslyBypassApprovalsAndSandbox=false/i);
 });
@@ -2436,7 +2450,8 @@ test("Sync de agentes Paperclip em dry-run calcula somente allowlist sem fazer P
       extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
       model: "gpt-5.5",
       env: {
-        SECRET_TOKEN: "nao-sincronizar",
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
       },
     },
     permissions: {
@@ -2466,7 +2481,18 @@ test("Sync de agentes Paperclip em dry-run calcula somente allowlist sem fazer P
         extraArgs: ["--skip-git-repo-check", "-C", "/old", "--add-dir", "/old"],
         model: "gpt-4.1",
         env: {
-          LIVE_SECRET: "preservar",
+          PATH: {
+            type: "plain",
+            value: "/old/bin:/usr/bin",
+          },
+          CODEX_HOME: {
+            type: "plain",
+            value: "/old/codex-home",
+          },
+          OPENAI_API_KEY: {
+            type: "plain",
+            value: "",
+          },
         },
       },
       permissions: {
@@ -2510,6 +2536,10 @@ test("Sync de agentes Paperclip em dry-run calcula somente allowlist sem fazer P
     assert.deepEqual(change.adapterConfigPatch, {
       cwd: "/repo",
       extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
+      env: {
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
+      },
       instructionsRootPath: "/repo/docs",
     });
     assert.deepEqual(change.instructionsPath, { path: "/repo/docs/agent.md" });
@@ -2595,6 +2625,58 @@ test("Sync de agentes Paperclip rejeita run-id manual que nao seja UUID", async 
   );
 });
 
+test("Sync de agentes Paperclip rejeita env perigoso em configs versionadas", async () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "paperclip-agent-sync-dangerous-env-"));
+  writeTempAgentConfig(tempRoot, {
+    id: "agent-1",
+    name: "Worker Local",
+    role: "qa",
+    capabilities: "Capacidade local",
+    adapterConfig: {
+      cwd: "/repo",
+      extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
+      instructionsRootPath: "/repo/docs",
+      env: {
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
+        SECRET_TOKEN: "nao-sincronizar",
+      },
+    },
+  });
+
+  const liveAgents = [
+    {
+      id: "agent-1",
+      name: "Worker Antigo",
+      role: "qa",
+      capabilities: "Capacidade antiga",
+      adapterConfig: {
+        cwd: "/old",
+        extraArgs: ["--skip-git-repo-check", "-C", "/old", "--add-dir", "/old"],
+        instructionsRootPath: "/old/docs",
+      },
+    },
+  ];
+
+  await withAgentApiServer(liveAgents, async (apiBase) => {
+    await assert.rejects(
+      execFileText(process.execPath, [
+        join(rootDir, "scripts/paperclip-sync-agents.mjs"),
+        "--root",
+        tempRoot,
+        "--company-id",
+        "company-1",
+        "--api-base",
+        apiBase,
+      ]),
+      (error) => {
+        assert.match(error.stderr, /adapterConfig\.env\.SECRET_TOKEN/i);
+        return true;
+      },
+    );
+  });
+});
+
 test("Sync de agentes Paperclip em apply usa rota dedicada de instructions e bloqueia campos perigosos", async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), "paperclip-agent-sync-apply-"));
   writeTempAgentConfig(tempRoot, {
@@ -2612,7 +2694,8 @@ test("Sync de agentes Paperclip em apply usa rota dedicada de instructions e blo
       extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
       model: "gpt-5.5",
       env: {
-        SECRET_TOKEN: "nao-sincronizar",
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
       },
     },
     desiredSkills: ["nao-sincronizar"],
@@ -2691,12 +2774,16 @@ test("Sync de agentes Paperclip em apply usa rota dedicada de instructions e blo
     assert.deepEqual(genericPatch.body.adapterConfig, {
       cwd: "/repo",
       extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
+      env: {
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
+      },
       instructionsRootPath: "/repo/docs",
     });
     assert.deepEqual(instructionsPatch.body, { path: "/repo/docs/agent.md" });
 
     const genericBody = JSON.stringify(genericPatch.body);
-    assert.doesNotMatch(genericBody, /model|env|SECRET_TOKEN|permissions|desiredSkills|runtimeConfig/i);
+    assert.doesNotMatch(genericBody, /model|SECRET_TOKEN|permissions|desiredSkills|runtimeConfig/i);
     assert.doesNotMatch(stdout, /SECRET_TOKEN|trustPreset|desiredSkills|runtimeConfig/i);
   });
 });

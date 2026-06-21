@@ -136,11 +136,14 @@ Todos usam:
 - Adapter: `codex_local`
 - Modelo: `gpt-5.5`
 - Reasoning effort: `xhigh`
-- `CODEX_HOME=/Users/luiz_fbm/.codex`
+- `CODEX_HOME=/Users/luiz_fbm/.paperclip/instances/default/companies/50a2756c-2942-40c1-90f8-b16807a62ef3/agents/[agent-id]/codex-home`
+- `adapterConfig.env` deve conter apenas `PATH` e `CODEX_HOME`; segredos ficam fora do espelho versionado.
 - Sandbox do Codex: `workspace-write` por padrao.
 - Excecao de navegador assistido: COO Freelancer e Scout - Lead Searcher GV usam `danger-full-access`, porque `workspace-write` quebra LaunchServices/Spotlight no macOS e impede `node scripts/paperclip-open-chrome-window.mjs --preflight` de abrir Chrome pessoal. Essa excecao nao autoriza envio automatico nem acao social; continua valendo `dangerouslyBypassApprovalsAndSandbox=false`, `approval_policy="never"` e as regras de somente leitura de `docs/freelancer/paperclip/browser-automation.md`.
 - Raiz de trabalho explicita: `-C /Users/luiz_fbm/Developer/freela`
-- Raiz gravavel explicita: `--add-dir /Users/luiz_fbm/Developer/freela`
+- Raizes gravaveis explicitas:
+  - `--add-dir /Users/luiz_fbm/Developer/freela`
+  - `--add-dir /Users/luiz_fbm/Library/Application Support/freela-paperclip`
 - Approval policy: `never`
 - Network no sandbox: `sandbox_workspace_write.network_access=true`
 - Sem bypass perigoso de sandbox: `dangerouslyBypassApprovalsAndSandbox=false`
@@ -161,7 +164,7 @@ Para aplicar depois de revisar o diff:
 node scripts/paperclip-sync-agents.mjs --apply
 ```
 
-O sync usa uma allowlist curta: `name`, `role`, `title`, `icon`, `reportsTo`, `capabilities` e `metadata`. Para `adapterConfig`, ele sincroniza somente os paths operacionais `cwd`, `extraArgs` e `instructionsRootPath`; `adapterConfig.instructionsFilePath` nao passa pelo patch generico e usa a rota dedicada `PATCH /api/agents/:id/instructions-path`. O script nao sincroniza modelo, env, comando, budget, permissoes, runtime, skills ou bundle de instrucoes.
+O sync usa uma allowlist curta: `name`, `role`, `title`, `icon`, `reportsTo`, `capabilities` e `metadata`. Para `adapterConfig`, ele sincroniza somente os paths operacionais `cwd`, `extraArgs`, `instructionsRootPath` e `env` limitado a `PATH` + `CODEX_HOME`; `adapterConfig.instructionsFilePath` nao passa pelo patch generico e usa a rota dedicada `PATCH /api/agents/:id/instructions-path`. O script nao sincroniza modelo, comando, budget, permissoes, runtime, skills, segredos ou bundle de instrucoes.
 
 ## Projetos
 

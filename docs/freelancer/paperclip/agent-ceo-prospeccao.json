@@ -15,6 +15,8 @@
       "/Users/luiz_fbm/Developer/freela",
       "--add-dir",
       "/Users/luiz_fbm/Developer/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Library/Application Support/freela-paperclip",
       "--sandbox",
       "workspace-write",
       "-c",
@@ -32,7 +34,7 @@
     "graceSec": 20,
     "env": {
       "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
-      "CODEX_HOME": "/Users/luiz_fbm/.codex"
+      "CODEX_HOME": "/Users/luiz_fbm/.paperclip/instances/default/companies/50a2756c-2942-40c1-90f8-b16807a62ef3/agents/d42e7e0c-e23f-4c41-a703-2e65d26ddc1d/codex-home"
     },
     "instructionsRootPath": "/Users/luiz_fbm/Developer/freela/docs/freelancer"
   },

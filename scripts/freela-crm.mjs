@@ -8,12 +8,14 @@ import {
   readFileSync,
   readSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const VALID_STATUSES = new Set([
   "novo",
@@ -161,8 +163,9 @@ async function dispatch({ root, dbPath, command, args }) {
     return;
   }
 
+  const readOnlyDatabase = isDatabaseReadOnlyCommand(command);
   ensureOperationalWritesAllowed(root, command);
-  const database = openDatabase(root, dbPath);
+  const database = openDatabase(root, dbPath, { readOnly: readOnlyDatabase });
 
   if (command[0] === "lead" && command[1] === "upsert") {
     const flags = parseFlags(args);
@@ -512,7 +515,7 @@ function parseCommand(argv) {
     const value = args.shift();
     if (!value) throw usageError(`Valor obrigatorio para --${key}`);
     if (key === "root") root = resolve(value);
-    else if (key === "db") dbPath = resolve(value);
+    else if (key === "db") dbPath = parseDatabasePath(value);
     else throw usageError(`Opcao global desconhecida: --${key}`);
   }
 
@@ -592,6 +595,18 @@ function databasePath(root, explicitPath) {
   return explicitPath ?? join(root, ".scratch/db/freela.sqlite");
 }
 
+function parseDatabasePath(value) {
+  const raw = clean(value);
+  if (/^file:/i.test(raw)) {
+    try {
+      return fileURLToPath(new URL(raw));
+    } catch (error) {
+      throw usageError(`URI SQLite invalida em --db: ${error.message}`);
+    }
+  }
+  return resolve(raw);
+}
+
 function healthcheckDatabase(root, explicitPath) {
   const path = databasePath(root, explicitPath);
   if (!existsSync(path)) {
@@ -601,7 +616,7 @@ function healthcheckDatabase(root, explicitPath) {
   const validation = ensureUsableDatabaseFile(root, path);
   let database = null;
   try {
-    database = new DatabaseSync(path, { readOnly: true });
+    database = new DatabaseSync(sqliteFileUri(path, "ro"), { readOnly: true });
     database.exec("PRAGMA busy_timeout = 10000;");
     const result = database.prepare("pragma integrity_check").get().integrity_check;
     if (result !== "ok") {
@@ -622,8 +637,20 @@ function healthcheckDatabase(root, explicitPath) {
   }
 }
 
-function openDatabase(root, explicitPath) {
+function openDatabase(root, explicitPath, options = {}) {
   const path = databasePath(root, explicitPath);
+
+  if (options.readOnly) {
+    if (!existsSync(path)) {
+      throw usageError(`SQLite nao encontrado: ${path}. Rode init antes de operar.`);
+    }
+    ensureUsableDatabaseFile(root, path);
+    const database = new DatabaseSync(sqliteFileUri(path, "ro"), { readOnly: true });
+    database.exec("PRAGMA busy_timeout = 10000;");
+    database.exec("PRAGMA foreign_keys = ON;");
+    return database;
+  }
+
   mkdirSync(dirname(path), { recursive: true });
   mkdirSync(join(root, ".scratch/leads"), { recursive: true });
   mkdirSync(join(root, ".scratch/crm"), { recursive: true });
@@ -678,6 +705,17 @@ function requiresOperationalWriteGuard(command) {
   ]);
   if (command[0] === "init") return false;
   return !readOnly.has(joined);
+}
+
+function isDatabaseReadOnlyCommand(command) {
+  const joined = command.join(" ");
+  return new Set([
+    "lead status",
+    "commercial status",
+    "commercial enrichment-plan",
+    "commercial duplicate-audit",
+    "profile-evidence export",
+  ]).has(joined);
 }
 
 function ensureUsableDatabaseFile(root, path) {
@@ -761,7 +799,63 @@ function materializeDatalessCandidate(path) {
 }
 
 function createRotatingDatabaseBackup(root, path) {
-  const backupDir = join(dirname(path), "backups");
+  const backupDir = databaseBackupDir(root, path);
+  try {
+    return createDatabaseBackupInDir(path, backupDir);
+  } catch (error) {
+    removePartialBackup(error.backupPath);
+    if (isSqliteBusy(error)) throw error;
+    if (!canRetryBackupInPrivateOpsDir(error)) {
+      const snapshot = snapshotInvalidDatabase(root, path, `backup falhou: ${error.message}`);
+      throw usageError(`Backup SQLite falhou antes de operar: ${error.message}. Snapshot forense: ${snapshot}`);
+    }
+  }
+
+  const fallbackBackupDir = join(root, ".scratch/ops/sqlite-backups");
+  try {
+    return createDatabaseBackupInDir(path, fallbackBackupDir);
+  } catch (fallbackError) {
+    removePartialBackup(fallbackError.backupPath);
+    if (isSqliteBusy(fallbackError)) throw fallbackError;
+    const snapshot = snapshotInvalidDatabase(root, path, `backup falhou: ${fallbackError.message}`);
+    throw usageError(
+      `Backup SQLite falhou antes de operar: ${fallbackError.message}. Snapshot forense: ${snapshot}`,
+    );
+  }
+}
+
+function databaseBackupDir(root, path) {
+  if (isPathInsideRoot(root, path)) return join(dirname(path), "backups");
+  return join(root, ".scratch/db-backups");
+}
+
+function isPathInsideRoot(root, path) {
+  const rootPath = realExistingPath(root);
+  const targetPath = realExistingPath(path);
+  const distance = relative(rootPath, targetPath);
+  return distance === "" || (!distance.startsWith("..") && !isAbsolute(distance));
+}
+
+function realExistingPath(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    const parent = dirname(path);
+    try {
+      return join(realpathSync(parent), basename(path));
+    } catch {
+      return resolve(path);
+    }
+  }
+}
+
+function sqliteFileUri(path, mode) {
+  const url = pathToFileURL(path);
+  url.searchParams.set("mode", mode);
+  return url.href;
+}
+
+function createDatabaseBackupInDir(path, backupDir) {
   mkdirSync(backupDir, { recursive: true });
   const base = sanitizeBackupName(basename(path, extname(path)) || "sqlite");
   const backupPath = join(backupDir, `${base}-${timestampForFile()}.sqlite`);
@@ -772,16 +866,24 @@ function createRotatingDatabaseBackup(root, path) {
     database.exec("PRAGMA busy_timeout = 10000;");
     database.exec(`VACUUM INTO ${sqlStringLiteral(backupPath)};`);
   } catch (error) {
-    rmSync(backupPath, { force: true });
-    if (isSqliteBusy(error)) throw error;
-    const snapshot = snapshotInvalidDatabase(root, path, `backup falhou: ${error.message}`);
-    throw usageError(`Backup SQLite falhou antes de operar: ${error.message}. Snapshot forense: ${snapshot}`);
+    error.backupPath = backupPath;
+    throw error;
   } finally {
     if (database) database.close();
   }
 
   pruneDatabaseBackups(backupDir, base, backupRetentionLimit());
   return backupPath;
+}
+
+function removePartialBackup(path) {
+  if (path) rmSync(path, { force: true });
+}
+
+function canRetryBackupInPrivateOpsDir(error) {
+  return /unable to open database|operation not permitted|permission denied|readonly|not authorized/i.test(
+    String(error?.message ?? error),
+  );
 }
 
 function backupRetentionLimit() {

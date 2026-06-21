@@ -19,13 +19,19 @@
       "/Users/luiz_fbm/Developer/freela",
       "--add-dir",
       "/Users/luiz_fbm/Developer/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Library/Application Support/freela-paperclip",
       "--sandbox",
       "workspace-write",
       "-c",
       "approval_policy=\"never\"",
       "-c",
       "sandbox_workspace_write.network_access=true"
-    ]
+    ],
+    "env": {
+      "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      "CODEX_HOME": "/Users/luiz_fbm/.paperclip/instances/default/companies/50a2756c-2942-40c1-90f8-b16807a62ef3/agents/db8a76a9-e503-4cdc-b8cb-f14cf757070a/codex-home"
+    }
   },
   "instructionsBundle": {
     "entryFile": "README.md",

@@ -6,7 +6,8 @@ const DEFAULT_API_BASE = "http://127.0.0.1:3100";
 const DEFAULT_COMPANY_ID = "50a2756c-2942-40c1-90f8-b16807a62ef3";
 const DEFAULT_TIMEOUT_MS = 15000;
 const SAFE_AGENT_FIELDS = ["name", "role", "title", "icon", "reportsTo", "capabilities"];
-const SAFE_ADAPTER_CONFIG_FIELDS = ["cwd", "extraArgs", "instructionsRootPath"];
+const SAFE_ADAPTER_CONFIG_FIELDS = ["cwd", "extraArgs", "instructionsRootPath", "env"];
+const SAFE_ADAPTER_ENV_FIELDS = ["PATH", "CODEX_HOME"];
 
 async function main() {
   const flags = parseFlags(process.argv.slice(2));
@@ -223,9 +224,11 @@ function buildAdapterConfigPatch({ local, live }) {
 
   for (const field of SAFE_ADAPTER_CONFIG_FIELDS) {
     if (!Object.hasOwn(localAdapterConfig, field)) continue;
-    const value = localAdapterConfig[field];
-    validateSafeAdapterConfigField({ agentId: local.id, field, value });
-    if (!deepEqual(value, liveAdapterConfig[field])) {
+    const value = normalizeSafeAdapterConfigField({ agentId: local.id, field, value: localAdapterConfig[field] });
+    const liveValue = Object.hasOwn(liveAdapterConfig, field)
+      ? normalizeComparableAdapterConfigField({ field, value: liveAdapterConfig[field] })
+      : undefined;
+    if (!deepEqual(value, liveValue)) {
       patch[field] = value;
     }
   }
@@ -233,19 +236,81 @@ function buildAdapterConfigPatch({ local, live }) {
   return Object.keys(patch).length === 0 ? null : patch;
 }
 
-function validateSafeAdapterConfigField({ agentId, field, value }) {
+function normalizeSafeAdapterConfigField({ agentId, field, value }) {
   if (field === "cwd" || field === "instructionsRootPath") {
     if (!isNonEmptyString(value)) {
       throw new Error(`adapterConfig.${field} invalido para agente ${agentId}`);
     }
-    return;
+    return value;
   }
 
   if (field === "extraArgs") {
     if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
       throw new Error(`adapterConfig.extraArgs invalido para agente ${agentId}`);
     }
+    return value;
   }
+
+  if (field === "env") {
+    return normalizeSafeAdapterEnv({ agentId, value });
+  }
+
+  throw new Error(`Campo adapterConfig.${field} nao permitido para sincronizacao`);
+}
+
+function normalizeComparableAdapterConfigField({ field, value }) {
+  if (field !== "env") return value;
+  return normalizeComparableAdapterEnv(value);
+}
+
+function normalizeSafeAdapterEnv({ agentId, value }) {
+  const env = asPlainObject(value, `adapterConfig.env para agente ${agentId}`);
+  const safeEnv = {};
+
+  for (const key of Object.keys(env).sort()) {
+    if (!SAFE_ADAPTER_ENV_FIELDS.includes(key)) {
+      throw new Error(`adapterConfig.env.${key} nao pode ser sincronizado para agente ${agentId}`);
+    }
+    const stringValue = envBindingString(env[key]);
+    if (!isNonEmptyString(stringValue)) {
+      throw new Error(`adapterConfig.env.${key} invalido para agente ${agentId}`);
+    }
+    safeEnv[key] = stringValue;
+  }
+
+  if (!isNonEmptyString(safeEnv.PATH)) {
+    throw new Error(`adapterConfig.env.PATH obrigatorio para agente ${agentId}`);
+  }
+  if (!isNonEmptyString(safeEnv.CODEX_HOME)) {
+    throw new Error(`adapterConfig.env.CODEX_HOME obrigatorio para agente ${agentId}`);
+  }
+  if (/\/\.codex\/?$/.test(safeEnv.CODEX_HOME)) {
+    throw new Error(`adapterConfig.env.CODEX_HOME deve ser isolado para agente ${agentId}`);
+  }
+
+  return safeEnv;
+}
+
+function normalizeComparableAdapterEnv(value) {
+  if (!isPlainObject(value)) return value;
+  const env = {};
+
+  for (const key of SAFE_ADAPTER_ENV_FIELDS) {
+    const stringValue = envBindingString(value[key]);
+    if (stringValue !== undefined) {
+      env[key] = stringValue;
+    }
+  }
+
+  return env;
+}
+
+function envBindingString(value) {
+  if (typeof value === "string") return value;
+  if (isPlainObject(value) && value.type === "plain" && typeof value.value === "string") {
+    return value.value;
+  }
+  return undefined;
 }
 
 function buildInstructionsPathPatch({ local, live }) {
