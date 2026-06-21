@@ -606,6 +606,17 @@ test("gateway lock rechecks lead conversation state before dispatch", () => {
   assert.match(lockFunction, /encerrado/);
 });
 
+test("watcher supports optional approved outbox dispatch flag", () => {
+  const source = readFileSync(gateway, "utf8");
+  const watcher = source.match(/function watchMcpSqlite[\s\S]+?\n}\n\nfunction parsePositiveInt/)[0];
+  assert.match(source, /--dispatch-approved|dispatch-approved/i);
+  assert.match(
+    watcher,
+    /importMcpSqlite\(root, flags\)[\s\S]+parseBooleanFlag\(flags\["dispatch-approved"\]\)[\s\S]+dispatchApprovedOutbox\(root, dispatchFlags\)/,
+  );
+  assert.doesNotMatch(watcher, /dispatchApprovedOutbox\(root, flags\)/);
+});
+
 test("gateway rejects unknown dispatch flags without mutating outbox", () => {
   const root = makeRoot();
   seedApprovedOutbox(root);

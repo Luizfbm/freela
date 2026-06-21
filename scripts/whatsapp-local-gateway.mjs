@@ -504,6 +504,16 @@ function watchMcpSqlite(root, flags) {
       console.log(
         `[${new Date().toISOString()}] importados=${result.imported} ignorados=${result.skipped} falhas=${result.failed}`,
       );
+      if (parseBooleanFlag(flags["dispatch-approved"])) {
+        const dispatchFlags = {};
+        for (const flag of ["bridge-api-base", "timeout-ms", "limit", "crm-db"]) {
+          if (flags[flag] !== undefined) dispatchFlags[flag] = flags[flag];
+        }
+        const dispatch = dispatchApprovedOutbox(root, dispatchFlags);
+        console.log(
+          `[${new Date().toISOString()}] enviados=${dispatch.sent} dispatch_falhas=${dispatch.failed} dispatch_ignorados=${dispatch.skipped}`,
+        );
+      }
     } catch (error) {
       console.error(`[${new Date().toISOString()}] ${error.message}`);
     }
