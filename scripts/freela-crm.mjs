@@ -2439,14 +2439,24 @@ function reviewWhatsAppOutbox(database, outboxId) {
   } else if (decision === "enviar") {
     incrementAutoReplies(database, outbox.lead_id, outbox.id);
   } else {
-    const handoff = blockedWhatsAppHandoffForRules(rules, reason);
-    setWhatsAppHandoff(database, outbox.lead_id, handoff.state, handoff.reason);
+    setBlockedWhatsAppState(database, outbox, state, reason, rules);
   }
 
   return { decision: status === "approved" ? "aprovado" : "bloqueado", reason, rules };
 }
 
-function blockedWhatsAppHandoffForRules(rules, reason) {
+function setBlockedWhatsAppState(database, outbox, state, reason, rules) {
+  const handoff = blockedWhatsAppHandoffForRules(rules, reason, state);
+  setWhatsAppHandoff(database, outbox.lead_id, handoff.state, handoff.reason);
+}
+
+function blockedWhatsAppHandoffForRules(rules, reason, state) {
+  if (state?.whatsapp_state === "handoff_luiz") {
+    return { state: "handoff_luiz", reason: state.handoff_reason || reason };
+  }
+  if (state?.whatsapp_state === "encerrado") {
+    return { state: "encerrado", reason: state.handoff_reason || reason };
+  }
   if (rules.includes(WHATSAPP_AUTO_REPLY_LIMIT_REASON)) {
     return { state: "handoff_luiz", reason };
   }
@@ -2507,13 +2517,15 @@ function containsCommercialValue(body, rawBody) {
   return (
     /\bpreco\b|\bvalor\b|\borcamento\b|\bpagamento\b|\bdesconto\b|\bproposta\b|\bfechado\b|\bcontrato\b|\binvestimento\b|\breais\b/.test(
       body,
-    ) || /r\s*\$\s*\d+/i.test(clean(rawBody))
+    ) ||
+    /r\s*\$\s*\d+/i.test(clean(rawBody)) ||
+    /\b(?:fica|sai|por|custa|cobro)\s+\d{3,}\b/.test(body)
   );
 }
 
 function containsPromptInjection(body) {
   return (
-    /\b(ignore|ignorar|desconsidere|desconsiderar)\b.{0,80}\b(instrucoes|regras|prompt|sistema|anteriores|acima)\b/.test(
+    /\b(ignore|ignora|ignorar|desconsidere|desconsiderar)\b.{0,80}\b(instrucoes|regras|prompt|sistema|anteriores|acima)\b/.test(
       body,
     ) ||
     /\bmodo desenvolvedor\b|\bprompt\b/.test(body)
