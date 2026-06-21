@@ -10,6 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 
 const repoRoot = new URL("..", import.meta.url).pathname;
 const cli = join(repoRoot, "scripts/freela-crm.mjs");
+const crm = cli;
 
 function makeRoot() {
   return mkdtempSync(join(tmpdir(), "freela-crm-"));
@@ -17,6 +18,14 @@ function makeRoot() {
 
 function run(root, args, options = {}) {
   return spawnSync(process.execPath, [cli, "--root", root, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    ...options,
+  });
+}
+
+function runNode(args, options = {}) {
+  return spawnSync(process.execPath, args, {
     cwd: repoRoot,
     encoding: "utf8",
     ...options,
@@ -61,6 +70,45 @@ function ingestWhatsApp(root, event) {
   const file = writeJson(root, `whatsapp-${Date.now()}-${Math.random()}.json`, event);
   const result = run(root, ["whatsapp", "inbound", "ingest", "--file", file]);
   assert.equal(result.status, 0, result.stderr);
+}
+
+function proposeAndReviewSafeWhatsApp(root, name, body) {
+  const propose = runNode([
+    crm,
+    "--root",
+    root,
+    "whatsapp",
+    "outbox",
+    "propose",
+    "--name",
+    name,
+    "--body",
+    body,
+    "--source",
+    "atendimento-whatsapp",
+    "--humanizer-pass",
+    "true",
+    "--used-last-inbound",
+    "true",
+    "--contextual-reply",
+    "true",
+  ]);
+  assert.equal(propose.status, 0, propose.stderr);
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = db.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  db.close();
+  const review = runNode([
+    crm,
+    "--root",
+    root,
+    "whatsapp",
+    "guardian",
+    "review",
+    "--outbox-id",
+    String(outbox.id),
+  ]);
+  assert.equal(review.status, 0, review.stderr);
+  return review;
 }
 
 function db(root) {
@@ -1900,6 +1948,12 @@ test("whatsapp guardian aprova resposta segura e bloqueia preco/enxuta", () => {
       "Boa, olhando aqui eu separaria 3 pontos simples.",
       "--source",
       "atendimento-whatsapp",
+      "--humanizer-pass",
+      "true",
+      "--used-last-inbound",
+      "true",
+      "--contextual-reply",
+      "true",
     ]).status,
     0,
   );
@@ -1935,6 +1989,101 @@ test("whatsapp guardian aprova resposta segura e bloqueia preco/enxuta", () => {
   assert.equal(rows[1].status, "blocked");
   assert.equal(rows[1].guardian_decision, "bloquear");
   assert.match(rows[1].guardian_reason, /preco|enxuta|397/i);
+});
+
+test("whatsapp guardian blocks outbox without humanizer and context proof", () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+  upsertLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-guard-001",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Pode sim",
+    received_at: "2026-06-21T10:00:00-03:00",
+  });
+  assert.equal(
+    runNode([
+      crm,
+      "--root",
+      root,
+      "whatsapp",
+      "outbox",
+      "propose",
+      "--name",
+      "Aghata Massoterapia",
+      "--body",
+      "Claro, com certeza. Vou explicar melhor.",
+      "--source",
+      "atendimento-whatsapp",
+    ]).status,
+    0,
+  );
+
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = db.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  db.close();
+
+  const review = runNode([
+    crm,
+    "--root",
+    root,
+    "whatsapp",
+    "guardian",
+    "review",
+    "--outbox-id",
+    String(outbox.id),
+  ]);
+  assert.equal(review.status, 0, review.stderr);
+  assert.match(review.stdout, /bloqueado/i);
+
+  const after = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const blocked = after.prepare("select * from whatsapp_outbox where id = ?").get(outbox.id);
+  after.close();
+  assert.equal(blocked.status, "blocked");
+  assert.match(blocked.guardian_reason, /humanizer|context/i);
+});
+
+test("whatsapp guardian allows fifth automatic reply and blocks sixth", () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+  upsertLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-guard-002",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Pode sim",
+    received_at: "2026-06-21T10:01:00-03:00",
+  });
+
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const lead = db.prepare("select * from leads where canonical_name = ?").get("Aghata Massoterapia");
+  db.prepare("update lead_conversation_state set auto_replies_since_human = ? where lead_id = ?").run(4, lead.id);
+  db.close();
+
+  const fifth = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Te mando de forma objetiva: a pagina organiza apresentacao, servicos e caminho para WhatsApp.",
+  );
+  assert.match(fifth.stdout, /aprovado/i);
+
+  const sixth = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Nesse ponto e melhor o Luiz continuar com voce por aqui.",
+  );
+  assert.match(sixth.stdout, /bloqueado/i);
 });
 
 test("queue generate e export all criam espelhos privados legiveis", () => {

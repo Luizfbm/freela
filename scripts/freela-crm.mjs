@@ -2434,9 +2434,14 @@ function guardianRules({ outbox, state }) {
 
   if (!state) rules.push("lead sem estado de conversa WhatsApp");
   if (state?.whatsapp_state === "handoff_luiz") rules.push("lead em handoff_luiz");
-  if (state?.auto_replies_since_human >= 4) {
-    rules.push("limite de respostas automaticas atingido");
+  if (state?.whatsapp_state === "bloqueado_guardiao") rules.push("lead bloqueado pelo guardiao");
+  if (state?.whatsapp_state === "encerrado") rules.push("conversa encerrada");
+  if (state?.auto_replies_since_human >= 5) {
+    rules.push("limite de 5 respostas automaticas atingido");
   }
+  if (!outbox.humanizer_pass) rules.push("humanizer_pass ausente");
+  if (!outbox.used_last_inbound) rules.push("used_last_inbound ausente");
+  if (!outbox.contextual_reply) rules.push("contextual_reply ausente");
   if (/\bpreco\b|\bvalor\b|\borcamento\b|\bpagamento\b|\bdesconto\b|\bproposta\b|\bfechado\b|\bcontrato\b/.test(body)) {
     rules.push("mensagem contem preco/proposta/fechamento");
   }
@@ -2446,9 +2451,16 @@ function guardianRules({ outbox, state }) {
   if (/\bgaranto\b|\bgarantia\b|\bmais clientes\b|\bmais pacientes\b|\bprimeiro no google\b/.test(body)) {
     rules.push("mensagem promete resultado comercial");
   }
+  if (/\botima pergunta\b|\bcom certeza\b|\bfico a disposicao\b|\bentendi perfeitamente\b/.test(body)) {
+    rules.push("mensagem generica com cara de IA");
+  }
+  if (/—|–|--/.test(outbox.body)) rules.push("mensagem contem travessao ou marcador artificial");
   if (outbox.body.length > 700) rules.push("mensagem longa demais");
   if (/ignore as regras|ignore instrucoes|modo desenvolvedor|prompt/i.test(outbox.body)) {
     rules.push("possivel prompt injection");
+  }
+  if (/https?:\/\//i.test(outbox.body) && state?.whatsapp_state !== "exemplo_aprovado_para_envio") {
+    rules.push("link de exemplo sem estado exemplo_aprovado_para_envio");
   }
 
   return rules;
