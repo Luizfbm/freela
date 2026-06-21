@@ -881,6 +881,32 @@ test("Paperclip separa lead-cards de status operacional no FRE-7", () => {
   assert.doesNotMatch(syncScript, /npx|paperclipai/i);
 });
 
+test("Paperclip docs expose Ops Health reliability loop without private data leakage", () => {
+  const readme = paperclipReadme();
+  const contract = read("docs/freelancer/data-contract.md");
+  const coo = cooFreelancer();
+  const opsDoctorScript = read("scripts/freela-ops-doctor.mjs");
+  const snapshotPlist = read("docs/freelancer/paperclip/launchd/com.luiz-fbm.freela-ops-snapshot.plist");
+  const publishPlist = read("docs/freelancer/paperclip/launchd/com.luiz-fbm.freela-ops-publish.plist");
+
+  for (const doc of [readme, contract, coo]) {
+    assert.match(doc, /Ops Health/i);
+    assert.match(doc, /freela-ops-doctor\.mjs/i);
+    assert.match(doc, /\.scratch\/ops\/reliability-status\.json/i);
+    assert.match(doc, /status.*green.*yellow.*red|green.*yellow.*red/is);
+    assert.match(doc, /nao.*dados brutos|sem.*dados brutos/is);
+  }
+
+  assert.match(opsDoctorScript, /reliability-status/i);
+  assert.match(opsDoctorScript, /DEFAULT_BACKUP_DIR/i);
+  assert.match(snapshotPlist, /freela-ops-doctor\.mjs/);
+  assert.match(snapshotPlist, /snapshot/);
+  assert.match(snapshotPlist, /StartInterval/);
+  assert.match(publishPlist, /freela-ops-doctor\.mjs/);
+  assert.match(publishPlist, /publish/);
+  assert.match(publishPlist, /StartCalendarInterval/);
+});
+
 test("Automacao operacional publica lead-cards e ops-status em um unico comando", async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), "paperclip-operational-surfaces-"));
   const scriptsDir = join(tempRoot, "scripts");

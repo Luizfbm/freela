@@ -30,6 +30,26 @@ Antes de operar em caso de duvida, rode:
 node scripts/freela-crm.mjs healthcheck
 ```
 
+## Ops Health e Confiabilidade
+
+O estado de confiabilidade operacional e acompanhado pelo Ops Doctor:
+
+```bash
+node scripts/freela-ops-doctor.mjs check
+node scripts/freela-ops-doctor.mjs snapshot
+node scripts/freela-ops-doctor.mjs publish
+```
+
+O Ops Doctor grava evidencia tecnica privada em `.scratch/ops/reliability-status.json`, `.scratch/ops/reliability-status.md` e `.scratch/ops/backup-manifest.json`. Snapshots SQLite ficam em `/Users/luiz_fbm/Library/Application Support/freela-paperclip/backups`, fora de `Documents`.
+
+Status operacional: `green`, `yellow`, `red`.
+
+- `green`: operacao normal.
+- `yellow`: operacao permitida com atencao.
+- `red`: novas escritas criticas devem parar ate diagnostico/recuperacao.
+
+O painel executivo fica no Paperclip, issue `Ops Health`, documento `reliability-status`. O Paperclip recebe resumo executivo sem dados brutos: nao publicar nomes de leads, telefones, mensagens, payloads brutos ou dumps de tabelas.
+
 Arquivos em `.scratch/leads/`, `.scratch/crm/`, `.scratch/ops/` e `.scratch/qa-demos/` sao espelhos legiveis ou handoffs privados. Eles podem ser lidos pelos workers, mas nao devem ser editados manualmente como fonte oficial de status.
 
 Arquivos em `docs/freelancer/` guardam regra, oferta, scripts e prompts. Eles nao devem conter dados privados de leads ou clientes.

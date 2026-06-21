@@ -405,6 +405,33 @@ node scripts/paperclip-sync-operational-surfaces.mjs --lead-key lead-cards --sta
 node scripts/paperclip-sync-lead-cards.mjs --api-base http://127.0.0.1:3100 --timeout-ms 15000
 ```
 
+## Ops Health
+
+O status de confiabilidade da operacao fica em dois lugares:
+
+- evidencia tecnica privada: `.scratch/ops/reliability-status.json`, `.scratch/ops/reliability-status.md` e `.scratch/ops/backup-manifest.json`;
+- painel executivo: issue `Ops Health`, documento `reliability-status`.
+
+Comandos:
+
+```bash
+node scripts/freela-ops-doctor.mjs check
+node scripts/freela-ops-doctor.mjs snapshot
+node scripts/freela-ops-doctor.mjs publish
+node scripts/freela-ops-doctor.mjs restore-plan /caminho/do/snapshot.sqlite
+```
+
+Status operacional: `green`, `yellow`, `red`. Se o status for `red`, agentes devem parar novas escritas criticas e escalar. O Paperclip recebe somente resumo executivo, sem dados brutos: nao publicar nomes, telefones, mensagens ou dumps de tabela.
+
+LaunchAgents opcionais:
+
+```bash
+cp docs/freelancer/paperclip/launchd/com.luiz-fbm.freela-ops-snapshot.plist ~/Library/LaunchAgents/
+cp docs/freelancer/paperclip/launchd/com.luiz-fbm.freela-ops-publish.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.luiz-fbm.freela-ops-snapshot.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.luiz-fbm.freela-ops-publish.plist
+```
+
 ## Start e stop
 
 Servico local do macOS:
