@@ -495,8 +495,118 @@ function parsePositiveInteger(value, label) {
   return parsed;
 }
 
-function commandPublish() {
-  throw usageError("Comando publish ainda nao implementado.");
+async function commandPublish({ root, flags }) {
+  const report = buildReport(root, flags);
+  writeReport(root, flags, report);
+  const issue = await findOpsHealthIssue(flags);
+  await putOpsHealthDocument({ flags, issue, report });
+  console.log(`status: ${report.status}`);
+  console.log(`Ops Health publicado: ${issue.identifier ?? issue.id} / ${flags.key ?? DEFAULT_OPS_DOCUMENT_KEY}`);
+  return { exitCode: exitCodeForStatus(report.status) };
+}
+
+async function findOpsHealthIssue(flags) {
+  if (flags.issue) return { id: flags.issue, identifier: flags.issue, title: DEFAULT_OPS_ISSUE_TITLE };
+
+  const apiBase = normalizeApiBase(flags["api-base"] ?? process.env.PAPERCLIP_API_URL ?? DEFAULT_API_BASE);
+  const companyId = flags["company-id"] ?? process.env.PAPERCLIP_COMPANY_ID ?? DEFAULT_COMPANY_ID;
+  const timeoutMs = parsePositiveInteger(flags["timeout-ms"] ?? `${DEFAULT_TIMEOUT_MS}`, "--timeout-ms");
+  const query = `${apiBase}/api/companies/${encodeURIComponent(companyId)}/issues?q=${encodeURIComponent(
+    DEFAULT_OPS_ISSUE_TITLE,
+  )}&status=todo,in_progress`;
+  const data = await requestJson({ url: query, method: "GET", flags, timeoutMs });
+  const issues = Array.isArray(data?.issues) ? data.issues : Array.isArray(data) ? data : [];
+  const issue = issues.find((item) => item.title === DEFAULT_OPS_ISSUE_TITLE) ?? issues[0];
+  if (issue) return issue;
+
+  return requestJson({
+    url: `${apiBase}/api/companies/${encodeURIComponent(companyId)}/issues`,
+    method: "POST",
+    payload: {
+      title: DEFAULT_OPS_ISSUE_TITLE,
+      description: "Standing issue for Freela operational reliability status.",
+      status: "in_progress",
+      priority: "high",
+    },
+    flags,
+    timeoutMs,
+  });
+}
+
+async function putOpsHealthDocument({ flags, issue, report }) {
+  const apiBase = normalizeApiBase(flags["api-base"] ?? process.env.PAPERCLIP_API_URL ?? DEFAULT_API_BASE);
+  const timeoutMs = parsePositiveInteger(flags["timeout-ms"] ?? `${DEFAULT_TIMEOUT_MS}`, "--timeout-ms");
+  const issueRef = issue.identifier ?? issue.id;
+  const key = flags.key ?? DEFAULT_OPS_DOCUMENT_KEY;
+  const url = `${apiBase}/api/issues/${encodeURIComponent(issueRef)}/documents/${encodeURIComponent(key)}`;
+  const payload = {
+    title: "Reliability Status",
+    format: "markdown",
+    body: renderExecutiveStatus(report),
+    changeSummary: "Atualiza Ops Health",
+  };
+  return requestJson({ url, method: "PUT", payload, flags, timeoutMs });
+}
+
+function renderExecutiveStatus(report) {
+  const latest = report.checks.backups.latestSnapshot?.createdAt ?? "sem snapshot integro";
+  return [
+    "# Ops Health",
+    "",
+    `Status: ${report.status}`,
+    `Ultimo check: ${report.checkedAt}`,
+    `Ultimo snapshot integro: ${latest}`,
+    "",
+    "## Riscos",
+    `- SQLite: ${report.checks.sqlite.status}`,
+    `- Backups: ${report.checks.backups.status}`,
+    `- Operacional: ${report.checks.operational.status}`,
+    "",
+    "## Acao recomendada",
+    report.recommendedAction,
+    "",
+    "Evidencia tecnica privada: .scratch/ops/reliability-status.json",
+    "",
+  ].join("\n");
+}
+
+async function requestJson({ url, method, payload, flags, timeoutMs }) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const headers = { Accept: "application/json" };
+  if (payload !== undefined) headers["Content-Type"] = "application/json";
+  const apiKey = flags["api-key"] ?? process.env.PAPERCLIP_API_KEY ?? null;
+  const runId = flags["run-id"] ?? process.env.PAPERCLIP_RUN_ID ?? null;
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  if (runId) headers["X-Paperclip-Run-Id"] = runId;
+
+  try {
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: payload === undefined ? undefined : JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!response.ok) {
+      const error = new Error(`Paperclip retornou HTTP ${response.status} em ${method} ${url}`);
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(`Timeout de ${timeoutMs}ms ao chamar ${method} ${url}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function normalizeApiBase(apiBase) {
+  return String(apiBase).replace(/\/+$/, "");
 }
 
 function commandRestorePlan({ root, args, flags }) {
