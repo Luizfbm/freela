@@ -496,6 +496,25 @@ function writeCursor(path, cursor) {
 }
 
 function watchMcpSqlite(root, flags) {
+  const dispatchApproved = parseBooleanFlag(flags["dispatch-approved"]);
+  if (dispatchApproved) {
+    const allowedFlags = new Set([
+      "db",
+      "state-file",
+      "interval-ms",
+      "dispatch-approved",
+      "bridge-api-base",
+      "timeout-ms",
+      "limit",
+      "crm-db",
+      "dry-run",
+    ]);
+    for (const flag of Object.keys(flags)) {
+      if (!allowedFlags.has(flag)) {
+        throw new Error(`Opcao desconhecida para watch-mcp-sqlite --dispatch-approved: --${flag}`);
+      }
+    }
+  }
   const intervalMs = parsePositiveInt(flags["interval-ms"] || "10000", "--interval-ms");
   console.log(`Observando whatsapp-mcp messages.db a cada ${intervalMs}ms`);
   const run = () => {
@@ -504,7 +523,7 @@ function watchMcpSqlite(root, flags) {
       console.log(
         `[${new Date().toISOString()}] importados=${result.imported} ignorados=${result.skipped} falhas=${result.failed}`,
       );
-      if (parseBooleanFlag(flags["dispatch-approved"])) {
+      if (dispatchApproved) {
         const dispatchFlags = {};
         for (const flag of ["bridge-api-base", "timeout-ms", "limit", "crm-db", "dry-run"]) {
           if (flags[flag] !== undefined) dispatchFlags[flag] = flags[flag];
