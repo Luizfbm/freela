@@ -12,6 +12,7 @@ Regra operacional:
 
 - workers leem somente CRM/Paperclip;
 - `whatsapp-local-gateway.mjs` importa inbound de `store/messages.db`;
+- contatos que chegam como `@lid` ou outro JID sem telefone publico entram em `Sem identidade`, nao somem;
 - Atendimento WhatsApp so cria resposta candidata na Outbox;
 - Humanizer e obrigatorio antes de qualquer Outbox automatica;
 - Guardiao revisa e aprova;
@@ -51,7 +52,8 @@ O comando:
 - ignora mensagens enviadas pelo Luiz;
 - ignora grupos;
 - ignora midia sem texto;
-- importa somente mensagens inbound de leads conhecidos no CRM;
+- importa mensagens inbound de leads conhecidos no CRM para `whatsapp_inbound_events`;
+- quando o contato chega como `@lid` ou sem match confiavel, grava em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`;
 - grava falhas em `.scratch/whatsapp-inbound-*.json.error.txt`;
 - grava cursor em `.scratch/whatsapp-mcp-cursor.json`.
 
@@ -86,7 +88,24 @@ Depois confirme:
 node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
 ```
 
-O esperado e `Importados: 0`, `Ignorados: 0`, `Falhas: 0` ate chegar mensagem nova.
+O esperado e `Importados: 0`, `Ignorados: 0`, `Sem identidade: 0`, `Falhas: 0` ate chegar mensagem nova.
+
+## Identidade WhatsApp
+
+O WhatsApp pode entregar uma conversa individual como `273478418722987@lid` em vez de `5527...@s.whatsapp.net`. Isso nao deve virar gambiarra por nome de contato. A fonte oficial e o SQLite:
+
+- `whatsapp_identity_aliases`: vincula um lead a um JID/alias WhatsApp, incluindo `@lid`;
+- `whatsapp_unmatched_inbound_events`: guarda inbound sem lead identificado;
+- `whatsapp_worker_wakes`: dedupe de tasks criadas automaticamente para workers.
+
+Quando o import mostrar `Sem identidade: 1`, localize o lead correto e vincule:
+
+```bash
+node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid" --source manual
+node scripts/freela-crm.mjs whatsapp unmatched reconcile
+```
+
+Depois da reconciliação, o inbound sai de `whatsapp_unmatched_inbound_events.status = unmatched`, entra em `whatsapp_inbound_events` e atualiza `lead_conversation_state`.
 
 ## Watcher Local
 
@@ -97,6 +116,14 @@ node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/program
 ```
 
 Sem `--dispatch-approved`, esse watcher apenas repete o import do `messages.db` e alimenta o CRM.
+
+Para acordar automaticamente o worker Atendimento WhatsApp quando chegar uma resposta conhecida como "Pode!" ou pedido de exemplo, use `--auto-wake`:
+
+```bash
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela watch-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --auto-wake --interval-ms 10000
+```
+
+O auto-wake cria issue no Paperclip via API direta, usando `--paperclip-api-base`, `--paperclip-company-id`, `--paperclip-api-key`, `--paperclip-run-id` e `--atendimento-agent-id` quando necessario. O dedupe fica em `whatsapp_worker_wakes`, entao a mesma mensagem nao cria tasks repetidas. Ele nao envia WhatsApp e nao chama `/api/send`.
 
 ## Dispatch Aprovado
 

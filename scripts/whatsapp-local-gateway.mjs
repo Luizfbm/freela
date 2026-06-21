@@ -4,6 +4,11 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+const DEFAULT_PAPERCLIP_API_BASE = "http://127.0.0.1:3100";
+const DEFAULT_PAPERCLIP_COMPANY_ID = "50a2756c-2942-40c1-90f8-b16807a62ef3";
+const DEFAULT_ATENDIMENTO_AGENT_ID = "db8a76a9-e503-4cdc-b8cb-f14cf757070a";
+const WHATSAPP_WAKE_TYPE = "atendimento_whatsapp";
+
 function main() {
   const { root, command, flags } = parseArgs(process.argv.slice(2));
 
@@ -31,6 +36,10 @@ function main() {
     const result = importMcpSqlite(root, flags);
     console.log(`Importados: ${result.imported}`);
     console.log(`Ignorados: ${result.skipped}`);
+    console.log(`Sem identidade: ${result.unmatched}`);
+    if (parseBooleanFlag(flags["auto-wake"])) {
+      console.log(`Auto-wakes: ${result.autoWakes}`);
+    }
     console.log(`Falhas: ${result.failed}`);
     return;
   }
@@ -123,6 +132,7 @@ function isUnknownLeadError(error) {
 }
 
 function importMcpSqlite(root, flags) {
+  validateImportMcpSqliteFlags(flags);
   const dbPath = resolve(
     root,
     flags.db || process.env.WHATSAPP_MCP_MESSAGES_DB || ".scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db",
@@ -139,7 +149,10 @@ function importMcpSqlite(root, flags) {
   const database = new DatabaseSync(dbPath);
   let imported = 0;
   let skipped = 0;
+  let unmatched = 0;
+  let autoWakes = 0;
   let failed = 0;
+  const autoWake = parseBooleanFlag(flags["auto-wake"]);
 
   try {
     const rows = readMcpRows(database, cursor, limit);
@@ -160,12 +173,20 @@ function importMcpSqlite(root, flags) {
       writeFileSync(tempFile, JSON.stringify(event, null, 2));
 
       try {
-        runCrm(root, ["whatsapp", "inbound", "ingest", "--file", tempFile]);
-        imported += 1;
+        const crmResult = runCrm(root, ["whatsapp", "inbound", "ingest", "--file", tempFile]);
+        if (/WhatsApp inbound sem lead/i.test(crmResult.stdout)) {
+          rmSync(tempFile, { force: true });
+          unmatched += 1;
+        } else {
+          imported += 1;
+          if (autoWake) {
+            autoWakes += autoWakeForInbound(root, event, buildAutoWakeOptions(flags));
+          }
+        }
       } catch (error) {
         if (isUnknownLeadError(error)) {
           rmSync(tempFile, { force: true });
-          skipped += 1;
+          unmatched += 1;
         } else {
           failed += 1;
           writeFileSync(`${tempFile}.error.txt`, error.message);
@@ -178,7 +199,248 @@ function importMcpSqlite(root, flags) {
     database.close();
   }
 
-  return { imported, skipped, failed };
+  return { imported, skipped, unmatched, autoWakes, failed };
+}
+
+function validateImportMcpSqliteFlags(flags) {
+  const allowed = new Set([
+    "db",
+    "state-file",
+    "limit",
+    "auto-wake",
+    "paperclip-api-base",
+    "paperclip-company-id",
+    "paperclip-api-key",
+    "paperclip-run-id",
+    "atendimento-agent-id",
+    "timeout-ms",
+  ]);
+  for (const flag of Object.keys(flags)) {
+    if (!allowed.has(flag)) {
+      throw new Error(`Opcao desconhecida para import-mcp-sqlite: --${flag}`);
+    }
+  }
+}
+
+function buildAutoWakeOptions(flags) {
+  return {
+    apiBase:
+      flags["paperclip-api-base"] ||
+      process.env.PAPERCLIP_API_URL ||
+      DEFAULT_PAPERCLIP_API_BASE,
+    companyId:
+      flags["paperclip-company-id"] ||
+      process.env.PAPERCLIP_COMPANY_ID ||
+      DEFAULT_PAPERCLIP_COMPANY_ID,
+    apiKey: flags["paperclip-api-key"] || process.env.PAPERCLIP_API_KEY || "",
+    runId: flags["paperclip-run-id"] || process.env.PAPERCLIP_RUN_ID || "",
+    atendimentoAgentId:
+      flags["atendimento-agent-id"] ||
+      process.env.WHATSAPP_ATENDIMENTO_AGENT_ID ||
+      DEFAULT_ATENDIMENTO_AGENT_ID,
+    timeoutMs: parsePositiveInt(flags["timeout-ms"] || "15000", "--timeout-ms"),
+  };
+}
+
+function autoWakeForInbound(root, event, options) {
+  const crmDbPath = resolve(root, ".scratch/db/freela.sqlite");
+  if (!existsSync(crmDbPath)) {
+    throw new Error(`CRM SQLite nao encontrado para auto-wake: ${crmDbPath}`);
+  }
+  const database = new DatabaseSync(crmDbPath);
+  try {
+    const inbound = database
+      .prepare(
+        `select
+          e.*,
+          l.canonical_name as lead_name,
+          s.whatsapp_state
+        from whatsapp_inbound_events e
+        join leads l on l.id = e.lead_id
+        left join lead_conversation_state s on s.lead_id = e.lead_id
+        where e.bridge_message_id = ?
+        order by e.id desc
+        limit 1`,
+      )
+      .get(clean(event.bridge_message_id));
+
+    if (!inbound || !shouldWakeAtendimento(inbound)) return 0;
+
+    const existing = database
+      .prepare(
+        `select *
+         from whatsapp_worker_wakes
+         where inbound_event_id = ?
+           and target_agent_id = ?
+           and wake_type = ?
+         order by id desc
+         limit 1`,
+      )
+      .get(inbound.id, options.atendimentoAgentId, WHATSAPP_WAKE_TYPE);
+
+    if (["created", "creating"].includes(existing?.status)) return 0;
+
+    const timestamp = new Date().toISOString();
+    if (existing) {
+      database
+        .prepare("update whatsapp_worker_wakes set status = 'creating', updated_at = ? where id = ?")
+        .run(timestamp, existing.id);
+    } else {
+      database
+        .prepare(
+          `insert into whatsapp_worker_wakes (
+            inbound_event_id, lead_id, target_agent_id, wake_type, status, created_at, updated_at
+          ) values (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          inbound.id,
+          inbound.lead_id,
+          options.atendimentoAgentId,
+          WHATSAPP_WAKE_TYPE,
+          "creating",
+          timestamp,
+          timestamp,
+        );
+    }
+
+    try {
+      const issue = createPaperclipIssue({
+        apiBase: options.apiBase,
+        companyId: options.companyId,
+        apiKey: options.apiKey,
+        runId: options.runId,
+        timeoutMs: options.timeoutMs,
+        payload: buildAtendimentoWakePayload(inbound, options.atendimentoAgentId),
+      });
+      database
+        .prepare(
+          `update whatsapp_worker_wakes
+           set status = 'created',
+               paperclip_issue_id = ?,
+               paperclip_issue_identifier = ?,
+               updated_at = ?
+           where inbound_event_id = ?
+             and target_agent_id = ?
+             and wake_type = ?`,
+        )
+        .run(
+          clean(issue.id),
+          clean(issue.identifier),
+          new Date().toISOString(),
+          inbound.id,
+          options.atendimentoAgentId,
+          WHATSAPP_WAKE_TYPE,
+        );
+      return 1;
+    } catch (error) {
+      database
+        .prepare(
+          `update whatsapp_worker_wakes
+           set status = 'failed', updated_at = ?
+           where inbound_event_id = ?
+             and target_agent_id = ?
+             and wake_type = ?`,
+        )
+        .run(new Date().toISOString(), inbound.id, options.atendimentoAgentId, WHATSAPP_WAKE_TYPE);
+      throw error;
+    }
+  } finally {
+    database.close();
+  }
+}
+
+function shouldWakeAtendimento(inbound) {
+  return ["resposta_permissao", "resposta_pediu_exemplo", "resposta_recebida"].includes(
+    clean(inbound.classification),
+  );
+}
+
+function buildAtendimentoWakePayload(inbound, atendimentoAgentId) {
+  return {
+    title: `WhatsApp - ${inbound.lead_name}: ${labelForWhatsAppClassification(inbound.classification)}`,
+    description: [
+      "## ultimo inbound WhatsApp",
+      "",
+      `Lead: ${inbound.lead_name}`,
+      `chat_id: ${inbound.chat_id}`,
+      `classification: ${inbound.classification}`,
+      `whatsapp_state: ${inbound.whatsapp_state || "nao_definido"}`,
+      `inbound_event_id: ${inbound.id}`,
+      "",
+      "## Mensagem recebida",
+      "",
+      inbound.body,
+      "",
+      "## Trabalho",
+      "",
+      "- Escrever resposta candidata curta, contextual e humanizada na Outbox WhatsApp.",
+      "- Usar contexto real do lead no CRM antes de propor a resposta.",
+      "- Nao envie WhatsApp. Nao chame bridge.",
+      "- Depois da proposta, o Guardiao de Envio WhatsApp deve revisar antes de qualquer dispatch.",
+    ].join("\n"),
+    assigneeAgentId: atendimentoAgentId,
+    priority: "high",
+    status: "todo",
+  };
+}
+
+function labelForWhatsAppClassification(classification) {
+  if (classification === "resposta_permissao") return "respondeu Pode";
+  if (classification === "resposta_pediu_exemplo") return "pediu exemplo";
+  return "nova resposta";
+}
+
+function createPaperclipIssue({ apiBase, companyId, apiKey, runId, timeoutMs, payload }) {
+  if (!companyId) throw new Error("companyId obrigatorio para auto-wake Paperclip");
+  const url = `${normalizePaperclipApiBase(apiBase)}/api/companies/${encodeURIComponent(companyId)}/issues`;
+  const result = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), Number(process.argv[5]));
+        try {
+          const headers = { "Content-Type": "application/json" };
+          if (process.argv[3]) headers.Authorization = \`Bearer \${process.argv[3]}\`;
+          if (process.argv[4]) headers["X-Paperclip-Run-Id"] = process.argv[4];
+          const response = await fetch(process.argv[1], {
+            method: "POST",
+            headers,
+            body: process.argv[2],
+            signal: controller.signal
+          });
+          const text = await response.text();
+          console.log(JSON.stringify({ ok: response.ok, status: response.status, text }));
+        } catch (error) {
+          console.error(error.message);
+          process.exit(2);
+        } finally {
+          clearTimeout(timeout);
+        }
+      `,
+      url,
+      JSON.stringify(payload),
+      clean(apiKey),
+      clean(runId),
+      String(timeoutMs),
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) {
+    throw new Error(`Falha no auto-wake Paperclip: ${[result.stdout, result.stderr].filter(Boolean).join("\n").trim()}`);
+  }
+  const response = JSON.parse(result.stdout);
+  if (!response.ok) {
+    throw new Error(`Falha no auto-wake Paperclip: HTTP ${response.status}\n${response.text}`);
+  }
+  return response.text ? JSON.parse(response.text) : {};
+}
+
+function normalizePaperclipApiBase(value) {
+  const base = clean(value).replace(/\/+$/, "");
+  if (!base) throw new Error("Paperclip API base vazia");
+  return base.endsWith("/api") ? base.slice(0, -4) : base;
 }
 
 function dispatchApprovedOutbox(root, flags) {
@@ -513,31 +775,50 @@ function writeCursor(path, cursor) {
 
 function watchMcpSqlite(root, flags) {
   const dispatchApproved = parseBooleanFlag(flags["dispatch-approved"]);
-  if (dispatchApproved) {
-    const allowedFlags = new Set([
-      "db",
-      "state-file",
-      "interval-ms",
-      "dispatch-approved",
-      "bridge-api-base",
-      "timeout-ms",
-      "limit",
-      "crm-db",
-      "dry-run",
-    ]);
-    for (const flag of Object.keys(flags)) {
-      if (!allowedFlags.has(flag)) {
-        throw new Error(`Opcao desconhecida para watch-mcp-sqlite --dispatch-approved: --${flag}`);
-      }
+  const allowedFlags = new Set([
+    "db",
+    "state-file",
+    "interval-ms",
+    "dispatch-approved",
+    "bridge-api-base",
+    "timeout-ms",
+    "limit",
+    "crm-db",
+    "dry-run",
+    "auto-wake",
+    "paperclip-api-base",
+    "paperclip-company-id",
+    "paperclip-api-key",
+    "paperclip-run-id",
+    "atendimento-agent-id",
+  ]);
+  for (const flag of Object.keys(flags)) {
+    if (!allowedFlags.has(flag)) {
+      throw new Error(`Opcao desconhecida para watch-mcp-sqlite: --${flag}`);
     }
   }
   const intervalMs = parsePositiveInt(flags["interval-ms"] || "10000", "--interval-ms");
   console.log(`Observando whatsapp-mcp messages.db a cada ${intervalMs}ms`);
   const run = () => {
     try {
-      const result = importMcpSqlite(root, flags);
+      const importFlags = {};
+      for (const flag of [
+        "db",
+        "state-file",
+        "limit",
+        "auto-wake",
+        "paperclip-api-base",
+        "paperclip-company-id",
+        "paperclip-api-key",
+        "paperclip-run-id",
+        "atendimento-agent-id",
+        "timeout-ms",
+      ]) {
+        if (flags[flag] !== undefined) importFlags[flag] = flags[flag];
+      }
+      const result = importMcpSqlite(root, importFlags);
       console.log(
-        `[${new Date().toISOString()}] importados=${result.imported} ignorados=${result.skipped} falhas=${result.failed}`,
+        `[${new Date().toISOString()}] importados=${result.imported} ignorados=${result.skipped} sem_identidade=${result.unmatched} auto_wakes=${result.autoWakes} falhas=${result.failed}`,
       );
       if (dispatchApproved) {
         const dispatchFlags = {};

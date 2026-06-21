@@ -337,6 +337,8 @@ Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, wo
 
 Workers nao acessam `send_message`, `send_file` ou `send_audio_message`. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite`.
 
+Identidade WhatsApp e parte do contrato operacional. Se o MCP entregar um contato como `@lid` ou outro JID que nao bate com telefone publico, o Gateway nao descarta: ele registra em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`. Vincule o lead com `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois rode `node scripts/freela-crm.mjs whatsapp unmatched reconcile`. O watcher pode usar `--auto-wake` para criar task do Atendimento WhatsApp via Paperclip API; o dedupe fica em `whatsapp_worker_wakes`, sem enviar mensagem e sem chamar bridge.
+
 Primeira abordagem fria continua manual. Respostas depois do "Pode!" podem ser despachadas automaticamente somente via Gateway + Outbox aprovada + Humanizer + Guardiao.
 
 Notificador Luiz cria issue no Paperclip quando a conversa chega em `preco_pedido`, `lead_quente`, `handoff_luiz` ou `bloqueado_guardiao`. Ele nao envia WhatsApp; apenas entrega contexto e proxima acao para o operador.
