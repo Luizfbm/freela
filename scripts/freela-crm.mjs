@@ -2392,6 +2392,7 @@ function proposeWhatsAppOutbox(
 }
 
 const WHATSAPP_AUTO_REPLY_LIMIT_REASON = "limite de 5 respostas automaticas atingido";
+const WHATSAPP_PRICE_QUALIFICATION_HANDOFF_REASON = "qualificacao de preco ja enviada; handoff Luiz";
 const NEUTRAL_PRICE_QUALIFICATION_REPLY = [
   "Depende um pouco do que precisa aparecer na pagina e do objetivo principal.",
   "",
@@ -2431,14 +2432,21 @@ function reviewWhatsAppOutbox(database, outboxId) {
   } else if (decision === "enviar") {
     incrementAutoReplies(database, outbox.lead_id, outbox.id);
   } else {
-    setWhatsAppHandoff(database, outbox.lead_id, blockedWhatsAppStateForRules(rules), reason);
+    const handoff = blockedWhatsAppHandoffForRules(rules, reason);
+    setWhatsAppHandoff(database, outbox.lead_id, handoff.state, handoff.reason);
   }
 
   return { decision: status === "approved" ? "aprovado" : "bloqueado", reason, rules };
 }
 
-function blockedWhatsAppStateForRules(rules) {
-  return rules.includes(WHATSAPP_AUTO_REPLY_LIMIT_REASON) ? "handoff_luiz" : "bloqueado_guardiao";
+function blockedWhatsAppHandoffForRules(rules, reason) {
+  if (rules.includes(WHATSAPP_AUTO_REPLY_LIMIT_REASON)) {
+    return { state: "handoff_luiz", reason };
+  }
+  if (rules.includes(WHATSAPP_PRICE_QUALIFICATION_HANDOFF_REASON)) {
+    return { state: "handoff_luiz", reason: "preco_pedido" };
+  }
+  return { state: "bloqueado_guardiao", reason };
 }
 
 function guardianRules({ outbox, state }) {
@@ -2450,7 +2458,7 @@ function guardianRules({ outbox, state }) {
   if (state?.whatsapp_state === "bloqueado_guardiao") rules.push("lead bloqueado pelo guardiao");
   if (state?.whatsapp_state === "encerrado") rules.push("conversa encerrada");
   if (state?.whatsapp_state === "qualificacao_preco_pendente") {
-    rules.push("qualificacao de preco ja enviada; handoff Luiz");
+    rules.push(WHATSAPP_PRICE_QUALIFICATION_HANDOFF_REASON);
   }
   if (state?.whatsapp_state === "preco_pedido" && !isNeutralPriceQualificationReply(outbox.body)) {
     rules.push("preco_pedido exige qualificacao neutra");
@@ -2461,7 +2469,7 @@ function guardianRules({ outbox, state }) {
   if (!outbox.humanizer_pass) rules.push("humanizer_pass ausente");
   if (!outbox.used_last_inbound) rules.push("used_last_inbound ausente");
   if (!outbox.contextual_reply) rules.push("contextual_reply ausente");
-  if (/\bpreco\b|\bvalor\b|\borcamento\b|\bpagamento\b|\bdesconto\b|\bproposta\b|\bfechado\b|\bcontrato\b/.test(body)) {
+  if (containsCommercialValue(body, outbox.body)) {
     rules.push("mensagem contem preco/proposta/fechamento");
   }
   if (/\benxuta\b|\bversao menor\b|\b397\b|\br\s*397\b/.test(body)) {
@@ -2474,11 +2482,11 @@ function guardianRules({ outbox, state }) {
     rules.push("mensagem generica com cara de IA");
   }
   if (/—|–|--/.test(outbox.body)) rules.push("mensagem contem travessao ou marcador artificial");
-  if (/^\s*(?:[-*]|\d+[.)])\s+\S/m.test(outbox.body)) {
+  if (/^\s*(?:[-*]|\d+[.)]|\d+\s*[-])\s+\S/m.test(outbox.body)) {
     rules.push("mensagem contem lista artificial");
   }
   if (outbox.body.length > 700) rules.push("mensagem longa demais");
-  if (/ignore as regras|ignore instrucoes|modo desenvolvedor|prompt/.test(body)) {
+  if (containsPromptInjection(body)) {
     rules.push("possivel prompt injection");
   }
   if (containsLinkLikeText(body, outbox.body) && state?.whatsapp_state !== "exemplo_aprovado_para_envio") {
@@ -2486,6 +2494,23 @@ function guardianRules({ outbox, state }) {
   }
 
   return rules;
+}
+
+function containsCommercialValue(body, rawBody) {
+  return (
+    /\bpreco\b|\bvalor\b|\borcamento\b|\bpagamento\b|\bdesconto\b|\bproposta\b|\bfechado\b|\bcontrato\b|\binvestimento\b|\breais\b/.test(
+      body,
+    ) || /r\s*\$\s*\d+/i.test(clean(rawBody))
+  );
+}
+
+function containsPromptInjection(body) {
+  return (
+    /\b(ignore|ignorar|desconsidere|desconsiderar)\b.{0,80}\b(instrucoes|regras|prompt|sistema|anteriores|acima)\b/.test(
+      body,
+    ) ||
+    /\bmodo desenvolvedor\b|\bprompt\b/.test(body)
+  );
 }
 
 function isNeutralPriceQualificationReply(body) {
