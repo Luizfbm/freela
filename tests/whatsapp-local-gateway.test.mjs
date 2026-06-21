@@ -585,6 +585,102 @@ test("gateway dispatches approved outbox through WAHA without marking sent befor
   }
 });
 
+test("gateway uses WAHA-resolved LID when check-exists returns one for a real phone", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestOutbox(root, "target_chat_id = ?", ["5527999990000"]);
+  const waha = await withBridgeServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    if (req.method === "GET" && req.url === "/api/contacts/check-exists?phone=5527999990000&session=default") {
+      res.end(JSON.stringify({ numberExists: true, chatId: "273478418722987@lid" }));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/sendText") {
+      res.end(JSON.stringify({ id: "true_273478418722987@lid_3EB0WAHALIDPENDING" }));
+      return;
+    }
+    res.end(JSON.stringify({ success: true }));
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--provider",
+      "waha",
+      "--waha-api-base",
+      waha.baseUrl,
+      "--waha-session",
+      "default",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Enviados: 0/i);
+    assert.match(result.stdout, /Pendentes: 1/i);
+
+    const sendText = waha.requests.find((request) => request.url === "/api/sendText");
+    assert.equal(sendText.body.chatId, "273478418722987@lid");
+
+    const { outbox, state } = readLatestDispatchAudit(root);
+    assert.equal(outbox.status, "delivery_pending");
+    assert.equal(outbox.provider_message_id, "true_273478418722987@lid_3EB0WAHALIDPENDING");
+    assert.notEqual(state.whatsapp_state, "handoff_luiz");
+  } finally {
+    await waha.close();
+  }
+});
+
+test("gateway stores serialized WAHA object ids instead of object string", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestOutbox(root, "target_chat_id = ?", ["5527999990000"]);
+  const waha = await withBridgeServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    if (req.method === "GET" && req.url === "/api/contacts/check-exists?phone=5527999990000&session=default") {
+      res.end(JSON.stringify({ numberExists: true, chatId: "273478418722987@lid" }));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/sendText") {
+      res.end(
+        JSON.stringify({
+          id: {
+            fromMe: true,
+            remote: "273478418722987@lid",
+            id: "3EB0WAHAOBJECTID",
+            _serialized: "true_273478418722987@lid_3EB0WAHAOBJECTID",
+          },
+          ack: 0,
+          ackName: "PENDING",
+        }),
+      );
+      return;
+    }
+    res.end(JSON.stringify({ success: true }));
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--provider",
+      "waha",
+      "--waha-api-base",
+      waha.baseUrl,
+      "--waha-session",
+      "default",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Pendentes: 1/i);
+
+    const { outbox } = readLatestDispatchAudit(root);
+    assert.equal(outbox.provider_message_id, "true_273478418722987@lid_3EB0WAHAOBJECTID");
+    assert.notEqual(outbox.provider_message_id, "[object Object]");
+  } finally {
+    await waha.close();
+  }
+});
+
 test("gateway marks WAHA outbox sent only after DEVICE ack event", async () => {
   const root = makeRoot();
   seedApprovedOutbox(root);

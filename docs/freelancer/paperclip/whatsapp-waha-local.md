@@ -61,11 +61,12 @@ node scripts/whatsapp-local-gateway.mjs \
   --waha-session default
 ```
 
-O Gateway converte telefone para `@c.us` e usa `GET /api/contacts/check-exists` antes de enviar. `@lid` continua sendo identidade de leitura, nao destino de envio.
+O Gateway recebe telefone real da Outbox e usa `GET /api/contacts/check-exists` antes de enviar. `@lid` continua sendo identidade de leitura no CRM/Outbox, mas o WAHA pode resolver um telefone real para um `chatId` `@lid`; nesse caso o Gateway pode usar esse `chatId` resolvido pela propria WAHA para entregar a mensagem.
 
 Regras:
 
-- `@lid` nunca e destino enviavel.
+- `@lid` nunca deve ser salvo como destino direto na Outbox.
+- `@lid` retornado por `check-exists` da WAHA e destino resolvido valido para `/api/sendText`.
 - `@s.whatsapp.net` e telefone cru viram `telefone@c.us`.
 - `sendSeen`, `startTyping`, `stopTyping` e `sendText` passam pelo Gateway.
 - Resposta de `sendText` sem ACK forte vira `delivery_pending`.

@@ -931,7 +931,7 @@ function resolveWahaChatId(options, phone) {
     };
   }
   const chatId = clean(checked.parsed?.chatId || `${phone}@c.us`);
-  if (!chatId.endsWith("@c.us")) {
+  if (!chatId.endsWith("@c.us") && !isWhatsAppLidRecipient(chatId)) {
     return {
       success: false,
       ambiguous: true,
@@ -1023,14 +1023,28 @@ function requestJsonSync({ method, url, body, apiKey, timeoutMs }) {
 }
 
 function extractWahaMessageId(payload) {
-  return clean(
-    payload?.id ||
-      payload?.messageId ||
-      payload?.message_id ||
-      payload?.key?.id ||
-      payload?._data?.id?._serialized ||
-      payload?._data?.id?.id,
+  return firstWahaMessageId(
+    payload?.id,
+    payload?.messageId,
+    payload?.message_id,
+    payload?.key?.id,
+    payload?._data?.id,
   );
+}
+
+function firstWahaMessageId(...candidates) {
+  for (const candidate of candidates) {
+    const messageId = wahaMessageIdValue(candidate);
+    if (messageId) return messageId;
+  }
+  return "";
+}
+
+function wahaMessageIdValue(candidate) {
+  if (!candidate) return "";
+  if (typeof candidate === "string" || typeof candidate === "number") return clean(candidate);
+  if (typeof candidate !== "object") return "";
+  return clean(candidate._serialized || candidate.serialized || candidate.id || candidate.messageId || candidate.message_id);
 }
 
 function wahaAckFromPayload(payload) {
@@ -1316,13 +1330,13 @@ function applyWahaWaitingEvent(database, event) {
 }
 
 function extractWahaEventMessageId(event) {
-  return clean(
-    event?.payload?.id ||
-      event?.payload?.messageId ||
-      event?.payload?.message_id ||
-      event?.payload?.message?.id ||
-      event?.id ||
-      event?.messageId,
+  return firstWahaMessageId(
+    event?.payload?.id,
+    event?.payload?.messageId,
+    event?.payload?.message_id,
+    event?.payload?.message?.id,
+    event?.id,
+    event?.messageId,
   );
 }
 
