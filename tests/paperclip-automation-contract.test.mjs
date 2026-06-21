@@ -524,6 +524,53 @@ test("WhatsApp MCP local fica atras do gateway e nao vira tool direta dos worker
   assert.match(guide, /automacao controlada|automação controlada/i);
 });
 
+test("WhatsApp Identity e auto-wake ficam documentados no contrato operacional", () => {
+  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const contract = read("docs/freelancer/data-contract.md");
+  const readme = paperclipReadme();
+  const gateway = read("scripts/whatsapp-local-gateway.mjs");
+  const crm = read("scripts/freela-crm.mjs");
+
+  for (const doc of [guide, contract, readme]) {
+    assert.match(doc, /@lid/i);
+    assert.match(doc, /whatsapp identity link/i);
+    assert.match(doc, /whatsapp unmatched reconcile/i);
+    assert.match(doc, /Sem identidade/i);
+    assert.match(doc, /--auto-wake/i);
+    assert.match(doc, /whatsapp_worker_wakes/i);
+  }
+
+  assert.match(gateway, /paperclip-api-base/i);
+  assert.match(gateway, /assigneeAgentId/i);
+  assert.match(gateway, /whatsapp_worker_wakes/i);
+  assert.match(crm, /whatsapp_identity_aliases/i);
+  assert.match(crm, /whatsapp_unmatched_inbound_events/i);
+});
+
+test("WhatsApp auto-wake roteia fechamento para Jhon Snow", () => {
+  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const contract = read("docs/freelancer/data-contract.md");
+  const readme = paperclipReadme();
+  const gateway = read("scripts/whatsapp-local-gateway.mjs");
+  const crm = read("scripts/freela-crm.mjs");
+
+  for (const doc of [guide, contract, readme]) {
+    assert.match(doc, /Atendimento WhatsApp.*conversa normal|conversa normal.*Atendimento WhatsApp/is);
+    assert.match(doc, /Jhon Snow|Atendimento e Fechamento/i);
+    assert.match(doc, /preco_pedido|preço|pedido de preco|pedido de preço/i);
+    assert.match(doc, /lead_quente/i);
+    assert.match(doc, /objecao_comercial|obje[cç][aã]o comercial/i);
+    assert.match(doc, /--closer-agent-id/i);
+  }
+
+  assert.match(gateway, /DEFAULT_CLOSER_AGENT_ID/);
+  assert.match(gateway, /WHATSAPP_CLOSER_WAKE_TYPE/);
+  assert.match(gateway, /resposta_lead_quente/);
+  assert.match(gateway, /resposta_objecao/);
+  assert.match(crm, /resposta_lead_quente/);
+  assert.match(crm, /objecao_comercial/);
+});
+
 test("WhatsApp handoff notifica Luiz sem enviar mensagem", () => {
   const script = read("scripts/paperclip-create-whatsapp-handoff.mjs");
   const readme = paperclipReadme();

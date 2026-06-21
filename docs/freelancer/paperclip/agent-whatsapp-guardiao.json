@@ -1,8 +1,10 @@
 {
+  "id": "972bc52e-8e70-436d-9fb5-3b8201575136",
   "name": "Guardiao de Envio WhatsApp",
-  "role": "Validador de seguranca da Outbox WhatsApp",
+  "role": "qa",
   "title": "Guardiao da Outbox WhatsApp",
-  "icon": "shield-check",
+  "icon": "shield",
+  "reportsTo": "4d334072-4966-4c9d-a16a-f3e48faf05d9",
   "capabilities": "Valida outbox, bloqueia preco, desconto, proposta, enxuta e risco; nunca envia WhatsApp diretamente.",
   "adapterType": "codex_local",
   "adapterConfig": {
@@ -18,6 +20,7 @@
     }
   },
   "metadata": {
+    "noOpenAiApiKey": true,
     "paperclipOperationKey": "whatsapp-guardiao",
     "noAutomaticMessaging": true
   }

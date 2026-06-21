@@ -47,6 +47,9 @@ O contrato de passagem entre workers fica em `docs/freelancer/paperclip/worker-h
 - `message_reviews`: decisoes estruturadas do QA de Mensagens.
 - `worker_handoffs`: passagem estruturada de trabalho entre workers, com `pending_issue`, `issue_created`, `blocked`, `completed` ou `cancelled`; handoffs de um mesmo lote operacional devem preencher `workflow.batch_id`, e handoffs que nao podem duplicar issue podem usar `workflow.dedupe_key`, como `publish_fre7:50a2756c-2942-40c1-90f8-b16807a62ef3:YYYY-MM-DD`.
 - `whatsapp_inbound_events`, `whatsapp_outbox`, `whatsapp_guardian_decisions` e `lead_conversation_state`: automacao local de WhatsApp atras do Guardiao.
+- `whatsapp_identity_aliases`: vinculos entre leads e identidades WhatsApp/JID, incluindo contatos `@lid` que nao expõem telefone publico.
+- `whatsapp_unmatched_inbound_events`: mensagens inbound sem lead identificado; devem ser reconciliadas com `whatsapp identity link` e `whatsapp unmatched reconcile`, nao descartadas.
+- `whatsapp_worker_wakes`: dedupe de issues criadas automaticamente para workers por inbound WhatsApp, agente alvo e tipo de wake.
 - `demos`: exemplos/demos associados ao lead.
 - `audit_log`: trilha de escrita aplicada pela CLI.
 
@@ -231,7 +234,17 @@ Para evitar que o operador precise abrir arquivos em `.scratch/`, a fila manual 
 
 ## WhatsApp Local Automation
 
-SQLite e a fonte oficial tambem para automacao WhatsApp. Mensagens recebidas entram em `whatsapp_inbound_events`; respostas candidatas entram em `whatsapp_outbox`; decisoes do Guardiao entram em `whatsapp_guardian_decisions`; estado resumido por lead fica em `lead_conversation_state`.
+SQLite e a fonte oficial tambem para automacao WhatsApp. Mensagens recebidas de leads identificados entram em `whatsapp_inbound_events`; respostas candidatas entram em `whatsapp_outbox`; decisoes do Guardiao entram em `whatsapp_guardian_decisions`; estado resumido por lead fica em `lead_conversation_state`.
+
+Identidade WhatsApp:
+
+- O MCP pode entregar conversa individual como `@lid` em vez de telefone publico. Esse identificador deve ser salvo em `whatsapp_identity_aliases`.
+- Quando o Gateway nao encontra lead confiavel, ele grava o evento em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`.
+- Para reconciliar, use `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
+- O import/watch com `--auto-wake` cria issue no Paperclip por roteamento seletivo; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama bridge e nao cria Outbox.
+- Atendimento WhatsApp recebe conversa normal: `resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`.
+- Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `resposta_pediu_preco`/`preco_pedido`, `resposta_lead_quente`/`lead_quente`, `resposta_objecao`/`objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
+- Em teste ou ambiente alternativo, `--closer-agent-id` sobrescreve o agente closer padrao.
 
 O `lharries/whatsapp-mcp` e uma entrada local, nao a fonte oficial. O bridge grava conversas em `.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db`; o Gateway Local importa mensagens novas com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite` e cursor em `.scratch/whatsapp-mcp-cursor.json`.
 

@@ -197,8 +197,11 @@ test("init cria o SQLite local com tabelas esperadas e pode rodar duas vezes", (
       "message_reviews",
       "outreach_queue",
       "whatsapp_guardian_decisions",
+      "whatsapp_identity_aliases",
       "whatsapp_inbound_events",
       "whatsapp_outbox",
+      "whatsapp_unmatched_inbound_events",
+      "whatsapp_worker_wakes",
       "worker_handoffs",
     ],
   );
@@ -1839,6 +1842,120 @@ test("whatsapp inbound ingest registra evento bruto e atualiza estado do lead", 
   assert.equal(state.auto_replies_since_human, 0);
 });
 
+test("whatsapp inbound com alias LID cadastrado identifica lead sem telefone publico", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+
+  upsertLead(root, {
+    canonical_name: "Lidiane Teste WhatsApp",
+    city: "Vitoria",
+    phone_or_contact: "+55 27 99263-5649",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const link = run(root, [
+    "whatsapp",
+    "identity",
+    "link",
+    "--name",
+    "Lidiane Teste WhatsApp",
+    "--identity",
+    "273478418722987@lid",
+    "--source",
+    "teste",
+  ]);
+  assert.equal(link.status, 0, link.stderr);
+  assert.match(link.stdout, /Identidade WhatsApp vinculada/i);
+
+  ingestWhatsApp(root, {
+    bridge_message_id: "lid-msg-001",
+    chat_id: "273478418722987@lid",
+    sender_name: "273478418722987",
+    sender_phone: "273478418722987",
+    is_group: false,
+    message_type: "text",
+    body: "Pode!",
+    received_at: "2026-06-21T09:32:27-03:00",
+  });
+
+  const database = db(root);
+  const inbound = database.prepare("select * from whatsapp_inbound_events").get();
+  assert.equal(inbound.chat_id, "273478418722987@lid");
+  assert.equal(inbound.lead_id, database.prepare("select id from leads").get().id);
+  assert.equal(inbound.classification, "resposta_permissao");
+
+  const state = database.prepare("select * from lead_conversation_state").get();
+  assert.equal(state.whatsapp_state, "respondeu_pode");
+
+  const unmatched = database.prepare("select count(*) as count from whatsapp_unmatched_inbound_events").get();
+  assert.equal(unmatched.count, 0);
+});
+
+test("whatsapp inbound desconhecido entra na fila unmatched e reconcilia apos vincular identidade", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+
+  upsertLead(root, {
+    canonical_name: "Lidiane Teste WhatsApp",
+    city: "Vitoria",
+    phone_or_contact: "+55 27 99263-5649",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const event = {
+    bridge_message_id: "lid-msg-002",
+    chat_id: "273478418722987@lid",
+    sender_name: "273478418722987",
+    sender_phone: "273478418722987",
+    is_group: false,
+    message_type: "text",
+    body: "Pode!",
+    received_at: "2026-06-21T09:32:27-03:00",
+  };
+  const eventFile = writeJson(root, "wa-lid-unmatched.json", event);
+  const ingest = run(root, ["whatsapp", "inbound", "ingest", "--file", eventFile]);
+  assert.equal(ingest.status, 0, ingest.stderr);
+  assert.match(ingest.stdout, /WhatsApp inbound sem lead/i);
+
+  let database = db(root);
+  assert.equal(database.prepare("select count(*) as count from whatsapp_inbound_events").get().count, 0);
+  const unmatched = database.prepare("select * from whatsapp_unmatched_inbound_events").get();
+  assert.equal(unmatched.bridge_message_id, "lid-msg-002");
+  assert.equal(unmatched.chat_id, "273478418722987@lid");
+  assert.equal(unmatched.status, "unmatched");
+  assert.equal(unmatched.classification, "resposta_permissao");
+  database.close();
+
+  assert.equal(
+    run(root, [
+      "whatsapp",
+      "identity",
+      "link",
+      "--name",
+      "Lidiane Teste WhatsApp",
+      "--identity",
+      "273478418722987@lid",
+      "--source",
+      "teste",
+    ]).status,
+    0,
+  );
+
+  const reconcile = run(root, ["whatsapp", "unmatched", "reconcile"]);
+  assert.equal(reconcile.status, 0, reconcile.stderr);
+  assert.match(reconcile.stdout, /Reconciliados: 1/i);
+
+  database = db(root);
+  const inbound = database.prepare("select * from whatsapp_inbound_events").get();
+  assert.equal(inbound.bridge_message_id, "lid-msg-002");
+  assert.equal(inbound.classification, "resposta_permissao");
+  assert.equal(database.prepare("select whatsapp_state from lead_conversation_state").get().whatsapp_state, "respondeu_pode");
+  const reconciled = database.prepare("select * from whatsapp_unmatched_inbound_events").get();
+  assert.equal(reconciled.status, "reconciled");
+  assert.equal(reconciled.matched_lead_id, inbound.lead_id);
+  assert.equal(reconciled.matched_inbound_event_id, inbound.id);
+});
+
 test("whatsapp inbound classifies orçamento as price request", () => {
   const root = makeWhatsAppLeadRoot("wa-price-synonym-001", "Qual o orçamento?");
 
@@ -1876,6 +1993,28 @@ test("whatsapp inbound prioritizes price ask over permission words", () => {
   database.close();
   assert.equal(inbound.classification, "resposta_pediu_preco");
   assert.equal(state.whatsapp_state, "preco_pedido");
+});
+
+test("whatsapp inbound classifies hot buying intent for closer routing", () => {
+  const root = makeWhatsAppLeadRoot("wa-hot-lead-001", "Gostei, quero fazer. Como contrato?");
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+  assert.equal(inbound.classification, "resposta_lead_quente");
+  assert.equal(state.whatsapp_state, "lead_quente");
+});
+
+test("whatsapp inbound classifies commercial objections for closer routing", () => {
+  const root = makeWhatsAppLeadRoot("wa-objection-001", "Achei caro, vou pensar um pouco");
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+  assert.equal(inbound.classification, "resposta_objecao");
+  assert.equal(state.whatsapp_state, "objecao_comercial");
 });
 
 test("whatsapp outbox propose cria resposta candidata sem enviar", () => {

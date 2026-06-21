@@ -295,9 +295,37 @@ async function dispatch({ root, dbPath, command, args }) {
     const file = resolve(root, flags.file);
     const event = readJsonFile(file);
     const result = ingestWhatsAppInbound(database, event, file);
+    if (result.unmatched) {
+      console.log(`WhatsApp inbound sem lead: unmatched ${result.unmatched.id} (${result.classification})`);
+      return;
+    }
     console.log(
       `WhatsApp inbound registrado: ${result.lead.canonical_name} (${result.classification})`,
     );
+    return;
+  }
+
+  if (command[0] === "whatsapp" && command[1] === "identity" && command[2] === "link") {
+    const flags = parseFlags(args);
+    requireFlag(flags, "name");
+    requireFlag(flags, "identity");
+    const lead = requireUniqueLead(database, flags.name);
+    const identity = linkWhatsAppIdentity(database, lead, {
+      identity: flags.identity,
+      source: flags.source ?? "manual",
+      notes: flags.notes ?? "",
+    });
+    console.log(`Identidade WhatsApp vinculada: ${lead.canonical_name} (${identity.identity_value})`);
+    return;
+  }
+
+  if (command[0] === "whatsapp" && command[1] === "unmatched" && command[2] === "reconcile") {
+    const flags = parseFlags(args);
+    const result = reconcileUnmatchedWhatsAppInbound(database, {
+      limit: flags.limit ? parsePositiveInt(flags.limit, "limit") : 50,
+    });
+    console.log(`Reconciliados: ${result.reconciled}`);
+    console.log(`Pendentes: ${result.pending}`);
     return;
   }
 
@@ -444,7 +472,7 @@ function parseCommand(argv) {
   ) {
     if (!args[0]) throw usageError(`Subcomando obrigatorio para ${command[0]}`);
     command.push(args.shift());
-    if (command[0] === "whatsapp" && ["inbound", "outbox", "guardian"].includes(command[1])) {
+    if (command[0] === "whatsapp" && ["inbound", "outbox", "guardian", "identity", "unmatched"].includes(command[1])) {
       if (!args[0]) throw usageError(`Acao obrigatoria para ${command.join(" ")}`);
       command.push(args.shift());
     }
@@ -543,6 +571,9 @@ function migrateDatabase(database) {
   ensureColumn(database, "whatsapp_outbox", "humanizer_notes", "text");
   ensureColumn(database, "whatsapp_outbox", "dispatch_error", "text");
   ensureColumn(database, "whatsapp_outbox", "dispatch_locked_at", "text");
+  ensureColumn(database, "whatsapp_unmatched_inbound_events", "classification", "text");
+  ensureColumn(database, "whatsapp_unmatched_inbound_events", "matched_lead_id", "integer references leads(id)");
+  ensureColumn(database, "whatsapp_unmatched_inbound_events", "matched_inbound_event_id", "integer references whatsapp_inbound_events(id)");
   normalizeQueueCardMetadata(database);
   normalizeStoredLegacyOffers(database);
   database.exec(`
@@ -553,6 +584,14 @@ function migrateDatabase(database) {
       where dedupe_key is not null
         and dedupe_key != ''
         and status not in ('completed', 'cancelled');
+    create unique index if not exists idx_whatsapp_identity_alias_value
+      on whatsapp_identity_aliases(identity_value);
+    create index if not exists idx_whatsapp_identity_alias_lead
+      on whatsapp_identity_aliases(lead_id);
+    create index if not exists idx_whatsapp_unmatched_status
+      on whatsapp_unmatched_inbound_events(status, received_at);
+    create unique index if not exists idx_whatsapp_worker_wake_unique
+      on whatsapp_worker_wakes(inbound_event_id, target_agent_id, wake_type);
   `);
   refreshCommercialViews(database);
 }
@@ -1064,6 +1103,36 @@ function schemaSql() {
       created_at text not null
     );
 
+    create table if not exists whatsapp_identity_aliases (
+      id integer primary key autoincrement,
+      lead_id integer not null references leads(id),
+      identity_value text not null unique,
+      source text not null,
+      notes text,
+      created_at text not null,
+      updated_at text not null
+    );
+
+    create table if not exists whatsapp_unmatched_inbound_events (
+      id integer primary key autoincrement,
+      bridge_message_id text unique,
+      chat_id text not null,
+      sender_name text,
+      sender_phone text,
+      is_group integer not null default 0,
+      message_type text not null default 'text',
+      body text not null,
+      received_at text not null,
+      classification text,
+      status text not null default 'unmatched',
+      match_reason text,
+      matched_lead_id integer references leads(id),
+      matched_inbound_event_id integer references whatsapp_inbound_events(id),
+      raw_json text,
+      created_at text not null,
+      updated_at text not null
+    );
+
     create table if not exists whatsapp_outbox (
       id integer primary key autoincrement,
       lead_id integer not null references leads(id),
@@ -1105,6 +1174,19 @@ function schemaSql() {
       reason text not null,
       triggered_rules text not null,
       created_at text not null
+    );
+
+    create table if not exists whatsapp_worker_wakes (
+      id integer primary key autoincrement,
+      inbound_event_id integer not null references whatsapp_inbound_events(id),
+      lead_id integer not null references leads(id),
+      target_agent_id text not null,
+      wake_type text not null,
+      status text not null default 'created',
+      paperclip_issue_id text,
+      paperclip_issue_identifier text,
+      created_at text not null,
+      updated_at text not null
     );
 
     create table if not exists demos (
@@ -2228,16 +2310,42 @@ function identifyLeadForConversation(database, conversation) {
   throw usageError("Nenhum lead identificado na conversa");
 }
 
-function ingestWhatsAppInbound(database, event, rawFile) {
+function ingestWhatsAppInbound(database, event, rawFile, options = {}) {
   if (event.is_group) throw usageError("Eventos de grupo nao entram na automacao WhatsApp");
   if (event.message_type && event.message_type !== "text") {
     throw usageError(`Tipo de mensagem nao suportado para automacao: ${event.message_type}`);
   }
   if (!clean(event.body)) throw usageError("Mensagem inbound sem texto");
 
-  const lead = identifyLeadForWhatsAppEvent(database, event);
   const classification = classifyResponse(event.body);
   const receivedAt = clean(event.received_at) || now();
+  const leadMatch = identifyLeadForWhatsAppEvent(database, event);
+  if (!leadMatch.lead) {
+    if (options.recordUnmatched === false) {
+      return { lead: null, classification, inbound: null, unmatched: null };
+    }
+    const unmatched = recordUnmatchedWhatsAppInbound(database, event, {
+      rawFile,
+      classification,
+      receivedAt,
+      reason: leadMatch.reason,
+    });
+    return { lead: null, classification, inbound: null, unmatched };
+  }
+
+  const lead = leadMatch.lead;
+  const existingInbound = clean(event.bridge_message_id)
+    ? database
+        .prepare("select * from whatsapp_inbound_events where bridge_message_id = ?")
+        .get(clean(event.bridge_message_id))
+    : null;
+
+  if (existingInbound) {
+    if (options.unmatchedId) {
+      markUnmatchedReconciled(database, options.unmatchedId, lead.id, existingInbound.id, "inbound_existente");
+    }
+    return { lead, classification: existingInbound.classification, inbound: existingInbound };
+  }
 
   database
     .prepare(
@@ -2270,6 +2378,10 @@ function ingestWhatsAppInbound(database, event, rawFile) {
         .prepare("select * from whatsapp_inbound_events where lead_id = ? order by id desc limit 1")
         .get(lead.id);
 
+  if (options.unmatchedId) {
+    markUnmatchedReconciled(database, options.unmatchedId, lead.id, inbound.id, "identity_alias");
+  }
+
   upsertLeadConversationState(database, lead, {
     inboundEventId: inbound.id,
     whatsappState: stateForWhatsAppClassification(classification),
@@ -2289,23 +2401,175 @@ function ingestWhatsAppInbound(database, event, rawFile) {
 }
 
 function identifyLeadForWhatsAppEvent(database, event) {
-  if (event.lead_name) return requireUniqueLead(database, event.lead_name);
+  if (event.lead_name) {
+    return { lead: requireUniqueLead(database, event.lead_name), reason: "lead_name" };
+  }
+  const aliasMatches = findLeadsByWhatsAppIdentity(database, whatsappIdentityCandidates(event));
+  if (aliasMatches.length === 1) return { lead: aliasMatches[0], reason: "identity_alias" };
+  if (aliasMatches.length > 1) {
+    throw ambiguityError(
+      `Identidade WhatsApp ambigua: ${aliasMatches.map((lead) => lead.canonical_name).join(", ")}`,
+    );
+  }
+
   const normalizedPhone = normalizePhone(event.sender_phone ?? event.chat_id ?? "");
   if (normalizedPhone) {
     const matches = database
       .prepare("select * from leads where phone_normalized = ? order by canonical_name")
       .all(normalizedPhone);
-    if (matches.length === 1) return matches[0];
+    if (matches.length === 1) return { lead: matches[0], reason: "phone_normalized" };
     if (matches.length > 1) {
       throw ambiguityError(`Telefone ambiguo no WhatsApp: ${normalizedPhone}`);
     }
   }
-  return requireUniqueLead(database, event.sender_name ?? "");
+  try {
+    return { lead: requireUniqueLead(database, event.sender_name ?? ""), reason: "sender_name" };
+  } catch (error) {
+    if (error.exitCode === 1 && /Lead nao encontrado/i.test(error.message)) {
+      return { lead: null, reason: error.message };
+    }
+    throw error;
+  }
+}
+
+function whatsappIdentityCandidates(event) {
+  return uniqueClean([
+    normalizeWhatsAppIdentity(event.chat_id),
+    normalizeWhatsAppIdentity(event.sender_phone),
+    normalizePhone(event.sender_phone ?? ""),
+    normalizePhone(event.chat_id ?? ""),
+  ]);
+}
+
+function findLeadsByWhatsAppIdentity(database, candidates) {
+  if (!candidates.length) return [];
+  const placeholders = candidates.map(() => "?").join(", ");
+  const rows = database
+    .prepare(
+      `select distinct l.*
+       from whatsapp_identity_aliases a
+       join leads l on l.id = a.lead_id
+       where a.identity_value in (${placeholders})
+       order by l.canonical_name`,
+    )
+    .all(...candidates);
+  const byId = new Map(rows.map((lead) => [lead.id, lead]));
+  return [...byId.values()];
+}
+
+function linkWhatsAppIdentity(database, lead, { identity, source, notes }) {
+  const identityValue = normalizeWhatsAppIdentity(identity);
+  if (!identityValue) throw usageError("Identidade WhatsApp vazia");
+  const timestamp = now();
+  database
+    .prepare(
+      `insert into whatsapp_identity_aliases (
+        lead_id, identity_value, source, notes, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?)
+      on conflict(identity_value) do update set
+        lead_id = excluded.lead_id,
+        source = excluded.source,
+        notes = excluded.notes,
+        updated_at = excluded.updated_at`,
+    )
+    .run(lead.id, identityValue, clean(source) || "manual", clean(notes), timestamp, timestamp);
+  return database
+    .prepare("select * from whatsapp_identity_aliases where identity_value = ?")
+    .get(identityValue);
+}
+
+function recordUnmatchedWhatsAppInbound(database, event, { rawFile, classification, receivedAt, reason }) {
+  const bridgeMessageId = clean(event.bridge_message_id);
+  const timestamp = now();
+  database
+    .prepare(
+      `insert into whatsapp_unmatched_inbound_events (
+        bridge_message_id, chat_id, sender_name, sender_phone, is_group, message_type,
+        body, received_at, classification, status, match_reason, raw_json, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      on conflict(bridge_message_id) do update set
+        chat_id = excluded.chat_id,
+        sender_name = excluded.sender_name,
+        sender_phone = excluded.sender_phone,
+        body = excluded.body,
+        received_at = excluded.received_at,
+        classification = excluded.classification,
+        match_reason = excluded.match_reason,
+        raw_json = excluded.raw_json,
+        updated_at = excluded.updated_at`,
+    )
+    .run(
+      bridgeMessageId,
+      clean(event.chat_id),
+      clean(event.sender_name),
+      clean(event.sender_phone),
+      event.is_group ? 1 : 0,
+      clean(event.message_type) || "text",
+      event.body,
+      receivedAt,
+      classification,
+      "unmatched",
+      clean(reason),
+      JSON.stringify({ ...event, raw_file: rawFile }),
+      timestamp,
+      timestamp,
+    );
+
+  if (bridgeMessageId) {
+    return database
+      .prepare("select * from whatsapp_unmatched_inbound_events where bridge_message_id = ?")
+      .get(bridgeMessageId);
+  }
+  return database
+    .prepare("select * from whatsapp_unmatched_inbound_events order by id desc limit 1")
+    .get();
+}
+
+function reconcileUnmatchedWhatsAppInbound(database, { limit }) {
+  const rows = database
+    .prepare(
+      `select *
+       from whatsapp_unmatched_inbound_events
+       where status = 'unmatched'
+       order by received_at asc, id asc
+       limit ?`,
+    )
+    .all(limit);
+  let reconciled = 0;
+  let pending = 0;
+
+  for (const row of rows) {
+    const event = JSON.parse(row.raw_json);
+    const result = ingestWhatsAppInbound(database, event, event.raw_file ?? "", {
+      recordUnmatched: false,
+      unmatchedId: row.id,
+    });
+    if (result.inbound) reconciled += 1;
+    else pending += 1;
+  }
+
+  return { reconciled, pending };
+}
+
+function markUnmatchedReconciled(database, unmatchedId, leadId, inboundId, reason) {
+  database
+    .prepare(
+      `update whatsapp_unmatched_inbound_events
+       set status = 'reconciled',
+           matched_lead_id = ?,
+           matched_inbound_event_id = ?,
+           match_reason = ?,
+           updated_at = ?
+       where id = ?`,
+    )
+    .run(leadId, inboundId, reason, now(), unmatchedId);
 }
 
 function stateForWhatsAppClassification(classification) {
   if (classification === "resposta_permissao") return "respondeu_pode";
   if (classification === "resposta_pediu_preco") return "preco_pedido";
+  if (classification === "resposta_lead_quente") return "lead_quente";
+  if (classification === "resposta_objecao") return "objecao_comercial";
   if (classification === "resposta_pediu_exemplo") return "pedido_exemplo";
   if (classification === "resposta_sem_interesse") return "encerrado";
   return "atendimento_autonomo";
@@ -4122,6 +4386,24 @@ function classifyResponse(message) {
   ) {
     return "resposta_pediu_preco";
   }
+  if (/\bsem interesse\b|\bnao tenho interesse\b|\bnao quero\b/.test(normalized)) {
+    return "resposta_sem_interesse";
+  }
+  if (
+    !/\bnao\b/.test(normalized) &&
+    /\bgostei\b|\bquero fazer\b|\bquero fechar\b|\bbora\b|\bfechar\b|\bcontratar\b|\bcontrato\b|\bcomecar\b|\bcomeçar\b|\bvamos fazer\b|\bvou querer\b/.test(
+      normalized,
+    )
+  ) {
+    return "resposta_lead_quente";
+  }
+  if (
+    /\bcaro\b|\bachei caro\b|\bsem tempo\b|\bvou pensar\b|\bpensar um pouco\b|\bja tenho site\b|\btenho site\b|\bdepois\b|\bmais pra frente\b|\bmais para frente\b|\bnao agora\b|\bagora nao\b/.test(
+      normalized,
+    )
+  ) {
+    return "resposta_objecao";
+  }
   if (/\bpode\b|\bclaro\b|\bsim\b/.test(normalized)) return "resposta_permissao";
   if (/\bexemplo\b|\blink\b|\bsite\b/.test(normalized)) return "resposta_pediu_exemplo";
   if (/\bnao\b|\bsem interesse\b/.test(normalized)) return "resposta_sem_interesse";
@@ -4144,6 +4426,17 @@ function normalizePhone(value) {
   let digits = clean(value).replace(/\D+/g, "");
   if (digits.length > 11 && digits.startsWith("55")) digits = digits.slice(2);
   return digits;
+}
+
+function normalizeWhatsAppIdentity(value) {
+  const normalized = clean(value).toLowerCase();
+  if (!normalized) return "";
+  if (normalized.includes("@")) return normalized;
+  return normalizePhone(normalized) || normalized;
+}
+
+function uniqueClean(values) {
+  return [...new Set(values.map(clean).filter(Boolean))];
 }
 
 function normalizeInstagram(value) {

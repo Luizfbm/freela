@@ -122,8 +122,8 @@ Nao usar cPanel manual, nao usar FTP e nao fazer SSH manual para publicar arquiv
 | Intake de Conversas | `270b3c10-d196-4396-b0f3-38532189fab7` | Atendimento e Fechamento | normalizar prints ou textos de conversas, identificar o lead e entregar comando estruturado para o CRM |
 | Diagnóstico 3 Pontos | `53f856fd-5c17-45cc-bb5d-e45efed92bfb` | Atendimento e Fechamento | Gerar 3 pontos reais com evidencias quando o lead permite receber sugestoes |
 | Atendimento e Fechamento | `4d334072-4966-4c9d-a16a-f3e48faf05d9` | Atendimento e Fechamento | Sugerir respostas e qualificar oferta |
-| Atendimento WhatsApp | `a criar` | Atendimento e Fechamento | Escrever respostas candidatas curtas e contextuais para a Outbox WhatsApp, sem enviar direto |
-| Guardiao de Envio WhatsApp | `a criar` | Atendimento e Fechamento | Validar Outbox WhatsApp e bloquear preco, proposta, risco ou oferta removida antes de qualquer saida |
+| Atendimento WhatsApp | `db8a76a9-e503-4cdc-b8cb-f14cf757070a` | Atendimento e Fechamento | Escrever respostas candidatas curtas e contextuais para a Outbox WhatsApp, sem enviar direto |
+| Guardiao de Envio WhatsApp | `972bc52e-8e70-436d-9fb5-3b8201575136` | Atendimento e Fechamento | Validar Outbox WhatsApp e bloquear preco, proposta, risco ou oferta removida antes de qualquer saida |
 | Follow-up CRM | `27b8359c-0059-4952-8da1-71f775d7530a` | Atendimento e Fechamento | Controlar pipeline, follow-ups e fila de envio manual |
 | QA de Demos/Exemplos | `deb3a93b-c868-4b98-83bc-62df734b30e9` | Atendimento e Fechamento | revisar exemplos antes do envio, checando escopo, dados inventados, links, mobile/desktop e arquivos públicos |
 | Criador Presenca 72h | `b69b7667-0e3d-4b07-b1ad-e0c788224300` | Presenca Local em 72h | Criar demos one-page com `nivel: Presenca Local em 72h` |
@@ -336,6 +336,10 @@ O setup local do `lharries/whatsapp-mcp` esta em `docs/freelancer/paperclip/what
 Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox` chama o bridge `/api/send`.
 
 Workers nao acessam `send_message`, `send_file` ou `send_audio_message`. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite`.
+
+Identidade WhatsApp e parte do contrato operacional. Se o MCP entregar um contato como `@lid` ou outro JID que nao bate com telefone publico, o Gateway nao descarta: ele registra em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`. Vincule o lead com `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois rode `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
+
+Com `--auto-wake`, o Gateway roteia seletivamente por classificacao/estado. Atendimento WhatsApp recebe conversa normal (`resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`). Jhon Snow / Atendimento e Fechamento recebe fechamento comercial (`preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente`, `bloqueado_guardiao`). Use `--closer-agent-id` para sobrescrever o agente closer em teste. O dedupe fica em `whatsapp_worker_wakes`, sem enviar mensagem e sem chamar bridge.
 
 Primeira abordagem fria continua manual. Respostas depois do "Pode!" podem ser despachadas automaticamente somente via Gateway + Outbox aprovada + Humanizer + Guardiao.
 

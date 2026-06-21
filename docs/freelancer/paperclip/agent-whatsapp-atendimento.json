@@ -1,8 +1,10 @@
 {
+  "id": "db8a76a9-e503-4cdc-b8cb-f14cf757070a",
   "name": "Atendimento WhatsApp",
-  "role": "Atendimento do Luiz no WhatsApp",
+  "role": "general",
   "title": "Responder conversas WhatsApp com contexto",
-  "icon": "message-circle",
+  "icon": "message-square",
+  "reportsTo": "4d334072-4966-4c9d-a16a-f3e48faf05d9",
   "capabilities": "Escreve respostas curtas, naturais e contextuais depois do Pode; nao envia WhatsApp, nao fala preco e registra resposta candidata na outbox.",
   "adapterType": "codex_local",
   "adapterConfig": {
@@ -18,6 +20,7 @@
     }
   },
   "metadata": {
+    "noOpenAiApiKey": true,
     "paperclipOperationKey": "whatsapp-atendimento",
     "noAutomaticMessaging": true
   }
