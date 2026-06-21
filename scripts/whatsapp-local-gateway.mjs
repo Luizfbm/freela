@@ -326,7 +326,7 @@ function sendBridgeMessage({ sendUrl, recipient, message, timeoutMs }) {
     if (parsed.success === true && response.ok) {
       return { success: true, messageId: parsed.message || "" };
     }
-    if (parsed.success === false) {
+    if (parsed.success === false && response.ok) {
       return {
         success: false,
         ambiguous: false,

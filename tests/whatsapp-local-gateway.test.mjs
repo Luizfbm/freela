@@ -333,11 +333,11 @@ test("gateway treats bridge responses without explicit success true as ambiguous
   }
 });
 
-test("gateway treats http 500 success false json as confirmed failed dispatch", async () => {
+test("gateway treats http 200 success false json as confirmed failed dispatch", async () => {
   const root = makeRoot();
   seedApprovedOutbox(root);
   const bridge = await withBridgeServer((_req, res) => {
-    res.writeHead(500, { "Content-Type": "application/json" });
+    res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ success: false, message: "bridge down" }));
   });
   try {
@@ -359,6 +359,36 @@ test("gateway treats http 500 success false json as confirmed failed dispatch", 
     assert.equal(outbox.sent_at, null);
     assert.equal(outbound.length, 0);
     assert.notEqual(state.whatsapp_state, "handoff_luiz");
+  } finally {
+    await bridge.close();
+  }
+});
+
+test("gateway treats http 500 success false json as ambiguous handoff", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, message: "bridge down" }));
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Falhas: 1/i);
+
+    const { outbox, outbound, state } = readLatestDispatchAudit(root);
+    assert.equal(outbox.status, "dispatch_ambiguous");
+    assert.equal(outbox.sent_at, null);
+    assert.equal(outbound.length, 0);
+    assert.equal(state.whatsapp_state, "handoff_luiz");
+    assert.match(state.handoff_reason, /HTTP 500|confirmacao|ambigua/i);
   } finally {
     await bridge.close();
   }
