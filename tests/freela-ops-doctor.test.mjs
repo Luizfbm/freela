@@ -87,3 +87,58 @@ test("check writes red status when DB is valid but no verified snapshot exists",
   assert.equal(status.checks.backups.status, "red");
   assert.match(status.checks.backups.message, /snapshot integro/i);
 });
+
+test("snapshot creates verified hourly and daily backups outside Documents and check becomes green", () => {
+  const root = makeRoot();
+  initDb(root);
+
+  const snapshot = runOps(root, [
+    "snapshot",
+    "--backup-dir",
+    appBackupDir(root),
+    "--now",
+    "2026-06-21T12:00:00.000Z",
+  ]);
+  assert.equal(snapshot.status, 0, snapshot.stderr);
+  assert.match(snapshot.stdout, /snapshot: ok/i);
+
+  const manifest = readManifest(root);
+  assert.equal(manifest.snapshots.length, 2);
+  assert.deepEqual(
+    manifest.snapshots.map((item) => item.kind).sort(),
+    ["daily", "hourly"],
+  );
+
+  for (const item of manifest.snapshots) {
+    assert.match(item.path, /local-app-support\/freela-paperclip\/backups/i);
+    assert.equal(item.integrityCheck, "ok");
+    assert.equal(existsSync(item.path), true);
+  }
+
+  const check = runOps(root, [
+    "check",
+    "--backup-dir",
+    appBackupDir(root),
+    "--now",
+    "2026-06-21T12:10:00.000Z",
+  ]);
+  assert.equal(check.status, 0, check.stderr);
+  assert.equal(readStatus(root).status, "green");
+});
+
+test("check is yellow when hourly snapshot is stale but daily snapshot is still valid", () => {
+  const root = makeRoot();
+  initDb(root);
+
+  assert.equal(
+    runOps(root, ["snapshot", "--backup-dir", appBackupDir(root), "--now", "2026-06-21T08:00:00.000Z"]).status,
+    0,
+  );
+
+  const check = runOps(root, ["check", "--backup-dir", appBackupDir(root), "--now", "2026-06-21T10:00:00.000Z"]);
+
+  assert.equal(check.status, 1, check.stderr);
+  const status = readStatus(root);
+  assert.equal(status.status, "yellow");
+  assert.equal(status.checks.backups.status, "yellow");
+});

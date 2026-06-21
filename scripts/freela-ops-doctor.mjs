@@ -370,8 +370,129 @@ function usageError(message) {
   return error;
 }
 
-function commandSnapshot() {
-  throw usageError("Comando snapshot ainda nao implementado.");
+function commandSnapshot({ root, flags }) {
+  const sqlite = checkSqlite(root, flags);
+  if (sqlite.status !== "green") {
+    throw usageError(`Snapshot bloqueado: ${sqlite.message}`);
+  }
+
+  const createdAt = nowIso(flags);
+  const kinds = snapshotKindsToCreate(root, flags, createdAt);
+  const created = kinds.map((kind) => createSnapshot(root, flags, kind, createdAt));
+  pruneSnapshots(root, flags);
+  console.log(`snapshot: ok (${created.map((item) => item.kind).join(", ")})`);
+  return { exitCode: 0 };
+}
+
+function snapshotKindsToCreate(root, flags, createdAt) {
+  if (flags.kind) {
+    if (!["hourly", "daily"].includes(flags.kind)) {
+      throw usageError(`--kind invalido: ${flags.kind}`);
+    }
+    return [flags.kind];
+  }
+
+  const manifest = readManifest(root, flags);
+  const day = createdAt.slice(0, 10);
+  const hasDailyToday = (manifest.snapshots ?? []).some(
+    (snapshot) => snapshot.kind === "daily" && String(snapshot.createdAt).startsWith(day),
+  );
+  return hasDailyToday ? ["hourly"] : ["hourly", "daily"];
+}
+
+function createSnapshot(root, flags, kind, createdAt) {
+  const p = paths(root, flags);
+  const dir = join(p.backupDir, kind);
+  mkdirSync(dir, { recursive: true });
+  const destination = join(dir, `freela-${kind}-${timestampForFile(createdAt)}.sqlite`);
+  let database;
+
+  try {
+    database = new DatabaseSync(p.dbPath, { readOnly: true });
+    database.exec("PRAGMA busy_timeout = 10000;");
+    database.exec(`VACUUM INTO ${sqlStringLiteral(destination)};`);
+  } finally {
+    if (database) database.close();
+  }
+
+  const integrityCheck = integrityCheckDatabase(destination);
+  if (integrityCheck !== "ok") {
+    rmSync(destination, { force: true });
+    throw usageError(`Snapshot invalido removido: integrity_check=${integrityCheck}`);
+  }
+
+  const snapshot = {
+    kind,
+    path: destination,
+    createdAt,
+    size: statSync(destination).size,
+    sha256: sha256File(destination),
+    integrityCheck,
+  };
+  const manifest = readManifest(root, flags);
+  manifest.snapshots = [...(manifest.snapshots ?? []), snapshot].sort((left, right) =>
+    String(right.createdAt).localeCompare(String(left.createdAt)),
+  );
+  writeManifest(root, flags, manifest);
+  return snapshot;
+}
+
+function pruneSnapshots(root, flags) {
+  const manifest = readManifest(root, flags);
+  const keepHourly = parsePositiveInteger(flags["keep-hourly"] ?? "24", "--keep-hourly");
+  const keepDaily = parsePositiveInteger(flags["keep-daily"] ?? "14", "--keep-daily");
+  const kept = [];
+
+  for (const kind of ["hourly", "daily"]) {
+    const limit = kind === "hourly" ? keepHourly : keepDaily;
+    const items = (manifest.snapshots ?? [])
+      .filter((snapshot) => snapshot.kind === kind)
+      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+    kept.push(...items.slice(0, limit));
+    for (const item of items.slice(limit)) {
+      rmSync(item.path, { force: true });
+    }
+  }
+
+  manifest.snapshots = kept.sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+  writeManifest(root, flags, manifest);
+}
+
+function writeManifest(root, flags, manifest) {
+  const file = paths(root, flags).manifest;
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+}
+
+function integrityCheckDatabase(file) {
+  let database;
+  try {
+    database = new DatabaseSync(file, { readOnly: true });
+    database.exec("PRAGMA busy_timeout = 10000;");
+    return database.prepare("pragma integrity_check").get().integrity_check;
+  } finally {
+    if (database) database.close();
+  }
+}
+
+function sha256File(file) {
+  return createHash("sha256").update(readFileSync(file)).digest("hex");
+}
+
+function timestampForFile(value = new Date().toISOString()) {
+  return `${value.replace(/[-:.TZ]/g, "")}-${process.hrtime.bigint().toString(36)}`;
+}
+
+function sqlStringLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function parsePositiveInteger(value, label) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw usageError(`Valor invalido para ${label}: ${value}`);
+  }
+  return parsed;
 }
 
 function commandPublish() {
