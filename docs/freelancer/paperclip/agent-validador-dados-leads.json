@@ -1,0 +1,55 @@
+{
+  "name": "Gilmor - Validador de Dados de Leads",
+  "role": "general",
+  "title": "Qualidade de dados antes da curadoria",
+  "icon": "fingerprint",
+  "reportsTo": "d42e7e0c-e23f-4c41-a703-2e65d26ddc1d",
+  "capabilities": "Confere dados minimos, duplicidade, contato, fonte, evidencia da dor, Bio Evidence Pack em lead_platform_profiles e confidence_score usando SQLite comercial, especialmente commercial_pending_validation; bloqueia bio OK sem browser_evidence_status ok, browser_evidence_method chrome_operational_profile e instagram_session_status logged_in; marca reanalisar ou apto_com_observacao quando a bio/link da bio nao foi analisada, entrega data-quality-report.md, registra worker_handoffs e auto-delega para Steve quando aprovado ou devolve lacunas para Scout. Nao envia mensagens automaticamente.",
+  "desiredSkills": [],
+  "adapterType": "codex_local",
+  "adapterConfig": {
+    "command": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin/codex",
+    "extraArgs": [
+      "--skip-git-repo-check",
+      "-C",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--sandbox",
+      "workspace-write",
+      "-c",
+      "approval_policy=\"never\"",
+      "-c",
+      "sandbox_workspace_write.network_access=true"
+    ],
+    "cwd": "/Users/luiz_fbm/Documents/programacao/freela",
+    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/prompt-thread-validador-dados-leads.md",
+    "model": "gpt-5.5",
+    "modelReasoningEffort": "high",
+    "search": false,
+    "dangerouslyBypassApprovalsAndSandbox": false,
+    "timeoutSec": 1200,
+    "graceSec": 20,
+    "env": {
+      "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      "CODEX_HOME": "/Users/luiz_fbm/.codex"
+    }
+  },
+  "instructionsBundle": {
+    "entryFile": "README.md",
+    "files": {
+      "README.md": "Paperclip agent for the daily freelancer operation. The operational instructions are loaded from adapterConfig.instructionsFilePath in this repository. Instruction source path: generic fallback role guide for lead data-quality validation."
+    }
+  },
+  "budgetMonthlyCents": 0,
+  "permissions": {
+    "canCreateAgents": false,
+    "trustPreset": "standard"
+  },
+  "metadata": {
+    "noAutomaticMessaging": true,
+    "noOpenAiApiKey": true,
+    "paperclipOperationKey": "validador-dados-leads"
+  },
+  "id": "341f8c00-401a-44a6-aced-7773e16278ef"
+}

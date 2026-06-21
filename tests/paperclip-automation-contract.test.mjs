@@ -142,6 +142,74 @@ async function withAgentApiServer(liveAgents, run) {
   }
 }
 
+async function withPaperclipDocumentServer(initialDocuments, run) {
+  const requests = [];
+  const documents = new Map(Object.entries(initialDocuments));
+  const server = createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const bodyText = Buffer.concat(chunks).toString("utf8");
+    const body = bodyText ? JSON.parse(bodyText) : null;
+    requests.push({
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body,
+    });
+
+    res.setHeader("Content-Type", "application/json");
+
+    const match = req.url?.match(/^\/api\/issues\/([^/]+)\/documents\/([^/]+)$/);
+    if (!match) {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: "not found" }));
+      return;
+    }
+
+    const documentKey = `${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`;
+    const current = documents.get(documentKey);
+
+    if (req.method === "GET") {
+      if (!current) {
+        res.statusCode = 404;
+        res.end(JSON.stringify({ error: "not found" }));
+        return;
+      }
+      res.end(JSON.stringify(current));
+      return;
+    }
+
+    if (req.method === "PUT") {
+      const latestRevisionId = `${documentKey}:rev-${requests.filter((request) => request.method === "PUT").length}`;
+      const next = {
+        key: decodeURIComponent(match[2]),
+        title: body.title,
+        format: body.format,
+        body: body.body,
+        latestRevisionId,
+      };
+      documents.set(documentKey, next);
+      res.end(JSON.stringify({ document: next }));
+      return;
+    }
+
+    res.statusCode = 405;
+    res.end(JSON.stringify({ error: "method not allowed" }));
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const { port } = server.address();
+    return await run(`http://127.0.0.1:${port}`, requests, documents);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
 test("Configs dos agentes preservam nomes operacionais do Paperclip vivo", () => {
   for (const fileName of agentConfigNames) {
     const agent = agentConfig(fileName);
@@ -527,6 +595,132 @@ test("Paperclip expõe cards de leads copiáveis no FRE-7", () => {
   assert.match(syncScript, /baseRevisionId/i);
   assert.match(syncScript, /changeSummary/i);
   assert.match(syncScript, /FRE-7/i);
+});
+
+test("sync de lead-cards preserva cards remotos ainda acionaveis", async () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "paperclip-lead-cards-merge-"));
+  const scriptsDir = join(tempRoot, "scripts");
+  const cardsDir = join(tempRoot, ".scratch/crm");
+  mkdirSync(scriptsDir, { recursive: true });
+  mkdirSync(cardsDir, { recursive: true });
+
+  writeFileSync(
+    join(scriptsDir, "freela-crm.mjs"),
+    `#!/usr/bin/env node
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+const root = process.argv[process.argv.indexOf("--root") + 1];
+mkdirSync(join(root, ".scratch/crm"), { recursive: true });
+writeFileSync(join(root, ".scratch/crm/paperclip-lead-cards.md"), \`# Leads para copiar e enviar - 2026-06-21
+
+Superficie: acao_manual_hoje
+Somente mensagens prontas e aprovadas para envio manual hoje.
+
+## 1. Lead Novo da Rodada
+
+- Status: novo
+
+Mensagem pronta:
+
+\\\`\\\`\\\`text
+Mensagem nova.
+\\\`\\\`\\\`
+
+---
+
+## 2. Lead Atualizado
+
+- Status: novo
+
+Mensagem pronta:
+
+\\\`\\\`\\\`text
+Mensagem atualizada.
+\\\`\\\`\\\`
+
+---
+\`, "utf8");
+`,
+    "utf8",
+  );
+
+  const remoteBody = `# Leads para copiar e enviar - 2026-06-20
+
+Superficie: acao_manual_hoje
+Somente mensagens prontas e aprovadas para envio manual hoje.
+
+## 1. Lead Antigo Acionavel
+
+- Status: novo
+
+Mensagem pronta:
+
+\`\`\`text
+Mensagem antiga ainda acionavel.
+\`\`\`
+
+---
+
+## 2. Lead Atualizado
+
+- Status: novo
+
+Mensagem pronta:
+
+\`\`\`text
+Mensagem antiga que deve sair.
+\`\`\`
+
+---
+`;
+
+  await withPaperclipDocumentServer(
+    {
+      "FRE-7/lead-cards": {
+        key: "lead-cards",
+        title: "Leads para copiar e enviar",
+        format: "markdown",
+        body: remoteBody,
+        latestRevisionId: "rev-remota-1",
+      },
+    },
+    async (apiBase, requests, documents) => {
+      await execFileText(process.execPath, [
+        join(rootDir, "scripts/paperclip-sync-lead-cards.mjs"),
+        "--root",
+        tempRoot,
+        "--issue",
+        "FRE-7",
+        "--key",
+        "lead-cards",
+        "--api-base",
+        apiBase,
+        "--timeout-ms",
+        "1000",
+        "--date",
+        "2026-06-21",
+      ]);
+
+      const putRequest = requests.find((request) => request.method === "PUT");
+      assert.ok(putRequest, "sync deve publicar documento atualizado");
+      assert.equal(putRequest.body.baseRevisionId, "rev-remota-1");
+
+      const finalBody = documents.get("FRE-7/lead-cards").body;
+      assert.match(finalBody, /Lead Novo da Rodada/i);
+      assert.match(finalBody, /Mensagem nova/i);
+      assert.match(finalBody, /Lead Antigo Acionavel/i);
+      assert.match(finalBody, /Mensagem antiga ainda acionavel/i);
+      assert.match(finalBody, /Lead Atualizado/i);
+      assert.match(finalBody, /Mensagem atualizada/i);
+      assert.doesNotMatch(finalBody, /Mensagem antiga que deve sair/i);
+      assert.equal((finalBody.match(/^## \d+\. Lead Atualizado$/gm) ?? []).length, 1);
+      assert.deepEqual(
+        [...finalBody.matchAll(/^## \d+\. (.+)$/gm)].map((match) => match[1]),
+        ["Lead Novo da Rodada", "Lead Atualizado", "Lead Antigo Acionavel"],
+      );
+    },
+  );
 });
 
 test("Paperclip separa lead-cards de status operacional no FRE-7", () => {

@@ -1,0 +1,64 @@
+{
+  "name": "Sanji - Intake de Conversas",
+  "role": "general",
+  "title": "Normalizacao de conversas recebidas",
+  "icon": "mail",
+  "reportsTo": "27b8359c-0059-4952-8da1-71f775d7530a",
+  "capabilities": "Normaliza prints ou textos de conversas, identifica o lead, preserva a resposta bruta e entrega comando estruturado para o CRM. Nao envia mensagens automaticamente.",
+  "desiredSkills": [],
+  "adapterType": "codex_local",
+  "adapterConfig": {
+    "command": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin/codex",
+    "extraArgs": [
+      "--skip-git-repo-check",
+      "-C",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Documents/programacao/freela",
+      "--sandbox",
+      "workspace-write",
+      "-c",
+      "approval_policy=\"never\"",
+      "-c",
+      "sandbox_workspace_write.network_access=true"
+    ],
+    "cwd": "/Users/luiz_fbm/Documents/programacao/freela",
+    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/prompt-thread-intake-conversas.md",
+    "instructionsRootPath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer",
+    "instructionsEntryFile": "prompt-thread-intake-conversas.md",
+    "instructionsBundleMode": "external",
+    "model": "gpt-5.5",
+    "modelReasoningEffort": "xhigh",
+    "search": false,
+    "dangerouslyBypassApprovalsAndSandbox": false,
+    "timeoutSec": 900,
+    "graceSec": 20,
+    "env": {
+      "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      "CODEX_HOME": "/Users/luiz_fbm/.codex"
+    }
+  },
+  "runtimeConfig": {
+    "heartbeat": {
+      "enabled": false,
+      "maxConcurrentRuns": 20
+    }
+  },
+  "instructionsBundle": {
+    "entryFile": "README.md",
+    "files": {
+      "README.md": "Paperclip agent for the daily freelancer operation. The operational instructions are loaded from adapterConfig.instructionsFilePath in this repository."
+    }
+  },
+  "budgetMonthlyCents": 0,
+  "permissions": {
+    "canCreateAgents": false,
+    "trustPreset": "standard"
+  },
+  "metadata": {
+    "noAutomaticMessaging": true,
+    "noOpenAiApiKey": true,
+    "paperclipOperationKey": "intake-conversas"
+  },
+  "id": "270b3c10-d196-4396-b0f3-38532189fab7"
+}

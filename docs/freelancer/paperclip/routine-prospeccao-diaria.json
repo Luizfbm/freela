@@ -1,0 +1,10 @@
+{
+  "projectId": "4be33cbc-89b5-4678-9054-e073b3392936",
+  "title": "Rotina diaria - leads dono-operador na Grande Vitoria",
+  "description": "Buscar volume qualificado de leads locais novos na Grande Vitoria: pesquisar ao menos 25 candidatos brutos e entregar no minimo 15 leads novos qualificados por rodada padrao, priorizando profissionais e microestudios em que o proprio dono atende ou opera o negocio. Scout foca volume com qualidade minima e deve analisar bio do Instagram, link da bio, Linktree/bio.site/site/agenda quando existir, gravando Bio Evidence Pack em lead_platform_profiles via profile-evidence upsert. Validador de Dados confere dados minimos, duplicidade, contato, fonte, Bio Evidence Pack e evidencia da dor antes de Steve; Steve faz gate qualitativo e curadoria comercial. Nao enviar mensagens automaticamente. Nao repetir nomes parecidos, mesmo com grafia diferente. Nao pesquisar nem anotar leads que ja possuam demo no repositorio. Alimentar o CRM via SQLite, gerar pacote de decisao, lead-dossiers.md, atendimento-handoff.md e data-quality-report.md. Ao final, criar issue unica para Validador de Dados de Leads; Steve so deve receber a rodada depois do relatorio de qualidade.",
+  "assigneeAgentId": "d846f1b7-f6ae-4005-9ef4-53a32b13635e",
+  "priority": "medium",
+  "status": "active",
+  "concurrencyPolicy": "skip_if_active",
+  "catchUpPolicy": "skip_missed"
+}

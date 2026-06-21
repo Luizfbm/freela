@@ -1,0 +1,24 @@
+{
+  "name": "Guardiao de Envio WhatsApp",
+  "role": "Validador de seguranca da Outbox WhatsApp",
+  "title": "Guardiao da Outbox WhatsApp",
+  "icon": "shield-check",
+  "capabilities": "Valida outbox, bloqueia preco, desconto, proposta, enxuta e risco; nunca envia WhatsApp diretamente.",
+  "adapterType": "codex_local",
+  "adapterConfig": {
+    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/prompt-thread-whatsapp-guardiao.md",
+    "instructionsRootPath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer",
+    "instructionsEntryFile": "prompt-thread-whatsapp-guardiao.md",
+    "instructionsBundleMode": "external"
+  },
+  "instructionsBundle": {
+    "entryFile": "README.md",
+    "files": {
+      "README.md": "Paperclip agent for WhatsApp local automation. Operational instructions are loaded from adapterConfig.instructionsFilePath."
+    }
+  },
+  "metadata": {
+    "paperclipOperationKey": "whatsapp-guardiao",
+    "noAutomaticMessaging": true
+  }
+}
