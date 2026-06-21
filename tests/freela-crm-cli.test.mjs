@@ -2017,6 +2017,20 @@ test("whatsapp inbound classifies commercial objections for closer routing", () 
   assert.equal(state.whatsapp_state, "objecao_comercial");
 });
 
+test("whatsapp inbound classifies visual example requests for demo routing", () => {
+  const root = makeWhatsAppLeadRoot(
+    "wa-visual-example-001",
+    "Quero entender como isso ficaria visualmente",
+  );
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+  assert.equal(inbound.classification, "resposta_pediu_exemplo");
+  assert.equal(state.whatsapp_state, "pedido_exemplo");
+});
+
 test("whatsapp outbox propose cria resposta candidata sem enviar", () => {
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);

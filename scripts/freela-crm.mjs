@@ -4443,7 +4443,9 @@ function classifyResponse(message) {
     return "resposta_objecao";
   }
   if (/\bpode\b|\bclaro\b|\bsim\b/.test(normalized)) return "resposta_permissao";
-  if (/\bexemplo\b|\blink\b|\bsite\b/.test(normalized)) return "resposta_pediu_exemplo";
+  if (/\bexemplo\b|\bmodelo\b|\blink\b|\bsite\b|\bcomo ficaria\b|\bficaria visualmente\b|\bvisualmente\b|\bver na pratica\b/.test(normalized)) {
+    return "resposta_pediu_exemplo";
+  }
   if (/\bnao\b|\bsem interesse\b/.test(normalized)) return "resposta_sem_interesse";
   return "resposta_recebida";
 }
