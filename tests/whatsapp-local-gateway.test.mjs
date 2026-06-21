@@ -278,6 +278,40 @@ function deleteLatestLeadState(root) {
   db.close();
 }
 
+function recreateLegacyWhatsappOutbox(root, dbPath = join(root, ".scratch/db/freela.sqlite")) {
+  const db = new DatabaseSync(dbPath);
+  db.exec(`
+    pragma foreign_keys = off;
+    drop table whatsapp_outbox;
+    create table whatsapp_outbox (
+      id integer primary key autoincrement,
+      lead_id integer not null references leads(id),
+      inbound_event_id integer references whatsapp_inbound_events(id),
+      target_chat_id text not null,
+      body text not null,
+      source text not null,
+      status text not null default 'pending_guardian',
+      guardian_decision text,
+      guardian_reason text,
+      attempts integer not null default 0,
+      bridge_message_id text,
+      created_at text not null,
+      approved_at text,
+      sent_at text,
+      failed_at text
+    );
+    pragma foreign_keys = on;
+  `);
+  db.close();
+}
+
+function readOutboxColumns(root, dbPath = join(root, ".scratch/db/freela.sqlite")) {
+  const db = new DatabaseSync(dbPath);
+  const columns = db.prepare("pragma table_info(whatsapp_outbox)").all().map((column) => column.name);
+  db.close();
+  return columns;
+}
+
 function assertDryRunDispatchableCount(root, expected) {
   const result = runNode([gateway, "--root", root, "dispatch-approved-outbox", "--dry-run"]);
   assert.equal(result.status, 0, result.stderr);
@@ -370,6 +404,59 @@ test("gateway dry-runs approved whatsapp outbox without sending", () => {
   const outbox = readLatestOutbox(root);
   assert.equal(outbox.status, "approved");
   assert.equal(outbox.sent_at, null);
+});
+
+test("gateway migrates legacy CRM schema before dry-run dispatch", async () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+  recreateLegacyWhatsappOutbox(root);
+  assert.ok(!readOutboxColumns(root).includes("humanizer_pass"));
+
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, message: "dry-run must not send" }));
+  });
+  try {
+    const result = runNode([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--dry-run",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Dry-run dispatchaveis: 0/i);
+    assert.doesNotMatch(result.stderr, /no such column/i);
+    assert.equal(bridge.requests.length, 0);
+    assert.ok(readOutboxColumns(root).includes("humanizer_pass"));
+  } finally {
+    await bridge.close();
+  }
+});
+
+test("gateway migrates explicit CRM DB before dry-run dispatch", () => {
+  const root = makeRoot();
+  const customDb = join(root, "custom-freela.sqlite");
+  assert.equal(runNode([crm, "--root", root, "--db", customDb, "init"]).status, 0);
+  recreateLegacyWhatsappOutbox(root, customDb);
+  assert.ok(!readOutboxColumns(root, customDb).includes("humanizer_pass"));
+
+  const result = runNode([
+    gateway,
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--crm-db",
+    customDb,
+    "--dry-run",
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Dry-run dispatchaveis: 0/i);
+  assert.ok(readOutboxColumns(root, customDb).includes("humanizer_pass"));
 });
 
 test("gateway dispatches approved outbox once through bridge api", async () => {

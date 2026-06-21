@@ -104,6 +104,20 @@ function runCrm(root, args) {
   return result;
 }
 
+function ensureCrmInitialized(root, crmDbPath, explicitCrmDb) {
+  const args = ["scripts/freela-crm.mjs", "--root", root];
+  if (explicitCrmDb) args.push("--db", crmDbPath);
+  args.push("init");
+  const result = spawnSync(process.execPath, args, {
+    cwd: new URL("..", import.meta.url).pathname,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    throw new Error([result.stdout, result.stderr].filter(Boolean).join("\n"));
+  }
+  return result;
+}
+
 function isUnknownLeadError(error) {
   return /Lead nao encontrado|Nenhum lead identificado/i.test(error.message);
 }
@@ -171,7 +185,9 @@ function dispatchApprovedOutbox(root, flags) {
   validateDispatchApprovedOutboxFlags(flags);
   const dryRun = parseBooleanFlag(flags["dry-run"]);
   const limit = parsePositiveInt(flags.limit || "10", "--limit");
+  const explicitCrmDb = flags["crm-db"] !== undefined;
   const crmDbPath = resolve(root, flags["crm-db"] || ".scratch/db/freela.sqlite");
+  ensureCrmInitialized(root, crmDbPath, explicitCrmDb);
   if (!existsSync(crmDbPath)) {
     throw new Error(`CRM SQLite nao encontrado: ${crmDbPath}`);
   }
