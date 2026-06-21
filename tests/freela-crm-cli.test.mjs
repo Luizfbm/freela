@@ -51,6 +51,18 @@ function writeJson(root, name, value) {
   return file;
 }
 
+function upsertLead(root, lead) {
+  const file = writeJson(root, `lead-${Date.now()}-${Math.random()}.json`, [lead]);
+  const result = run(root, ["lead", "upsert", "--file", file]);
+  assert.equal(result.status, 0, result.stderr);
+}
+
+function ingestWhatsApp(root, event) {
+  const file = writeJson(root, `whatsapp-${Date.now()}-${Math.random()}.json`, event);
+  const result = run(root, ["whatsapp", "inbound", "ingest", "--file", file]);
+  assert.equal(result.status, 0, result.stderr);
+}
+
 function db(root) {
   return new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
 }
@@ -1769,6 +1781,91 @@ test("whatsapp outbox propose cria resposta candidata sem enviar", () => {
   assert.equal(row.status, "pending_guardian");
   assert.equal(row.target_chat_id, "5527999990000@s.whatsapp.net");
   assert.equal(row.source, "atendimento-whatsapp");
+});
+
+test("whatsapp outbox records required humanizer and context metadata", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+  upsertLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-meta-001",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Pode sim",
+    received_at: "2026-06-21T09:30:00-03:00",
+  });
+
+  const propose = run(root, [
+    "whatsapp",
+    "outbox",
+    "propose",
+    "--name",
+    "Aghata Massoterapia",
+    "--body",
+    "Vi aqui seu perfil e vou te mandar os 3 pontos de forma bem objetiva.",
+    "--source",
+    "atendimento-whatsapp",
+    "--humanizer-pass",
+    "true",
+    "--used-last-inbound",
+    "true",
+    "--contextual-reply",
+    "true",
+    "--humanizer-notes",
+    "removido tom de template",
+  ]);
+  assert.equal(propose.status, 0, propose.stderr);
+
+  const database = db(root);
+  const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  database.close();
+  assert.equal(outbox.humanizer_pass, 1);
+  assert.equal(outbox.used_last_inbound, 1);
+  assert.equal(outbox.contextual_reply, 1);
+  assert.equal(outbox.humanizer_notes, "removido tom de template");
+});
+
+test("whatsapp outbox propose defaults humanizer metadata to blocked values", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+  upsertLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-meta-002",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Pode sim",
+    received_at: "2026-06-21T09:31:00-03:00",
+  });
+
+  const propose = run(root, [
+    "whatsapp",
+    "outbox",
+    "propose",
+    "--name",
+    "Aghata Massoterapia",
+    "--body",
+    "Claro, vou explicar melhor.",
+    "--source",
+    "atendimento-whatsapp",
+  ]);
+  assert.equal(propose.status, 0, propose.stderr);
+
+  const database = db(root);
+  const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  database.close();
+  assert.equal(outbox.humanizer_pass, 0);
+  assert.equal(outbox.used_last_inbound, 0);
+  assert.equal(outbox.contextual_reply, 0);
 });
 
 test("whatsapp guardian aprova resposta segura e bloqueia preco/enxuta", () => {

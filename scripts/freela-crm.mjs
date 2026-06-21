@@ -310,6 +310,10 @@ async function dispatch({ root, dbPath, command, args }) {
     const outbox = proposeWhatsAppOutbox(database, lead, {
       body: flags.body,
       source: flags.source,
+      humanizerPass: parseBooleanFlag(flags["humanizer-pass"]),
+      usedLastInbound: parseBooleanFlag(flags["used-last-inbound"]),
+      contextualReply: parseBooleanFlag(flags["contextual-reply"]),
+      humanizerNotes: flags["humanizer-notes"] ?? "",
     });
     console.log(`Outbox pendente de guardiao: ${outbox.id}`);
     return;
@@ -533,6 +537,12 @@ function migrateDatabase(database) {
   ensureColumn(database, "lead_platform_profiles", "browser_evidence_status", "text");
   ensureColumn(database, "lead_platform_profiles", "browser_evidence_method", "text");
   ensureColumn(database, "lead_platform_profiles", "instagram_session_status", "text");
+  ensureColumn(database, "whatsapp_outbox", "humanizer_pass", "integer not null default 0");
+  ensureColumn(database, "whatsapp_outbox", "used_last_inbound", "integer not null default 0");
+  ensureColumn(database, "whatsapp_outbox", "contextual_reply", "integer not null default 0");
+  ensureColumn(database, "whatsapp_outbox", "humanizer_notes", "text");
+  ensureColumn(database, "whatsapp_outbox", "dispatch_error", "text");
+  ensureColumn(database, "whatsapp_outbox", "dispatch_locked_at", "text");
   normalizeQueueCardMetadata(database);
   normalizeStoredLegacyOffers(database);
   database.exec(`
@@ -1062,6 +1072,12 @@ function schemaSql() {
       body text not null,
       source text not null,
       status text not null default 'pending_guardian',
+      humanizer_pass integer not null default 0,
+      used_last_inbound integer not null default 0,
+      contextual_reply integer not null default 0,
+      humanizer_notes text,
+      dispatch_error text,
+      dispatch_locked_at text,
       guardian_decision text,
       guardian_reason text,
       attempts integer not null default 0,
@@ -2325,7 +2341,18 @@ function upsertLeadConversationState(database, lead, input) {
     );
 }
 
-function proposeWhatsAppOutbox(database, lead, { body, source }) {
+function proposeWhatsAppOutbox(
+  database,
+  lead,
+  {
+    body,
+    source,
+    humanizerPass = false,
+    usedLastInbound = false,
+    contextualReply = false,
+    humanizerNotes = "",
+  },
+) {
   const state = database
     .prepare("select * from lead_conversation_state where lead_id = ?")
     .get(lead.id);
@@ -2343,10 +2370,23 @@ function proposeWhatsAppOutbox(database, lead, { body, source }) {
   database
     .prepare(
       `insert into whatsapp_outbox (
-        lead_id, inbound_event_id, target_chat_id, body, source, status, created_at
-      ) values (?, ?, ?, ?, ?, ?, ?)`,
+        lead_id, inbound_event_id, target_chat_id, body, source, status,
+        humanizer_pass, used_last_inbound, contextual_reply, humanizer_notes, created_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(lead.id, inbound.id, inbound.chat_id, body, source, "pending_guardian", now());
+    .run(
+      lead.id,
+      inbound.id,
+      inbound.chat_id,
+      body,
+      source,
+      "pending_guardian",
+      humanizerPass ? 1 : 0,
+      usedLastInbound ? 1 : 0,
+      contextualReply ? 1 : 0,
+      clean(humanizerNotes),
+      now(),
+    );
 
   return database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
 }
