@@ -2188,6 +2188,24 @@ test("whatsapp guardian blocks normal reply while price qualification is pending
   assert.match(outbox.guardian_reason, /preco_pedido exige qualificacao neutra/i);
 });
 
+test("whatsapp guardian blocks near-match price qualification with extra text", () => {
+  const root = makeWhatsAppLeadRoot("wa-guard-price-004", "Qual o valor?");
+
+  const review = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Oi Aghata.\n\n" +
+      neutralPriceQualificationReply +
+      "\n\nMe responde com calma.",
+  );
+  assert.match(review.stdout, /bloqueado/i);
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  database.close();
+  assert.match(outbox.guardian_reason, /preco_pedido exige qualificacao neutra/i);
+});
+
 test("whatsapp guardian approves neutral price qualification and marks pending handoff", () => {
   const root = makeWhatsAppLeadRoot("wa-guard-price-002", "Qual o valor?");
 

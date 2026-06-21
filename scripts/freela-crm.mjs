@@ -2392,6 +2392,11 @@ function proposeWhatsAppOutbox(
 }
 
 const WHATSAPP_AUTO_REPLY_LIMIT_REASON = "limite de 5 respostas automaticas atingido";
+const NEUTRAL_PRICE_QUALIFICATION_REPLY = [
+  "Depende um pouco do que precisa aparecer na pagina e do objetivo principal.",
+  "",
+  "Para eu te direcionar melhor: voce quer usar essa pagina mais como apresentacao oficial do seu trabalho, ou mais para organizar o caminho de quem vem do Instagram/WhatsApp?",
+].join("\n");
 
 function reviewWhatsAppOutbox(database, outboxId) {
   const outbox = database.prepare("select * from whatsapp_outbox where id = ?").get(outboxId);
@@ -2484,13 +2489,15 @@ function guardianRules({ outbox, state }) {
 }
 
 function isNeutralPriceQualificationReply(body) {
-  const normalized = normalizeName(body);
-  return (
-    normalized.includes("depende um pouco do que precisa aparecer na pagina") &&
-    normalized.includes("objetivo principal") &&
-    normalized.includes("apresentacao oficial") &&
-    normalized.includes("instagram whatsapp")
-  );
+  return normalizeWhatsAppReplyText(body) === normalizeWhatsAppReplyText(NEUTRAL_PRICE_QUALIFICATION_REPLY);
+}
+
+function normalizeWhatsAppReplyText(value) {
+  return clean(value)
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function containsLinkLikeText(body, rawBody) {
