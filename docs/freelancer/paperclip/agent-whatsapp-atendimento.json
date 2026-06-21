@@ -8,10 +8,24 @@
   "capabilities": "Escreve respostas curtas, naturais e contextuais depois do Pode; nao envia WhatsApp, nao fala preco e registra resposta candidata na outbox.",
   "adapterType": "codex_local",
   "adapterConfig": {
-    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/prompt-thread-whatsapp-atendimento.md",
-    "instructionsRootPath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer",
+    "instructionsFilePath": "/Users/luiz_fbm/Developer/freela/docs/freelancer/prompt-thread-whatsapp-atendimento.md",
+    "instructionsRootPath": "/Users/luiz_fbm/Developer/freela/docs/freelancer",
     "instructionsEntryFile": "prompt-thread-whatsapp-atendimento.md",
-    "instructionsBundleMode": "external"
+    "instructionsBundleMode": "external",
+    "cwd": "/Users/luiz_fbm/Developer/freela",
+    "extraArgs": [
+      "--skip-git-repo-check",
+      "-C",
+      "/Users/luiz_fbm/Developer/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Developer/freela",
+      "--sandbox",
+      "workspace-write",
+      "-c",
+      "approval_policy=\"never\"",
+      "-c",
+      "sandbox_workspace_write.network_access=true"
+    ]
   },
   "instructionsBundle": {
     "entryFile": "README.md",

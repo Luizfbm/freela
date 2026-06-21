@@ -161,6 +161,7 @@ async function dispatch({ root, dbPath, command, args }) {
     return;
   }
 
+  ensureOperationalWritesAllowed(root, command);
   const database = openDatabase(root, dbPath);
 
   if (command[0] === "lead" && command[1] === "upsert") {
@@ -639,6 +640,44 @@ function openDatabase(root, explicitPath) {
   database.exec(schemaSql());
   migrateDatabase(database);
   return database;
+}
+
+function ensureOperationalWritesAllowed(root, command) {
+  if (!requiresOperationalWriteGuard(command)) return;
+  const statusPath = join(root, ".scratch/ops/reliability-status.json");
+  if (!existsSync(statusPath)) return;
+
+  let report;
+  try {
+    report = JSON.parse(readFileSync(statusPath, "utf8"));
+  } catch (error) {
+    throw usageError(`Status operacional ilegivel em ${statusPath}: ${error.message}`);
+  }
+
+  if (report.status === "red") {
+    throw usageError(
+      `Ops Doctor marcou status operacional red em ${report.checkedAt ?? "data desconhecida"}. ` +
+        "Escrita critica bloqueada. Rode node scripts/freela-ops-doctor.mjs check e siga .scratch/ops/reliability-status.md.",
+    );
+  }
+}
+
+function requiresOperationalWriteGuard(command) {
+  const joined = command.join(" ");
+  const readOnly = new Set([
+    "healthcheck",
+    "lead status",
+    "commercial status",
+    "commercial export",
+    "commercial enrichment-plan",
+    "commercial duplicate-audit",
+    "export all",
+    "export paperclip-cards",
+    "export operator-status",
+    "profile-evidence export",
+  ]);
+  if (command[0] === "init") return false;
+  return !readOnly.has(joined);
 }
 
 function ensureUsableDatabaseFile(root, path) {

@@ -54,7 +54,7 @@ O dispatch WAHA e explicito. O provider padrao continua sendo o bridge atual.
 
 ```bash
 node scripts/whatsapp-local-gateway.mjs \
-  --root /Users/luiz_fbm/Documents/programacao/freela \
+  --root /Users/luiz_fbm/Developer/freela \
   dispatch-approved-outbox \
   --provider waha \
   --waha-api-base http://127.0.0.1:3000 \
@@ -86,7 +86,7 @@ Importar evento WAHA:
 
 ```bash
 node scripts/whatsapp-local-gateway.mjs \
-  --root /Users/luiz_fbm/Documents/programacao/freela \
+  --root /Users/luiz_fbm/Developer/freela \
   import-waha-event \
   --file .scratch/waha-event.json
 ```

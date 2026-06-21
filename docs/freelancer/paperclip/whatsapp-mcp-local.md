@@ -23,9 +23,9 @@ Regra operacional:
 Instale dentro de `.scratch/`, porque o bridge grava banco local com conversas privadas:
 
 ```bash
-mkdir -p /Users/luiz_fbm/Documents/programacao/freela/.scratch
-git clone https://github.com/lharries/whatsapp-mcp.git /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp
-cd /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge
+mkdir -p /Users/luiz_fbm/Developer/freela/.scratch
+git clone https://github.com/lharries/whatsapp-mcp.git /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp
+cd /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge
 go run -buildvcs=false main.go
 ```
 
@@ -34,7 +34,7 @@ Na primeira execucao, o terminal mostra um QR. No celular, abra WhatsApp > Dispo
 O bridge cria:
 
 ```txt
-/Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
+/Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
 ```
 
 Esse e o banco que o Gateway Local le. O servidor REST do bridge expoe `/api/send`, mas somente `scripts/whatsapp-local-gateway.mjs` pode chamar essa rota, e apenas para Outbox aprovada pelo Guardiao com `humanizer_pass = true`.
@@ -42,9 +42,9 @@ Esse e o banco que o Gateway Local le. O servidor REST do bridge expoe `/api/sen
 Depois do pareamento, para deixar o bridge rodando em background no macOS sem fechar por falta de stdin/TTY:
 
 ```bash
-cd /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge
+cd /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge
 go build -buildvcs=false -o whatsapp-bridge-local .
-nohup script -q /dev/null ./whatsapp-bridge-local > /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/bridge.log 2>&1 &
+nohup script -q /dev/null ./whatsapp-bridge-local > /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge/bridge.log 2>&1 &
 ```
 
 Confirme que a porta esta viva sem enviar mensagem real:
@@ -60,7 +60,7 @@ O esperado em `GET` e `405 Method Not Allowed`; isso confirma que o endpoint exi
 Com o bridge rodando e o QR pareado:
 
 ```bash
-node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-mcp-sqlite --db /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
 ```
 
 O comando:
@@ -76,7 +76,7 @@ O comando:
 No primeiro pareamento, o bridge pode puxar historico antigo do WhatsApp. Para operar somente daqui para frente, posicione o cursor no fim do historico atual antes de ligar watcher continuo:
 
 ```bash
-cd /Users/luiz_fbm/Documents/programacao/freela
+cd /Users/luiz_fbm/Developer/freela
 node - <<'NODE'
 const { DatabaseSync } = require('node:sqlite');
 const { mkdirSync, writeFileSync } = require('node:fs');
@@ -101,7 +101,7 @@ NODE
 Depois confirme:
 
 ```bash
-node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-mcp-sqlite --db /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
 ```
 
 O esperado e `Importados: 0`, `Ignorados: 0`, `Sem identidade: 0`, `Falhas: 0` ate chegar mensagem nova.
@@ -130,7 +130,7 @@ Depois da reconciliação, o inbound sai de `whatsapp_unmatched_inbound_events.s
 Depois que nao houver task sensivel rodando e o Luiz decidir ativar leitura continua:
 
 ```bash
-node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela watch-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --interval-ms 10000
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela watch-mcp-sqlite --db /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --interval-ms 10000
 ```
 
 Sem `--dispatch-approved`, esse watcher apenas repete o import do `messages.db` e alimenta o CRM.
@@ -138,7 +138,7 @@ Sem `--dispatch-approved`, esse watcher apenas repete o import do `messages.db` 
 Para acordar automaticamente o worker correto, use `--auto-wake`:
 
 ```bash
-node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela watch-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --auto-wake --interval-ms 10000
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela watch-mcp-sqlite --db /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --auto-wake --interval-ms 10000
 ```
 
 Roteamento seletivo:
@@ -154,14 +154,14 @@ O auto-wake cria issue no Paperclip via API direta, usando `--paperclip-api-base
 Depois que Atendimento WhatsApp gerar Outbox com `humanizer_pass = true` e Guardiao aprovar, o Gateway pode despachar:
 
 ```bash
-node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela dispatch-approved-outbox --dry-run
-node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela dispatch-approved-outbox
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --dry-run
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox
 ```
 
 Watcher com envio:
 
 ```bash
-node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela watch-mcp-sqlite --db /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --dispatch-approved --interval-ms 10000
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela watch-mcp-sqlite --db /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db --dispatch-approved --interval-ms 10000
 ```
 
 Somente o Gateway chama `/api/send`. Workers continuam sem acesso a `send_message`, `send_file` e `send_audio_message`.
@@ -175,8 +175,8 @@ O Gateway so marca Outbox como `sent` quando o bridge retorna um ID real de mens
 Para nao passar `--db` sempre:
 
 ```bash
-export WHATSAPP_MCP_MESSAGES_DB=/Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
-node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite
+export WHATSAPP_MCP_MESSAGES_DB=/Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db
+node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-mcp-sqlite
 ```
 
 ## Operacao Com Tasks Rodando
@@ -199,7 +199,7 @@ Esse erro acontece antes do pareamento. Se `whatsmeow_device` estiver vazio, o b
 Diagnostico:
 
 ```bash
-cd /Users/luiz_fbm/Documents/programacao/freela
+cd /Users/luiz_fbm/Developer/freela
 node - <<'NODE'
 const { DatabaseSync } = require('node:sqlite');
 const db = new DatabaseSync('.scratch/whatsapp-mcp/whatsapp-bridge/store/whatsapp.db', { readOnly: true });
@@ -211,7 +211,7 @@ NODE
 Se `deviceCount` for `0`, repita com ambiente limpo:
 
 ```bash
-cd /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge
+cd /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge
 rm -rf store
 go clean -cache
 go run -buildvcs=false main.go
@@ -240,7 +240,7 @@ Correcao aplicada no clone local em `.scratch/whatsapp-mcp/whatsapp-bridge/main.
 Depois dessa correcao, rode:
 
 ```bash
-cd /Users/luiz_fbm/Documents/programacao/freela/.scratch/whatsapp-mcp/whatsapp-bridge
+cd /Users/luiz_fbm/Developer/freela/.scratch/whatsapp-mcp/whatsapp-bridge
 rm -rf store
 go run -buildvcs=false main.go
 ```

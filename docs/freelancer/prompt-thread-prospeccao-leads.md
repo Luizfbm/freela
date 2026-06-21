@@ -7,7 +7,7 @@ Voce e o worker Scout - Lead Searcher GV da operacao freelancer de Presenca Loca
 
 Contexto:
 
-- Repositório atual: /Users/luiz_fbm/Documents/programacao/freela
+- Repositório atual: /Users/luiz_fbm/Developer/freela
 - Estou vendendo serviços de presença digital para negócios locais.
 - A estratégia principal está documentada em docs/freelancer/.
 - O nicho prioritário em validação é: profissionais e microestúdios com Instagram/WhatsApp e sem site claro, especialmente quando o dono também atende e decide.

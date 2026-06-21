@@ -256,6 +256,42 @@ test("healthcheck valida SQLite existente sem criar banco ausente", () => {
   assert.match(ok.stdout, /integrity_check: ok/i);
 });
 
+test("CRM bloqueia escrita critica quando Ops Doctor marcou status red", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+
+  const opsDir = join(root, ".scratch/ops");
+  mkdirSync(opsDir, { recursive: true });
+  writeFileSync(
+    join(opsDir, "reliability-status.json"),
+    JSON.stringify(
+      {
+        version: 1,
+        checkedAt: "2026-06-21T12:00:00.000Z",
+        status: "red",
+        recommendedAction: "Parar escritas criticas.",
+        checks: {
+          sqlite: { status: "red", message: "header SQLite ausente" },
+        },
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const leadFile = writeJson(root, "red-block-lead.json", [
+    { canonical_name: "Lead Bloqueado", recommended_offer: "Presenca Local em 72h" },
+  ]);
+
+  const blocked = run(root, ["lead", "upsert", "--file", leadFile]);
+  assert.equal(blocked.status, 1);
+  assert.match(blocked.stderr, /Ops Doctor.*red|status operacional.*red/i);
+
+  const health = run(root, ["healthcheck"]);
+  assert.equal(health.status, 0, health.stderr);
+});
+
 test("CLI recusa SQLite invalido antes de operar e preserva snapshot forense", () => {
   const root = makeRoot();
   const dbDir = join(root, ".scratch/db");

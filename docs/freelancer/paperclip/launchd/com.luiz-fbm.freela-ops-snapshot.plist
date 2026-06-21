@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.luiz-fbm.freela-ops-snapshot</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/env</string>
+    <string>node</string>
+    <string>/Users/luiz_fbm/Developer/freela/scripts/freela-ops-doctor.mjs</string>
+    <string>--root</string>
+    <string>/Users/luiz_fbm/Developer/freela</string>
+    <string>snapshot</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>3600</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/luiz_fbm/Library/Logs/freela-ops-snapshot.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/luiz_fbm/Library/Logs/freela-ops-snapshot.err.log</string>
+</dict>
+</plist>

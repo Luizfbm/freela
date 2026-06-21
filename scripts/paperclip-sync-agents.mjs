@@ -6,6 +6,7 @@ const DEFAULT_API_BASE = "http://127.0.0.1:3100";
 const DEFAULT_COMPANY_ID = "50a2756c-2942-40c1-90f8-b16807a62ef3";
 const DEFAULT_TIMEOUT_MS = 15000;
 const SAFE_AGENT_FIELDS = ["name", "role", "title", "icon", "reportsTo", "capabilities"];
+const SAFE_ADAPTER_CONFIG_FIELDS = ["cwd", "extraArgs", "instructionsRootPath"];
 
 async function main() {
   const flags = parseFlags(process.argv.slice(2));
@@ -157,15 +158,17 @@ function buildSyncPlan({ localAgents, liveAgents }) {
         agentName: local.name ?? null,
         status: "missing_live_agent",
         safePatch: {},
+        adapterConfigPatch: null,
         instructionsPath: null,
       });
       continue;
     }
 
     const safePatch = buildSafePatch({ local, live });
+    const adapterConfigPatch = buildAdapterConfigPatch({ local, live });
     const instructionsPath = buildInstructionsPathPatch({ local, live });
 
-    if (Object.keys(safePatch).length === 0 && !instructionsPath) {
+    if (Object.keys(safePatch).length === 0 && !adapterConfigPatch && !instructionsPath) {
       unchangedAgents += 1;
       continue;
     }
@@ -176,6 +179,7 @@ function buildSyncPlan({ localAgents, liveAgents }) {
       agentName: local.name ?? live.name ?? null,
       status: "changed",
       safePatch,
+      adapterConfigPatch,
       instructionsPath,
     });
   }
@@ -212,6 +216,38 @@ function buildSafePatch({ local, live }) {
   return patch;
 }
 
+function buildAdapterConfigPatch({ local, live }) {
+  const localAdapterConfig = isPlainObject(local.adapterConfig) ? local.adapterConfig : {};
+  const liveAdapterConfig = isPlainObject(live.adapterConfig) ? live.adapterConfig : {};
+  const patch = {};
+
+  for (const field of SAFE_ADAPTER_CONFIG_FIELDS) {
+    if (!Object.hasOwn(localAdapterConfig, field)) continue;
+    const value = localAdapterConfig[field];
+    validateSafeAdapterConfigField({ agentId: local.id, field, value });
+    if (!deepEqual(value, liveAdapterConfig[field])) {
+      patch[field] = value;
+    }
+  }
+
+  return Object.keys(patch).length === 0 ? null : patch;
+}
+
+function validateSafeAdapterConfigField({ agentId, field, value }) {
+  if (field === "cwd" || field === "instructionsRootPath") {
+    if (!isNonEmptyString(value)) {
+      throw new Error(`adapterConfig.${field} invalido para agente ${agentId}`);
+    }
+    return;
+  }
+
+  if (field === "extraArgs") {
+    if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+      throw new Error(`adapterConfig.extraArgs invalido para agente ${agentId}`);
+    }
+  }
+}
+
 function buildInstructionsPathPatch({ local, live }) {
   const localAdapterConfig = isPlainObject(local.adapterConfig) ? local.adapterConfig : {};
   if (!Object.hasOwn(localAdapterConfig, "instructionsFilePath")) return null;
@@ -231,16 +267,22 @@ async function applySyncPlan({ plan, apiBase, apiKey, runId, timeoutMs }) {
   for (const change of plan.changes) {
     if (change.status !== "changed") continue;
 
-    if (Object.keys(change.safePatch).length > 0) {
+    const genericPatch = {
+      ...change.safePatch,
+      ...(change.adapterConfigPatch ? { adapterConfig: change.adapterConfigPatch } : {}),
+    };
+
+    if (Object.keys(genericPatch).length > 0) {
       await requestJson({
         url: `${apiBase}/api/agents/${encodeURIComponent(change.agentId)}`,
         method: "PATCH",
-        payload: change.safePatch,
+        payload: genericPatch,
         apiKey,
         runId,
         timeoutMs,
       });
       change.appliedSafePatch = true;
+      change.appliedAdapterConfigPatch = Boolean(change.adapterConfigPatch);
     }
 
     if (change.instructionsPath) {
@@ -260,10 +302,15 @@ async function applySyncPlan({ plan, apiBase, apiKey, runId, timeoutMs }) {
 function buildResult({ mode, companyId, plan, localAgents, liveAgents, skippedDraftAgents }) {
   const changedAgents = plan.changes.filter((change) => change.status === "changed").length;
   const genericPatches = plan.changes.filter(
-    (change) => change.status === "changed" && Object.keys(change.safePatch).length > 0,
+    (change) => change.status === "changed" && (
+      Object.keys(change.safePatch).length > 0 || change.adapterConfigPatch
+    ),
   ).length;
   const instructionsPathPatches = plan.changes.filter(
     (change) => change.status === "changed" && change.instructionsPath,
+  ).length;
+  const adapterConfigPatches = plan.changes.filter(
+    (change) => change.status === "changed" && change.adapterConfigPatch,
   ).length;
 
   return {
@@ -277,6 +324,7 @@ function buildResult({ mode, companyId, plan, localAgents, liveAgents, skippedDr
       missingLiveAgents: plan.missingLiveAgents,
       unchangedAgents: plan.unchangedAgents,
       genericPatches,
+      adapterConfigPatches,
       instructionsPathPatches,
     },
     changes: plan.changes,
@@ -299,6 +347,7 @@ function writeAuditReport({ root, result }) {
     `- changed_agents: ${result.summary.changedAgents}`,
     `- missing_live_agents: ${result.summary.missingLiveAgents}`,
     `- generic_patches: ${result.summary.genericPatches}`,
+    `- adapter_config_patches: ${result.summary.adapterConfigPatches}`,
     `- instructions_path_patches: ${result.summary.instructionsPathPatches}`,
     "",
     "## Changes",
@@ -310,6 +359,7 @@ function writeAuditReport({ root, result }) {
     lines.push(`  - file: ${basename(change.fileName)}`);
     lines.push(`  - status: ${change.status}`);
     lines.push(`  - safe_fields: ${Object.keys(change.safePatch).join(", ") || "none"}`);
+    lines.push(`  - adapter_config_fields: ${change.adapterConfigPatch ? Object.keys(change.adapterConfigPatch).join(", ") : "none"}`);
     lines.push(`  - instructions_path: ${change.instructionsPath ? "changed" : "none"}`);
   }
 

@@ -27,7 +27,7 @@ Nesta thread:
 
 Contexto:
 
-- Repositório atual: /Users/luiz_fbm/Documents/programacao/freela
+- Repositório atual: /Users/luiz_fbm/Developer/freela
 - Este repositório já está hospedado em um domínio meu.
 - Eu vendo presença digital para profissionais e negócios locais.
 - Esta conversa não é para prospectar leads novos.

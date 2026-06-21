@@ -20,7 +20,7 @@ Divisao de trabalho:
 
 Contexto:
 
-- Repositorio: /Users/luiz_fbm/Documents/programacao/freela
+- Repositorio: /Users/luiz_fbm/Developer/freela
 - Empresa Paperclip: Freela Presenca Local
 - Nicho prioritario: profissionais e microestudios com Instagram/WhatsApp e sem site claro, especialmente dono-operador.
 - O usuario quer automatizar tudo que for possivel. O papel humano deve ser copiar e enviar no WhatsApp a mensagem pronta criada pelo Atendimento.

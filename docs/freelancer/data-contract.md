@@ -30,6 +30,26 @@ Antes de operar em caso de duvida, rode:
 node scripts/freela-crm.mjs healthcheck
 ```
 
+## Ops Health e Confiabilidade
+
+O estado de confiabilidade operacional e acompanhado pelo Ops Doctor:
+
+```bash
+node scripts/freela-ops-doctor.mjs check
+node scripts/freela-ops-doctor.mjs snapshot
+node scripts/freela-ops-doctor.mjs publish
+```
+
+O Ops Doctor grava evidencia tecnica privada em `.scratch/ops/reliability-status.json`, `.scratch/ops/reliability-status.md` e `.scratch/ops/backup-manifest.json`. Snapshots SQLite ficam em `/Users/luiz_fbm/Library/Application Support/freela-paperclip/backups`, fora de `Documents`.
+
+Status operacional: `green`, `yellow`, `red`.
+
+- `green`: operacao normal.
+- `yellow`: operacao permitida com atencao.
+- `red`: novas escritas criticas devem parar ate diagnostico/recuperacao.
+
+O painel executivo fica no Paperclip, issue `Ops Health`, documento `reliability-status`. O Paperclip recebe resumo executivo sem dados brutos: nao publicar nomes de leads, telefones, mensagens, payloads brutos ou dumps de tabelas.
+
 Arquivos em `.scratch/leads/`, `.scratch/crm/`, `.scratch/ops/` e `.scratch/qa-demos/` sao espelhos legiveis ou handoffs privados. Eles podem ser lidos pelos workers, mas nao devem ser editados manualmente como fonte oficial de status.
 
 Arquivos em `docs/freelancer/` guardam regra, oferta, scripts e prompts. Eles nao devem conter dados privados de leads ou clientes.
@@ -263,7 +283,7 @@ Identidade WhatsApp:
 - Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `resposta_pediu_preco`/`preco_pedido`, `resposta_lead_quente`/`lead_quente`, `resposta_objecao`/`objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
 - Em teste ou ambiente alternativo, `--closer-agent-id` sobrescreve o agente closer padrao.
 
-O `lharries/whatsapp-mcp` e uma entrada local, nao a fonte oficial. O bridge grava conversas em `.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db`; o Gateway Local importa mensagens novas com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite` e cursor em `.scratch/whatsapp-mcp-cursor.json`.
+O `lharries/whatsapp-mcp` e uma entrada local, nao a fonte oficial. O bridge grava conversas em `.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db`; o Gateway Local importa mensagens novas com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-mcp-sqlite` e cursor em `.scratch/whatsapp-mcp-cursor.json`.
 
 Nenhum worker comercial envia WhatsApp diretamente. Somente o Gateway Local pode enviar itens `approved` da Outbox.
 

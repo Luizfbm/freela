@@ -139,8 +139,8 @@ Todos usam:
 - `CODEX_HOME=/Users/luiz_fbm/.codex`
 - Sandbox do Codex: `workspace-write` por padrao.
 - Excecao de navegador assistido: COO Freelancer e Scout - Lead Searcher GV usam `danger-full-access`, porque `workspace-write` quebra LaunchServices/Spotlight no macOS e impede `node scripts/paperclip-open-chrome-window.mjs --preflight` de abrir Chrome pessoal. Essa excecao nao autoriza envio automatico nem acao social; continua valendo `dangerouslyBypassApprovalsAndSandbox=false`, `approval_policy="never"` e as regras de somente leitura de `docs/freelancer/paperclip/browser-automation.md`.
-- Raiz de trabalho explicita: `-C /Users/luiz_fbm/Documents/programacao/freela`
-- Raiz gravavel explicita: `--add-dir /Users/luiz_fbm/Documents/programacao/freela`
+- Raiz de trabalho explicita: `-C /Users/luiz_fbm/Developer/freela`
+- Raiz gravavel explicita: `--add-dir /Users/luiz_fbm/Developer/freela`
 - Approval policy: `never`
 - Network no sandbox: `sandbox_workspace_write.network_access=true`
 - Sem bypass perigoso de sandbox: `dangerouslyBypassApprovalsAndSandbox=false`
@@ -161,7 +161,7 @@ Para aplicar depois de revisar o diff:
 node scripts/paperclip-sync-agents.mjs --apply
 ```
 
-O sync usa uma allowlist curta: `name`, `role`, `title`, `icon`, `reportsTo`, `capabilities` e `metadata`. `adapterConfig.instructionsFilePath` nao passa pelo patch generico; ele usa a rota dedicada `PATCH /api/agents/:id/instructions-path`. O script nao sincroniza modelo, env, comando, sandbox, budget, permissoes, runtime, skills ou bundle de instrucoes.
+O sync usa uma allowlist curta: `name`, `role`, `title`, `icon`, `reportsTo`, `capabilities` e `metadata`. Para `adapterConfig`, ele sincroniza somente os paths operacionais `cwd`, `extraArgs` e `instructionsRootPath`; `adapterConfig.instructionsFilePath` nao passa pelo patch generico e usa a rota dedicada `PATCH /api/agents/:id/instructions-path`. O script nao sincroniza modelo, env, comando, budget, permissoes, runtime, skills ou bundle de instrucoes.
 
 ## Projetos
 
@@ -339,7 +339,7 @@ WAHA fica documentado em `docs/freelancer/paperclip/whatsapp-waha-local.md` como
 
 Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox` chama o motor de envio autorizado: bridge `/api/send` ou WAHA `/api/sendText` em laboratorio.
 
-Workers nao acessam `send_message`, `send_file` ou `send_audio_message`. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite`.
+Workers nao acessam `send_message`, `send_file` ou `send_audio_message`. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-mcp-sqlite`.
 
 Identidade WhatsApp e parte do contrato operacional. Se o MCP entregar um contato como `@lid` ou outro JID que nao bate com telefone publico, o Gateway nao descarta: ele registra em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`. Vincule o lead com `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois rode `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
 
@@ -403,6 +403,33 @@ Flags uteis para execucao fora do heartbeat:
 node scripts/paperclip-sync-operational-surfaces.mjs --api-base http://127.0.0.1:3100 --timeout-ms 15000
 node scripts/paperclip-sync-operational-surfaces.mjs --lead-key lead-cards --status-key ops-status
 node scripts/paperclip-sync-lead-cards.mjs --api-base http://127.0.0.1:3100 --timeout-ms 15000
+```
+
+## Ops Health
+
+O status de confiabilidade da operacao fica em dois lugares:
+
+- evidencia tecnica privada: `.scratch/ops/reliability-status.json`, `.scratch/ops/reliability-status.md` e `.scratch/ops/backup-manifest.json`;
+- painel executivo: issue `Ops Health`, documento `reliability-status`.
+
+Comandos:
+
+```bash
+node scripts/freela-ops-doctor.mjs check
+node scripts/freela-ops-doctor.mjs snapshot
+node scripts/freela-ops-doctor.mjs publish
+node scripts/freela-ops-doctor.mjs restore-plan /caminho/do/snapshot.sqlite
+```
+
+Status operacional: `green`, `yellow`, `red`. Se o status for `red`, agentes devem parar novas escritas criticas e escalar. O Paperclip recebe somente resumo executivo, sem dados brutos: nao publicar nomes, telefones, mensagens ou dumps de tabela.
+
+LaunchAgents opcionais:
+
+```bash
+cp docs/freelancer/paperclip/launchd/com.luiz-fbm.freela-ops-snapshot.plist ~/Library/LaunchAgents/
+cp docs/freelancer/paperclip/launchd/com.luiz-fbm.freela-ops-publish.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.luiz-fbm.freela-ops-snapshot.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.luiz-fbm.freela-ops-publish.plist
 ```
 
 ## Start e stop
