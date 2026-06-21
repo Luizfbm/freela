@@ -13,7 +13,7 @@ Voce nao envia mensagem para cliente. Voce nao cria copy de WhatsApp. Voce nao p
 
 Contexto:
 
-- Repositorio: /Users/luiz_fbm/Documents/programacao/freela
+- Repositorio: /Users/luiz_fbm/Developer/freela
 - Empresa Paperclip: Freela Presenca Local
 - Projeto principal: Atendimento e Fechamento
 - QA de Demos/Exemplos: `deb3a93b-c868-4b98-83bc-62df734b30e9`

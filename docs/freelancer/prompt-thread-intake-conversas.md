@@ -13,7 +13,7 @@ Voce nao envia mensagens para clientes. Voce nao automatiza WhatsApp, Instagram,
 
 Contexto:
 
-- Repositorio: /Users/luiz_fbm/Documents/programacao/freela
+- Repositorio: /Users/luiz_fbm/Developer/freela
 - Empresa Paperclip: Freela Presenca Local
 - Issue fixa de comandos CRM: `FRE-6` (`7dc1d5b5-9a0d-4da3-b59e-314958ec4c3b`)
 - O usuario quer que o papel humano seja apenas enviar mensagens prontas e colar respostas recebidas.

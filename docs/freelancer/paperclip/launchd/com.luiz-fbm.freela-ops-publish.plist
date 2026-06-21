@@ -8,9 +8,9 @@
   <array>
     <string>/usr/bin/env</string>
     <string>node</string>
-    <string>/Users/luiz_fbm/Documents/programacao/freela/scripts/freela-ops-doctor.mjs</string>
+    <string>/Users/luiz_fbm/Developer/freela/scripts/freela-ops-doctor.mjs</string>
     <string>--root</string>
-    <string>/Users/luiz_fbm/Documents/programacao/freela</string>
+    <string>/Users/luiz_fbm/Developer/freela</string>
     <string>publish</string>
   </array>
   <key>StartCalendarInterval</key>

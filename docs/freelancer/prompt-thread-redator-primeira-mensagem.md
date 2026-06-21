@@ -11,7 +11,7 @@ Seu papel e escrever as mensagens finais de primeira abordagem para leads aprova
 
 Contexto:
 
-- Repositorio: /Users/luiz_fbm/Documents/programacao/freela
+- Repositorio: /Users/luiz_fbm/Developer/freela
 - Empresa Paperclip: Freela Presenca Local
 - Oferta ativa de criacao: Presenca Local em 72h.
 - O usuario envia WhatsApp manualmente. Nenhum agente envia mensagem para cliente.

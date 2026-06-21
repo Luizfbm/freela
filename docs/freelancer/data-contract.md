@@ -283,7 +283,7 @@ Identidade WhatsApp:
 - Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `resposta_pediu_preco`/`preco_pedido`, `resposta_lead_quente`/`lead_quente`, `resposta_objecao`/`objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
 - Em teste ou ambiente alternativo, `--closer-agent-id` sobrescreve o agente closer padrao.
 
-O `lharries/whatsapp-mcp` e uma entrada local, nao a fonte oficial. O bridge grava conversas em `.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db`; o Gateway Local importa mensagens novas com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite` e cursor em `.scratch/whatsapp-mcp-cursor.json`.
+O `lharries/whatsapp-mcp` e uma entrada local, nao a fonte oficial. O bridge grava conversas em `.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db`; o Gateway Local importa mensagens novas com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-mcp-sqlite` e cursor em `.scratch/whatsapp-mcp-cursor.json`.
 
 Nenhum worker comercial envia WhatsApp diretamente. Somente o Gateway Local pode enviar itens `approved` da Outbox.
 

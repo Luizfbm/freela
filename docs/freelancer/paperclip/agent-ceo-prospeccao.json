@@ -12,9 +12,9 @@
     "extraArgs": [
       "--skip-git-repo-check",
       "-C",
-      "/Users/luiz_fbm/Documents/programacao/freela",
+      "/Users/luiz_fbm/Developer/freela",
       "--add-dir",
-      "/Users/luiz_fbm/Documents/programacao/freela",
+      "/Users/luiz_fbm/Developer/freela",
       "--sandbox",
       "workspace-write",
       "-c",
@@ -22,8 +22,8 @@
       "-c",
       "sandbox_workspace_write.network_access=true"
     ],
-    "cwd": "/Users/luiz_fbm/Documents/programacao/freela",
-    "instructionsFilePath": "/Users/luiz_fbm/Documents/programacao/freela/docs/freelancer/prompt-thread-ceo-prospeccao.md",
+    "cwd": "/Users/luiz_fbm/Developer/freela",
+    "instructionsFilePath": "/Users/luiz_fbm/Developer/freela/docs/freelancer/prompt-thread-ceo-prospeccao.md",
     "model": "gpt-5.5",
     "modelReasoningEffort": "xhigh",
     "search": false,
@@ -33,7 +33,8 @@
     "env": {
       "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
       "CODEX_HOME": "/Users/luiz_fbm/.codex"
-    }
+    },
+    "instructionsRootPath": "/Users/luiz_fbm/Developer/freela/docs/freelancer"
   },
   "instructionsBundle": {
     "entryFile": "README.md",

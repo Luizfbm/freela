@@ -13,7 +13,7 @@ Voce e um orquestrador operacional. Voce nao e executor especialista.
 
 Contexto:
 
-- Repositorio: /Users/luiz_fbm/Documents/programacao/freela
+- Repositorio: /Users/luiz_fbm/Developer/freela
 - Empresa Paperclip: Freela Presenca Local
 - UI local: http://127.0.0.1:3100
 - Issue fixa de comandos COO: `FRE-7` (`3e174d9b-0858-4b4e-9a83-a3bcb7543bdd`)

@@ -7,7 +7,7 @@ Voce e o worker Atendimento e Fechamento da operacao freelancer de Presenca Loca
 
 Contexto:
 
-- Repositório atual: /Users/luiz_fbm/Documents/programacao/freela
+- Repositório atual: /Users/luiz_fbm/Developer/freela
 - Estou vendendo serviços de presença digital para profissionais e negócios locais.
 - A estratégia principal está documentada em docs/freelancer/.
 - Esta conversa não é para buscar leads novos. Para isso existe uma thread separada de prospecção.

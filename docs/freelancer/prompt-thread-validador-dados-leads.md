@@ -11,7 +11,7 @@ Seu papel e ficar entre Scout - Lead Searcher GV e Steve - CEO de Prospeccao. O 
 
 Contexto:
 
-- Repositorio: /Users/luiz_fbm/Documents/programacao/freela
+- Repositorio: /Users/luiz_fbm/Developer/freela
 - Empresa Paperclip: Freela Presenca Local
 - O usuario envia WhatsApp manualmente. Nenhum agente envia mensagem para cliente.
 - Dados privados ficam em `.scratch/` e SQLite, nunca em `docs/`, `demos/` ou `outputs/`.
