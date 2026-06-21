@@ -4,16 +4,30 @@ Este contrato define onde a operacao freelancer guarda estado e como os workers 
 
 ## Fonte de Verdade
 
-A fonte de verdade operacional e o SQLite privado:
+A memoria operacional oficial e o SQLite privado acessado pela CLI.
+
+Caminho de compatibilidade usado por scripts e workers:
 
 ```txt
 .scratch/db/freela.sqlite
 ```
 
-Toda escrita de estado deve passar pela CLI:
+Na instancia local principal, esse caminho deve ser um symlink para o arquivo fisico local, fora de `Documents` e fora de storage sincronizado/offloadavel:
+
+```txt
+/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite
+```
+
+Workers devem tratar `.scratch/db/freela.sqlite` como ponto de acesso estavel, nao como garantia de diretorio fisico. Nao mover, copiar, restaurar ou recriar o SQLite manualmente. Toda escrita de estado deve passar pela CLI:
 
 ```bash
 node scripts/freela-crm.mjs <comando>
+```
+
+Antes de operar em caso de duvida, rode:
+
+```bash
+node scripts/freela-crm.mjs healthcheck
 ```
 
 Arquivos em `.scratch/leads/`, `.scratch/crm/`, `.scratch/ops/` e `.scratch/qa-demos/` sao espelhos legiveis ou handoffs privados. Eles podem ser lidos pelos workers, mas nao devem ser editados manualmente como fonte oficial de status.

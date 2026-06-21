@@ -42,8 +42,10 @@ Separacao Fila do Dia vs CRM Historico:
 ## Consistencia de dados
 
 - Contrato oficial: `docs/freelancer/data-contract.md`.
-- Fonte de verdade local: SQLite em `.scratch/db/freela.sqlite`.
-- CLI obrigatoria de escrita: `node scripts/freela-crm.mjs`.
+- Fonte de verdade local: SQLite acessado por `.scratch/db/freela.sqlite`.
+- Na instancia local principal, `.scratch/db/freela.sqlite` deve resolver via symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`.
+- Workers devem usar sempre `node scripts/freela-crm.mjs`; nao devem mover, copiar, restaurar ou recriar o SQLite manualmente.
+- Verificacao obrigatoria quando houver duvida: `node scripts/freela-crm.mjs healthcheck`.
 - Espelhos como `.scratch/leads/master-leads.csv` e `.scratch/crm/pipeline.md` sao gerados pela CLI.
 - Workers nao devem editar arquivos em `.scratch` manualmente como fonte oficial de estado.
 - Issues do Paperclip coordenam trabalho; elas nao substituem o SQLite como memoria operacional.
@@ -66,7 +68,7 @@ node scripts/freela-crm.mjs commercial status --date YYYY-MM-DD
 node scripts/freela-crm.mjs commercial export --date YYYY-MM-DD
 ```
 
-`commercial export` gera `.scratch/crm/commercial-funnel.md` e `.scratch/ops/commercial-status.md`. Esses arquivos sao espelhos privados; a fonte oficial continua sendo as views do SQLite em `.scratch/db/freela.sqlite`.
+`commercial export` gera `.scratch/crm/commercial-funnel.md` e `.scratch/ops/commercial-status.md`. Esses arquivos sao espelhos privados; a fonte oficial continua sendo as views do SQLite acessadas pela CLI em `.scratch/db/freela.sqlite`, caminho de compatibilidade que aponta para o DB fisico local.
 
 ## Handoff e auto-delegacao
 

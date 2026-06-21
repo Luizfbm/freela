@@ -2310,6 +2310,40 @@ test("Workers usam contrato de dados e CLI SQLite como unica escrita de estado",
   assert.match(readme, /scripts\/freela-crm\.mjs/i);
 });
 
+test("Paperclip instructions know SQLite physical path and compatibility symlink", () => {
+  const dataContract = read("docs/freelancer/data-contract.md");
+  const paperclipReadme = read("docs/freelancer/paperclip/README.md");
+
+  for (const doc of [dataContract, paperclipReadme]) {
+    assert.match(doc, /Application Support\/freela-paperclip\/db\/freela\.sqlite/i);
+    assert.match(doc, /\.scratch\/db\/freela\.sqlite/i);
+    assert.match(doc, /compatibilidade|symlink/i);
+    assert.match(doc, /node scripts\/freela-crm\.mjs/i);
+  }
+
+  const promptFiles = [
+    "docs/freelancer/prompt-thread-atendimento-clientes.md",
+    "docs/freelancer/prompt-thread-ceo-prospeccao.md",
+    "docs/freelancer/prompt-thread-coo-freelancer.md",
+    "docs/freelancer/prompt-thread-criacao-72h.md",
+    "docs/freelancer/prompt-thread-diagnostico-3-pontos.md",
+    "docs/freelancer/prompt-thread-followup-crm.md",
+    "docs/freelancer/prompt-thread-intake-conversas.md",
+    "docs/freelancer/prompt-thread-prospeccao-leads.md",
+    "docs/freelancer/prompt-thread-qa-demos.md",
+    "docs/freelancer/prompt-thread-qa-mensagens.md",
+    "docs/freelancer/prompt-thread-redator-primeira-mensagem.md",
+    "docs/freelancer/prompt-thread-validador-dados-leads.md",
+    "docs/freelancer/checklist-entrega.md",
+  ];
+
+  for (const file of promptFiles) {
+    const prompt = read(file);
+    assert.match(prompt, /\.scratch\/db\/freela\.sqlite/i, file);
+    assert.match(prompt, /compatibilidade|symlink|data-contract/i, file);
+  }
+});
+
 test("Agentes Paperclip declaram repo como raiz de trabalho e escrita", () => {
   const readme = paperclipReadme();
 

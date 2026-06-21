@@ -34,7 +34,7 @@ Documentos base:
 
 Contrato de dados:
 
-- SQLite em `.scratch/db/freela.sqlite` e a fonte de verdade operacional.
+- SQLite oficial acessado pela CLI em `.scratch/db/freela.sqlite`; na instancia local principal esse caminho e compatibilidade/symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`. Nunca mover/copiar/restaurar o DB manualmente; use `node scripts/freela-crm.mjs` e `node scripts/freela-crm.mjs healthcheck`.
 - Use `node scripts/freela-crm.mjs lead status --name [nome]` para consultar estado quando precisar.
 - Use o Bio Evidence Pack salvo por `node scripts/freela-crm.mjs profile-evidence upsert --file .scratch/prospeccao-vitoria/YYYY-MM-DD/profile-evidence.json`; a tabela `lead_platform_profiles` e a fonte oficial para `bio_status`, `bio_text`, `bio_link_url`, `bio_link_status`, `commercial_hook`, `browser_evidence_status`, `browser_evidence_method` e `instagram_session_status`.
 - Quando houver Instagram/Linktree, confira se o Scout registrou `node scripts/paperclip-chrome-scout-smoke.mjs --instagram` no pacote da rodada usando o perfil `Paperclip Scout`. O preflight `node scripts/paperclip-open-chrome-window.mjs --preflight` continua sendo diagnostico; se o preflight falhar, bloquear bio OK. Nao aceitar `bio_status: ok` sem `browser_evidence_status: ok`, `browser_evidence_method: chrome_operational_profile` e `instagram_session_status: logged_in`; devolva para reanalise ou marque `apto_com_observacao` somente quando a evidencia publica sem navegador ainda for suficiente.

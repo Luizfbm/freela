@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +20,7 @@ import { DatabaseSync } from "node:sqlite";
 const repoRoot = new URL("..", import.meta.url).pathname;
 const cli = join(repoRoot, "scripts/freela-crm.mjs");
 const crm = cli;
+const localizer = join(repoRoot, "scripts/freela-sqlite-localize.mjs");
 
 function makeRoot() {
   return mkdtempSync(join(tmpdir(), "freela-crm-"));
@@ -166,6 +176,12 @@ function db(root) {
   return new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
 }
 
+function backupFiles(root) {
+  const dir = join(root, ".scratch/db/backups");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((file) => file.endsWith(".sqlite")).sort();
+}
+
 function plainRows(rows) {
   return rows.map((row) => ({ ...row }));
 }
@@ -220,6 +236,129 @@ test("init cria o SQLite local com tabelas esperadas e pode rodar duas vezes", (
     "commercial_ready_lead_cards",
     "commercial_stale_leads",
   ]);
+});
+
+test("healthcheck valida SQLite existente sem criar banco ausente", () => {
+  const root = makeRoot();
+  const dbPath = join(root, ".scratch/db/freela.sqlite");
+
+  const missing = run(root, ["healthcheck"]);
+
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /SQLite nao encontrado/i);
+  assert.equal(existsSync(dbPath), false);
+
+  assert.equal(run(root, ["init"]).status, 0);
+  const ok = run(root, ["healthcheck"]);
+
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /SQLite healthcheck: ok/i);
+  assert.match(ok.stdout, /integrity_check: ok/i);
+});
+
+test("CLI recusa SQLite invalido antes de operar e preserva snapshot forense", () => {
+  const root = makeRoot();
+  const dbDir = join(root, ".scratch/db");
+  const dbPath = join(dbDir, "freela.sqlite");
+  mkdirSync(dbDir, { recursive: true });
+  writeFileSync(dbPath, "not a sqlite database", "utf8");
+
+  const result = run(root, ["init"]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /SQLite invalido/i);
+  assert.equal(readFileSync(dbPath, "utf8"), "not a sqlite database");
+  assert.deepEqual(backupFiles(root), []);
+
+  const forensicsDir = join(root, ".scratch/forensics");
+  const snapshots = readdirSync(forensicsDir).filter((file) => file.startsWith("sqlite-invalid-"));
+  assert.equal(snapshots.length, 1);
+  assert.equal(existsSync(join(forensicsDir, snapshots[0], "db/freela.sqlite")), true);
+});
+
+test("escrita critica cria backup SQLite consistente antes de modificar e aplica rotacao", () => {
+  const root = makeRoot();
+  const env = { ...process.env, FREELA_CRM_BACKUP_LIMIT: "2" };
+
+  assert.equal(run(root, ["init"], { env }).status, 0);
+  const leadFile = writeJson(root, "backup-lead-1.json", [
+    {
+      canonical_name: "Backup Lead 1",
+      city: "Vitoria",
+      phone_or_contact: "27 99999-0001",
+      recommended_offer: "Presenca Local em 72h",
+    },
+  ]);
+  const firstWrite = run(root, ["lead", "upsert", "--file", leadFile], { env });
+
+  assert.equal(firstWrite.status, 0, firstWrite.stderr);
+  let backups = backupFiles(root);
+  assert.equal(backups.length, 1);
+
+  const firstBackup = new DatabaseSync(join(root, ".scratch/db/backups", backups[0]), {
+    readOnly: true,
+  });
+  assert.equal(firstBackup.prepare("pragma integrity_check").get().integrity_check, "ok");
+  assert.equal(firstBackup.prepare("select count(*) as count from leads").get().count, 0);
+  firstBackup.close();
+
+  for (let index = 2; index <= 4; index += 1) {
+    const file = writeJson(root, `backup-lead-${index}.json`, [
+      {
+        canonical_name: `Backup Lead ${index}`,
+        city: "Vitoria",
+        phone_or_contact: `27 99999-000${index}`,
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]);
+    const result = run(root, ["lead", "upsert", "--file", file], { env });
+    assert.equal(result.status, 0, result.stderr);
+  }
+
+  backups = backupFiles(root);
+  assert.equal(backups.length, 2);
+});
+
+test("sqlite localizer moves official DB to local app data and leaves compatibility symlink", () => {
+  const root = makeRoot();
+  const target = join(root, "local-app-support/freela-paperclip/db");
+
+  assert.equal(run(root, ["init"]).status, 0);
+  const leadFile = writeJson(root, "localize-lead.json", [
+    {
+      canonical_name: "Localizer Lead",
+      city: "Vitoria",
+      phone_or_contact: "27 99999-7777",
+      recommended_offer: "Presenca Local em 72h",
+    },
+  ]);
+  assert.equal(run(root, ["lead", "upsert", "--file", leadFile]).status, 0);
+
+  const result = runNode([localizer, "--root", root, "--target-dir", target]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /SQLite localizado: ok/i);
+  assert.equal(lstatSync(join(root, ".scratch/db")).isSymbolicLink(), true);
+  assert.equal(readlinkSync(join(root, ".scratch/db")), target);
+  assert.equal(existsSync(join(target, "freela.sqlite")), true);
+
+  const health = run(root, ["healthcheck"]);
+  assert.equal(health.status, 0, health.stderr);
+  assert.match(health.stdout, /integrity_check: ok/i);
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"), { readOnly: true });
+  assert.equal(
+    database.prepare("select count(*) as count from leads where canonical_name = ?").get("Localizer Lead")
+      .count,
+    1,
+  );
+  database.close();
+
+  const snapshots = readdirSync(join(root, ".scratch/forensics")).filter((name) =>
+    name.startsWith("sqlite-localize-"),
+  );
+  assert.equal(snapshots.length, 1);
+  assert.equal(existsSync(join(root, ".scratch/forensics", snapshots[0], "original-db/freela.sqlite")), true);
 });
 
 test("SQLite CLI aguarda lock curto em escrita concorrente", async () => {

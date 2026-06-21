@@ -53,7 +53,7 @@ Documentos base:
 
 Contrato de dados:
 
-- SQLite em `.scratch/db/freela.sqlite` e a fonte de verdade operacional.
+- SQLite oficial acessado pela CLI em `.scratch/db/freela.sqlite`; na instancia local principal esse caminho e compatibilidade/symlink para `/Users/luiz_fbm/Library/Application Support/freela-paperclip/db/freela.sqlite`. Nunca mover/copiar/restaurar o DB manualmente; use `node scripts/freela-crm.mjs` e `node scripts/freela-crm.mjs healthcheck`.
 - Use `node scripts/freela-crm.mjs lead status --name [nome]` para consultar estado.
 - Use `node scripts/freela-crm.mjs queue generate` e `node scripts/freela-crm.mjs export all` para pedir espelhos atualizados quando necessario.
 - SQLite comercial e a camada oficial para enxergar gargalos do funil; use `node scripts/freela-crm.mjs commercial status --date YYYY-MM-DD` para placar e `node scripts/freela-crm.mjs commercial export --date YYYY-MM-DD` para gerar `.scratch/crm/commercial-funnel.md` e `.scratch/ops/commercial-status.md`.
