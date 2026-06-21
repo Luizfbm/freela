@@ -234,6 +234,22 @@ test("gateway dry-run skips leads in handoff", () => {
   assertDryRunDispatchableCount(root, 0);
 });
 
+test("gateway dry-run skips leads blocked by guardian state", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestLeadState(root, "bloqueado_guardiao");
+
+  assertDryRunDispatchableCount(root, 0);
+});
+
+test("gateway dry-run skips closed conversations", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestLeadState(root, "encerrado");
+
+  assertDryRunDispatchableCount(root, 0);
+});
+
 test("gateway importa mensagens novas do messages.db do whatsapp-mcp sem duplicar", () => {
   const root = makeRoot();
   assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
