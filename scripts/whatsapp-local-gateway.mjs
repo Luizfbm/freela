@@ -1315,6 +1315,7 @@ function printWahaEventResult(result, flags) {
 function serveWahaWebhook(root, flags) {
   validateServeWahaWebhookFlags(flags);
   const host = clean(flags.host || process.env.WHATSAPP_WAHA_WEBHOOK_HOST || "127.0.0.1");
+  assertLoopbackWebhookHost(host);
   const port = parsePositiveInt(flags.port || process.env.WHATSAPP_WAHA_WEBHOOK_PORT || "3105", "--port");
   const secret = clean(flags["webhook-secret"] || process.env.WHATSAPP_WAHA_WEBHOOK_SECRET || "");
 
@@ -1349,6 +1350,14 @@ function serveWahaWebhook(root, flags) {
     const address = server.address();
     console.log(`Observando WAHA webhook em http://${host}:${address.port}/waha/webhook`);
   });
+}
+
+function assertLoopbackWebhookHost(host) {
+  const value = clean(host).toLowerCase();
+  if (value === "localhost" || value === "::1" || value === "[::1]" || /^127(?:\.\d{1,3}){3}$/.test(value)) {
+    return;
+  }
+  throw new Error(`--host deve usar loopback local (127.0.0.1, localhost ou ::1); recebido: ${host || "-"}`);
 }
 
 function writeWahaWebhookAudit(root, event, result, error = null) {

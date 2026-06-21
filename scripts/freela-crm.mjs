@@ -370,6 +370,18 @@ async function dispatch({ root, dbPath, command, args }) {
     return;
   }
 
+  if (command[0] === "whatsapp" && command[1] === "unmatched" && command[2] === "mark-no-match") {
+    const flags = parseFlags(args);
+    requireFlag(flags, "reason");
+    const result = markNoMatchUnmatchedWhatsAppInbound(database, {
+      ids: flags.id ? parseListFlag(flags.id).map((id) => parsePositiveInt(id, "id")) : [],
+      chatId: clean(flags["chat-id"]),
+      reason: flags.reason,
+    });
+    console.log(`Eventos sem match registrados: ${result.marked}`);
+    return;
+  }
+
   if (command[0] === "whatsapp" && command[1] === "state" && command[2] === "set") {
     const flags = parseFlags(args);
     requireFlag(flags, "name");
@@ -2972,6 +2984,65 @@ function reconcileUnmatchedWhatsAppInbound(database, { limit }) {
   }
 
   return { reconciled, pending };
+}
+
+function markNoMatchUnmatchedWhatsAppInbound(database, { ids, chatId, reason }) {
+  const normalizedReason = clean(reason);
+  if (!normalizedReason) throw usageError("--reason obrigatorio");
+  if ((ids.length ? 1 : 0) + (chatId ? 1 : 0) !== 1) {
+    throw usageError("Informe exatamente um filtro: --id ou --chat-id");
+  }
+
+  let rows;
+  if (ids.length) {
+    const placeholders = ids.map(() => "?").join(", ");
+    rows = database
+      .prepare(
+        `select *
+         from whatsapp_unmatched_inbound_events
+         where status = 'unmatched'
+           and id in (${placeholders})
+         order by received_at asc, id asc`,
+      )
+      .all(...ids);
+  } else {
+    rows = database
+      .prepare(
+        `select *
+         from whatsapp_unmatched_inbound_events
+         where status = 'unmatched'
+           and chat_id = ?
+         order by received_at asc, id asc`,
+      )
+      .all(chatId);
+  }
+
+  const timestamp = now();
+  database.exec("BEGIN");
+  try {
+    for (const row of rows) {
+      database
+        .prepare(
+          `update whatsapp_unmatched_inbound_events
+           set status = 'no_match',
+               match_reason = ?,
+               updated_at = ?
+           where id = ?`,
+        )
+        .run(normalizedReason, timestamp, row.id);
+      audit(database, "whatsapp_unmatched_inbound_event", row.id, "mark-no-match", {
+        reason: normalizedReason,
+        chat_id: row.chat_id,
+        classification: row.classification,
+      });
+    }
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+
+  return { marked: rows.length };
 }
 
 function markUnmatchedReconciled(database, unmatchedId, leadId, inboundId, reason) {

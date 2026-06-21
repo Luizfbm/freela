@@ -155,7 +155,8 @@ function checkSqlite(root, flags = {}) {
         "status in ('pending', 'approved', 'delivery_pending')",
       ),
       whatsapp_outbox_failed: countWhere(database, "whatsapp_outbox", "status = 'failed'"),
-      whatsapp_unmatched_open: countWhere(database, "whatsapp_unmatched_inbound_events", "status != 'reconciled'"),
+      whatsapp_unmatched_open: countWhere(database, "whatsapp_unmatched_inbound_events", "status = 'unmatched'"),
+      whatsapp_unmatched_no_match: countWhere(database, "whatsapp_unmatched_inbound_events", "status = 'no_match'"),
     };
 
     return {
@@ -545,7 +546,33 @@ async function putOpsHealthDocument({ flags, issue, report }) {
     body: renderExecutiveStatus(report),
     changeSummary: "Atualiza Ops Health",
   };
-  return requestJson({ url, method: "PUT", payload, flags, timeoutMs });
+  const baseRevisionId = await readCurrentDocumentRevisionId({ url, flags, timeoutMs });
+  return putDocumentWithConflictRetry({ url, payload, baseRevisionId, flags, timeoutMs });
+}
+
+async function readCurrentDocumentRevisionId({ url, flags, timeoutMs }) {
+  try {
+    const document = await requestJson({ url, method: "GET", flags, timeoutMs });
+    return document?.latestRevisionId ?? null;
+  } catch (error) {
+    if (error.status === 404) return null;
+    throw error;
+  }
+}
+
+async function putDocumentWithConflictRetry({ url, payload, baseRevisionId, flags, timeoutMs }) {
+  try {
+    return await putDocument({ url, payload, baseRevisionId, flags, timeoutMs });
+  } catch (error) {
+    if (error.status !== 409) throw error;
+    const latestRevisionId = await readCurrentDocumentRevisionId({ url, flags, timeoutMs });
+    return putDocument({ url, payload, baseRevisionId: latestRevisionId, flags, timeoutMs });
+  }
+}
+
+function putDocument({ url, payload, baseRevisionId, flags, timeoutMs }) {
+  const versionedPayload = baseRevisionId ? { ...payload, baseRevisionId } : payload;
+  return requestJson({ url, method: "PUT", payload: versionedPayload, flags, timeoutMs });
 }
 
 function renderExecutiveStatus(report) {

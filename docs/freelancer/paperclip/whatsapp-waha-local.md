@@ -76,6 +76,13 @@ node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --ident
 node scripts/freela-crm.mjs whatsapp unmatched reconcile
 ```
 
+Quando a auditoria mostrar que o inbound nao pertence a um lead comercial, preserve o bruto como `no_match`:
+
+```bash
+node scripts/freela-crm.mjs whatsapp unmatched mark-no-match --id 123 --reason "status broadcast"
+node scripts/freela-crm.mjs whatsapp unmatched mark-no-match --chat-id "273478418722987@lid" --reason "conversa pessoal"
+```
+
 O dedupe de acordar workers fica em `whatsapp_worker_wakes`.
 
 Roteamento com `--auto-wake`:

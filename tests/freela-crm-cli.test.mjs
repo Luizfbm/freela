@@ -2279,6 +2279,57 @@ test("whatsapp inbound desconhecido entra na fila unmatched e reconcilia apos vi
   assert.equal(reconciled.matched_inbound_event_id, inbound.id);
 });
 
+test("whatsapp unmatched mark-no-match preserva inbound sem lead comercial e tira da conciliacao", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+
+  const event = {
+    bridge_message_id: "lid-no-match-001",
+    chat_id: "status@broadcast",
+    sender_name: "30782047428831",
+    sender_phone: "71605829013592",
+    is_group: false,
+    message_type: "text",
+    body: "oi domingo e meu niver\n\nquero abracos",
+    received_at: "2026-06-21T09:32:27-03:00",
+  };
+  const eventFile = writeJson(root, "wa-lid-no-match.json", event);
+  const ingest = run(root, ["whatsapp", "inbound", "ingest", "--file", eventFile]);
+  assert.equal(ingest.status, 0, ingest.stderr);
+  assert.match(ingest.stdout, /WhatsApp inbound sem lead/i);
+
+  const marked = run(root, [
+    "whatsapp",
+    "unmatched",
+    "mark-no-match",
+    "--chat-id",
+    "status@broadcast",
+    "--reason",
+    "status broadcast sem lead comercial",
+  ]);
+  assert.equal(marked.status, 0, marked.stderr);
+  assert.match(marked.stdout, /Eventos sem match registrados: 1/i);
+
+  const reconcile = run(root, ["whatsapp", "unmatched", "reconcile"]);
+  assert.equal(reconcile.status, 0, reconcile.stderr);
+  assert.match(reconcile.stdout, /Reconciliados: 0/i);
+  assert.match(reconcile.stdout, /Pendentes: 0/i);
+
+  const database = db(root);
+  const unmatched = database.prepare("select * from whatsapp_unmatched_inbound_events").get();
+  assert.equal(unmatched.status, "no_match");
+  assert.equal(unmatched.match_reason, "status broadcast sem lead comercial");
+  assert.equal(database.prepare("select count(*) as count from whatsapp_inbound_events").get().count, 0);
+  const audit = database
+    .prepare("select entity_type, entity_id, action, details_json from audit_log order by id desc limit 1")
+    .get();
+  assert.equal(audit.entity_type, "whatsapp_unmatched_inbound_event");
+  assert.equal(audit.entity_id, unmatched.id);
+  assert.equal(audit.action, "mark-no-match");
+  assert.match(audit.details_json, /status broadcast sem lead comercial/i);
+  database.close();
+});
+
 test("whatsapp inbound classifies orçamento as price request", () => {
   const root = makeWhatsAppLeadRoot("wa-price-synonym-001", "Qual o orçamento?");
 

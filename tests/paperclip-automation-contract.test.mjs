@@ -579,6 +579,7 @@ test("WhatsApp Identity e auto-wake ficam documentados no contrato operacional",
     assert.match(doc, /whatsapp unmatched reconcile/i);
     assert.match(doc, /Sem identidade/i);
     assert.match(doc, /--auto-wake/i);
+    assert.match(doc, /--host\s+127\.0\.0\.1/i);
     assert.match(doc, /whatsapp_worker_wakes/i);
   }
 

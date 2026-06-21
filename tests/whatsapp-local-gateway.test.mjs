@@ -1372,6 +1372,28 @@ test("WAHA webhook monitor imports inbound events without dispatching approved o
   }
 });
 
+test("WAHA webhook monitor rejects non-loopback hosts", async () => {
+  const root = makeRoot();
+  const port = await getFreePort();
+
+  const result = await runNodeUntilOutput(
+    [
+      gateway,
+      "--root",
+      root,
+      "serve-waha-webhook",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      String(port),
+    ],
+    /--host deve usar loopback/i,
+  );
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--host deve usar loopback/i);
+});
+
 test("gateway rejects unknown dispatch flags without mutating outbox", () => {
   const root = makeRoot();
   seedApprovedOutbox(root);
