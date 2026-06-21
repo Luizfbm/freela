@@ -73,6 +73,20 @@ const PROFILE_INSTAGRAM_SESSION_STATUSES = new Set([
   "unknown",
   "not_checked",
 ]);
+const WHATSAPP_CONVERSATION_STATES = new Set([
+  "none",
+  "atendimento_autonomo",
+  "respondeu_pode",
+  "pedido_exemplo",
+  "exemplo_aprovado_para_envio",
+  "preco_pedido",
+  "lead_quente",
+  "objecao_comercial",
+  "qualificacao_preco_pendente",
+  "handoff_luiz",
+  "bloqueado_guardiao",
+  "encerrado",
+]);
 const HANDOFF_STATUSES = new Set([
   "pending_issue",
   "issue_created",
@@ -329,6 +343,20 @@ async function dispatch({ root, dbPath, command, args }) {
     return;
   }
 
+  if (command[0] === "whatsapp" && command[1] === "state" && command[2] === "set") {
+    const flags = parseFlags(args);
+    requireFlag(flags, "name");
+    requireFlag(flags, "state");
+    const lead = requireUniqueLead(database, flags.name);
+    setWhatsAppConversationState(database, lead, {
+      state: flags.state,
+      reason: flags.reason ?? "",
+      resetAutoReplies: parseBooleanFlag(flags["reset-auto-replies"]),
+    });
+    console.log(`Estado WhatsApp atualizado: ${lead.canonical_name} (${flags.state})`);
+    return;
+  }
+
   if (command[0] === "whatsapp" && command[1] === "outbox" && command[2] === "propose") {
     const flags = parseFlags(args);
     requireFlag(flags, "name");
@@ -472,7 +500,7 @@ function parseCommand(argv) {
   ) {
     if (!args[0]) throw usageError(`Subcomando obrigatorio para ${command[0]}`);
     command.push(args.shift());
-    if (command[0] === "whatsapp" && ["inbound", "outbox", "guardian", "identity", "unmatched"].includes(command[1])) {
+    if (command[0] === "whatsapp" && ["inbound", "outbox", "guardian", "identity", "unmatched", "state"].includes(command[1])) {
       if (!args[0]) throw usageError(`Acao obrigatoria para ${command.join(" ")}`);
       command.push(args.shift());
     }
@@ -2896,6 +2924,24 @@ function setWhatsAppHandoff(database, leadId, state, reason) {
        where lead_id = ?`,
     )
     .run(state, reason, now(), leadId);
+}
+
+function setWhatsAppConversationState(database, lead, input) {
+  const state = clean(input.state);
+  if (!WHATSAPP_CONVERSATION_STATES.has(state)) {
+    throw usageError(`Estado WhatsApp invalido: ${state}`);
+  }
+
+  upsertLeadConversationState(database, lead, {
+    whatsappState: state,
+    handoffReason: clean(input.reason) || null,
+    resetAutoReplies: Boolean(input.resetAutoReplies),
+  });
+  audit(database, "lead", lead.id, "whatsapp-state-set", {
+    whatsapp_state: state,
+    handoff_reason: clean(input.reason) || null,
+    reset_auto_replies: Boolean(input.resetAutoReplies),
+  });
 }
 
 function markContacted(database, lead, date) {

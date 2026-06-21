@@ -2031,6 +2031,46 @@ test("whatsapp inbound classifies visual example requests for demo routing", () 
   assert.equal(state.whatsapp_state, "pedido_exemplo");
 });
 
+test("whatsapp state set libera estado aprovado para envio de exemplo", () => {
+  const root = makeWhatsAppLeadRoot(
+    "wa-visual-example-002",
+    "Quero entender como isso ficaria visualmente",
+  );
+
+  let database = db(root);
+  const lead = database.prepare("select * from leads").get();
+  database
+    .prepare("update lead_conversation_state set auto_replies_since_human = ? where lead_id = ?")
+    .run(3, lead.id);
+  database.close();
+
+  const result = run(root, [
+    "whatsapp",
+    "state",
+    "set",
+    "--name",
+    "Aghata Massoterapia",
+    "--state",
+    "exemplo_aprovado_para_envio",
+    "--reason",
+    "QA aprovado e URL publicada",
+    "--reset-auto-replies",
+    "true",
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Estado WhatsApp atualizado: Aghata Massoterapia/i);
+
+  database = db(root);
+  const state = database.prepare("select * from lead_conversation_state where lead_id = ?").get(lead.id);
+  const audit = database.prepare("select * from audit_log where action = ?").get("whatsapp-state-set");
+  database.close();
+
+  assert.equal(state.whatsapp_state, "exemplo_aprovado_para_envio");
+  assert.equal(state.handoff_reason, "QA aprovado e URL publicada");
+  assert.equal(state.auto_replies_since_human, 0);
+  assert.ok(audit);
+});
+
 test("whatsapp outbox propose cria resposta candidata sem enviar", () => {
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);
