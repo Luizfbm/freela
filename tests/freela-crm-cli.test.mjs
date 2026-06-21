@@ -1811,6 +1811,34 @@ test("whatsapp inbound ingest registra evento bruto e atualiza estado do lead", 
   assert.equal(state.auto_replies_since_human, 0);
 });
 
+test("whatsapp inbound classifies orçamento as price request", () => {
+  const root = makeWhatsAppLeadRoot("wa-price-synonym-001", "Qual o orçamento?");
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+  assert.equal(inbound.classification, "resposta_pediu_preco");
+  assert.equal(state.whatsapp_state, "preco_pedido");
+});
+
+test("whatsapp inbound classifies custo and investimento as price requests", () => {
+  const cases = [
+    ["wa-price-synonym-002", "Qual o custo?"],
+    ["wa-price-synonym-003", "Qual o investimento?"],
+  ];
+
+  for (const [bridgeMessageId, message] of cases) {
+    const root = makeWhatsAppLeadRoot(bridgeMessageId, message);
+    const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+    const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+    const state = database.prepare("select * from lead_conversation_state").get();
+    database.close();
+    assert.equal(inbound.classification, "resposta_pediu_preco");
+    assert.equal(state.whatsapp_state, "preco_pedido");
+  }
+});
+
 test("whatsapp outbox propose cria resposta candidata sem enviar", () => {
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);
@@ -2243,6 +2271,22 @@ test("whatsapp guardian blocks normal reply while price qualification is pending
   assert.match(outbox.guardian_reason, /preco_pedido exige qualificacao neutra/i);
 });
 
+test("whatsapp guardian blocks normal reply after orçamento price request", () => {
+  const root = makeWhatsAppLeadRoot("wa-guard-price-005", "Qual o orçamento?");
+
+  const review = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Te explico de forma objetiva: a pagina organiza apresentacao, servicos e caminho para WhatsApp.",
+  );
+  assert.match(review.stdout, /bloqueado/i);
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  database.close();
+  assert.match(outbox.guardian_reason, /preco_pedido exige qualificacao neutra/i);
+});
+
 test("whatsapp guardian blocks near-match price qualification with extra text", () => {
   const root = makeWhatsAppLeadRoot("wa-guard-price-004", "Qual o valor?");
 
@@ -2275,6 +2319,39 @@ test("whatsapp guardian approves neutral price qualification and marks pending h
   assert.equal(state.handoff_reason, "preco_pedido");
   assert.equal(state.auto_replies_since_human, 1);
   assert.equal(state.last_outbox_id, outbox.id);
+});
+
+test("whatsapp guardian review is idempotent for approved neutral price qualification", () => {
+  const root = makeWhatsAppLeadRoot("wa-guard-price-idempotent-001", "Qual o valor?");
+  const first = proposeAndReviewSafeWhatsApp(root, "Aghata Massoterapia", neutralPriceQualificationReply);
+  assert.match(first.stdout, /aprovado/i);
+
+  const before = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = before.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  const decisionsBefore = before.prepare("select count(*) as count from whatsapp_guardian_decisions").get().count;
+  before.close();
+
+  const second = runNode([
+    crm,
+    "--root",
+    root,
+    "whatsapp",
+    "guardian",
+    "review",
+    "--outbox-id",
+    String(outbox.id),
+  ]);
+  assert.equal(second.status, 0, second.stderr);
+  assert.match(second.stdout, /aprovado/i);
+
+  const after = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const reviewed = after.prepare("select * from whatsapp_outbox where id = ?").get(outbox.id);
+  const state = after.prepare("select * from lead_conversation_state where lead_id = ?").get(outbox.lead_id);
+  const decisionsAfter = after.prepare("select count(*) as count from whatsapp_guardian_decisions").get().count;
+  after.close();
+  assert.equal(reviewed.status, "approved");
+  assert.equal(state.whatsapp_state, "qualificacao_preco_pendente");
+  assert.equal(decisionsAfter, decisionsBefore);
 });
 
 test("whatsapp guardian blocks second reply after neutral price qualification", () => {

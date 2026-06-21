@@ -2402,6 +2402,13 @@ const NEUTRAL_PRICE_QUALIFICATION_REPLY = [
 function reviewWhatsAppOutbox(database, outboxId) {
   const outbox = database.prepare("select * from whatsapp_outbox where id = ?").get(outboxId);
   if (!outbox) throw usageError(`Outbox nao encontrado: ${outboxId}`);
+  if (outbox.status !== "pending_guardian") {
+    return {
+      decision: outbox.status === "approved" ? "aprovado" : outbox.status,
+      reason: outbox.guardian_reason || "decisao ja registrada",
+      rules: outbox.guardian_reason ? outbox.guardian_reason.split("; ") : [],
+    };
+  }
   const lead = database.prepare("select * from leads where id = ?").get(outbox.lead_id);
   const state = database
     .prepare("select * from lead_conversation_state where lead_id = ?")
@@ -4097,7 +4104,13 @@ function buildMergeKey(lead) {
 function classifyResponse(message) {
   const normalized = normalizeName(message);
   if (/\bpode\b|\bclaro\b|\bsim\b/.test(normalized)) return "resposta_permissao";
-  if (/\bpreco\b|\bvalor\b|\bquanto\b/.test(normalized)) return "resposta_pediu_preco";
+  if (
+    /\bpreco\b|\bvalor\b|\bquanto\b|\borcamento\b|\bcusto\b|\binvestimento\b|\bpagamento\b|\bdesconto\b|\bproposta\b/.test(
+      normalized,
+    )
+  ) {
+    return "resposta_pediu_preco";
+  }
   if (/\bexemplo\b|\blink\b|\bsite\b/.test(normalized)) return "resposta_pediu_exemplo";
   if (/\bnao\b|\bsem interesse\b/.test(normalized)) return "resposta_sem_interesse";
   return "resposta_recebida";
