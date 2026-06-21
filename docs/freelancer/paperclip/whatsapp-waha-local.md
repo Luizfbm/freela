@@ -59,7 +59,15 @@ node scripts/whatsapp-local-gateway.mjs \
   --auto-wake
 ```
 
-Eventos `message` inbound entram em `whatsapp_inbound_events`. Se o lead nao for identificado, o Gateway grava em `whatsapp_unmatched_inbound_events`, imprime `Sem identidade: N` e nao envia nada.
+Eventos `message` inbound entram em `whatsapp_inbound_events`. Texto normal da WAHA pode chegar como `type: "chat"`; o Gateway/CRM normalizam isso para `message_type: "text"`. Se o lead nao for identificado, o Gateway grava em `whatsapp_unmatched_inbound_events`, imprime `Sem identidade: N` e nao envia nada.
+
+Todo POST recebido pelo monitor gera auditoria privada em:
+
+```text
+.scratch/whatsapp/waha-webhook-events.jsonl
+```
+
+Use esse arquivo quando a WAHA mostrar status 200 mas a mensagem nao aparecer no CRM. Cada linha informa `event`, `messageId`, `chatId`, `result.imported`, `result.skipped`, `result.unmatched` e `result.failed`, alem do payload bruto local para diagnostico.
 
 Para reconciliar identidade, use:
 

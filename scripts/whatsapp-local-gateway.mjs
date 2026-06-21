@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -1249,11 +1249,17 @@ function eventFromWahaMessage(event) {
       chatId,
     sender_phone: senderPhone,
     is_group: false,
-    message_type: clean(payload.type || payload.message_type || payload._data?.type) || "text",
+    message_type: normalizeWahaMessageType(payload.type || payload.message_type || payload._data?.type),
     body,
     received_at: wahaReceivedAt(payload),
     source: "waha/webhook",
   };
+}
+
+function normalizeWahaMessageType(messageType) {
+  const normalized = clean(messageType).toLowerCase();
+  if (!normalized || normalized === "text" || normalized === "chat") return "text";
+  return normalized;
 }
 
 function isWahaInboundMessageEvent(event) {
@@ -1323,8 +1329,12 @@ function serveWahaWebhook(root, flags) {
     try {
       const event = await readRequestJson(request);
       const result = processWahaEvent(root, flags, event);
+      writeWahaWebhookAudit(root, event, result);
+      logWahaWebhookResult(result);
       response.end(JSON.stringify({ ok: true, result }));
     } catch (error) {
+      writeWahaWebhookAudit(root, null, null, error);
+      console.error(`[waha-webhook] failed=1 error=${error.message}`);
       response.statusCode = 500;
       response.end(JSON.stringify({ ok: false, error: error.message }));
     }
@@ -1334,6 +1344,47 @@ function serveWahaWebhook(root, flags) {
     const address = server.address();
     console.log(`Observando WAHA webhook em http://${host}:${address.port}/waha/webhook`);
   });
+}
+
+function writeWahaWebhookAudit(root, event, result, error = null) {
+  const auditDir = join(root, ".scratch/whatsapp");
+  mkdirSync(auditDir, { recursive: true });
+  const payload = wahaPayload(event);
+  const entry = {
+    created_at: new Date().toISOString(),
+    event: clean(event?.event || event?.type || result?.event || "desconhecido"),
+    messageId: event ? extractWahaEventMessageId(event) : "",
+    chatId: clean(
+      payload?.from ||
+        payload?.chatId ||
+        payload?._data?.from ||
+        payload?._data?.id?.remote ||
+        payload?._data?.id?.participant,
+    ),
+    fromMe: Boolean(payload?.fromMe || payload?._data?.id?.fromMe),
+    result: result || {
+      imported: 0,
+      skipped: 0,
+      unmatched: 0,
+      autoWakes: 0,
+      failed: 1,
+    },
+    error: error ? error.message : "",
+    rawEvent: event,
+  };
+  appendFileSync(join(auditDir, "waha-webhook-events.jsonl"), `${JSON.stringify(entry)}\n`);
+}
+
+function logWahaWebhookResult(result) {
+  const parts = [
+    `event=${result.event || "desconhecido"}`,
+    `imported=${result.imported ?? 0}`,
+    `skipped=${result.skipped ?? 0}`,
+    `unmatched=${result.unmatched ?? 0}`,
+    `autoWakes=${result.autoWakes ?? 0}`,
+    `failed=${result.failed ?? 0}`,
+  ];
+  console.log(`[waha-webhook] ${parts.join(" ")}`);
 }
 
 function validateServeWahaWebhookFlags(flags) {

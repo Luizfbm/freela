@@ -1995,7 +1995,7 @@ test("whatsapp inbound ingest registra evento bruto e atualiza estado do lead", 
     sender_name: "Aghata",
     sender_phone: "+55 27 99999-0000",
     is_group: false,
-    message_type: "text",
+    message_type: "chat",
     body: "Pode sim",
     received_at: "2026-06-19T09:30:00-03:00",
   });
@@ -2008,6 +2008,7 @@ test("whatsapp inbound ingest registra evento bruto e atualiza estado do lead", 
   const database = db(root);
   const inbound = database.prepare("select * from whatsapp_inbound_events").get();
   assert.equal(inbound.bridge_message_id, "msg-001");
+  assert.equal(inbound.message_type, "text");
   assert.equal(inbound.body, "Pode sim");
   assert.equal(inbound.processing_status, "classified");
   assert.equal(inbound.classification, "resposta_permissao");

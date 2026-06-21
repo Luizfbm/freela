@@ -1292,6 +1292,7 @@ test("WAHA webhook monitor imports inbound events without dispatching approved o
         id: "false_5527999990000@c.us_3EB0WAHAWEBHOOK",
         from: "5527999990000@c.us",
         fromMe: false,
+        type: "chat",
         body: "Pode!",
         notifyName: "Aghata Massoterapia",
         timestamp: 1782051829,
@@ -1313,8 +1314,17 @@ test("WAHA webhook monitor imports inbound events without dispatching approved o
     assert.equal(inbound.bridge_message_id, "false_5527999990000@c.us_3EB0WAHAWEBHOOK");
     assert.equal(inbound.chat_id, "5527999990000@c.us");
     assert.equal(inbound.sender_phone, "5527999990000");
+    assert.equal(inbound.message_type, "text");
     assert.equal(inbound.body, "Pode!");
     assert.equal(JSON.parse(inbound.raw_json).source, "waha/webhook");
+
+    const auditFile = join(root, ".scratch/whatsapp/waha-webhook-events.jsonl");
+    assert.equal(existsSync(auditFile), true);
+    const auditEntry = JSON.parse(readFileSync(auditFile, "utf8").trim().split("\n").at(-1));
+    assert.equal(auditEntry.event, "message");
+    assert.equal(auditEntry.result.imported, 1);
+    assert.equal(auditEntry.result.failed, 0);
+    assert.equal(auditEntry.messageId, "false_5527999990000@c.us_3EB0WAHAWEBHOOK");
   } finally {
     await stopChild(server.child);
     await bridge.close();

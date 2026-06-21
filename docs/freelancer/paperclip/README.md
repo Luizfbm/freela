@@ -337,7 +337,9 @@ WAHA e o unico transporte operacional de WhatsApp e continua em laboratorio cont
 
 Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound do webhook WAHA, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox --provider waha` chama o motor de envio autorizado.
 
-Workers nao recebem ferramentas cruas de envio. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela serve-waha-webhook --auto-wake` ou, para replay/debug, `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-waha-event --file .scratch/waha-event.json --auto-wake`.
+Workers nao recebem ferramentas cruas de envio. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela serve-waha-webhook --auto-wake` ou, para replay/debug, `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-waha-event --file .scratch/waha-event.json --auto-wake`. Texto normal da WAHA pode chegar como `type: "chat"` e e normalizado para `message_type: "text"`.
+
+O monitor WAHA grava auditoria privada em `.scratch/whatsapp/waha-webhook-events.jsonl`. Se a WAHA mostrar HTTP 200 mas o CRM nao refletir a mensagem, consulte esse JSONL antes de mexer em identidade, Outbox ou workers.
 
 Identidade WhatsApp e parte do contrato operacional. Se a WAHA entregar um contato como `@lid` ou outro JID que nao bate com telefone publico, o Gateway nao descarta: ele registra em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`. Vincule o lead com `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois rode `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
 

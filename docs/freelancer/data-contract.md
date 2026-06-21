@@ -277,6 +277,8 @@ Identidade WhatsApp:
 - O Gateway bloqueia qualquer Outbox legada cujo `target_chat_id` termine em `@lid`, nao chama endpoint de envio e move a conversa para `handoff_luiz` com motivo explicito para vincular telefone real.
 - No provider WAHA, o Gateway consulta `check-exists` com telefone real. Se a WAHA devolver `chatId` `@lid`, esse `@lid` resolvido pela propria WAHA pode ser usado em `/api/sendText`; isso nao autoriza salvar `@lid` direto na Outbox.
 - Quando o Gateway nao encontra lead confiavel, ele grava o evento em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`.
+- Texto normal recebido pela WAHA pode chegar como `type: "chat"`; o Gateway/CRM normalizam para `message_type: "text"`.
+- O monitor WAHA grava auditoria privada de cada POST em `.scratch/whatsapp/waha-webhook-events.jsonl`. Se a WAHA mostrar HTTP 200 e o CRM nao refletir a mensagem, esse JSONL e a primeira evidencia a consultar.
 - Para reconciliar, use `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
 - O webhook/import WAHA com `--auto-wake` cria issue no Paperclip por roteamento seletivo; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama endpoint de envio e nao cria Outbox.
 - Atendimento WhatsApp recebe conversa normal: `resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`.

@@ -2615,7 +2615,8 @@ function identifyLeadForConversation(database, conversation) {
 
 function ingestWhatsAppInbound(database, event, rawFile, options = {}) {
   if (event.is_group) throw usageError("Eventos de grupo nao entram na automacao WhatsApp");
-  if (event.message_type && event.message_type !== "text") {
+  const messageType = normalizeWhatsAppInboundMessageType(event.message_type);
+  if (messageType !== "text") {
     throw usageError(`Tipo de mensagem nao suportado para automacao: ${event.message_type}`);
   }
   if (!clean(event.body)) throw usageError("Mensagem inbound sem texto");
@@ -2663,7 +2664,7 @@ function ingestWhatsAppInbound(database, event, rawFile, options = {}) {
       clean(event.sender_name),
       clean(event.sender_phone),
       event.is_group ? 1 : 0,
-      clean(event.message_type) || "text",
+      messageType,
       event.body,
       receivedAt,
       lead.id,
@@ -2783,6 +2784,7 @@ function linkWhatsAppIdentity(database, lead, { identity, source, notes }) {
 
 function recordUnmatchedWhatsAppInbound(database, event, { rawFile, classification, receivedAt, reason }) {
   const bridgeMessageId = clean(event.bridge_message_id);
+  const messageType = normalizeWhatsAppInboundMessageType(event.message_type);
   const timestamp = now();
   database
     .prepare(
@@ -2807,7 +2809,7 @@ function recordUnmatchedWhatsAppInbound(database, event, { rawFile, classificati
       clean(event.sender_name),
       clean(event.sender_phone),
       event.is_group ? 1 : 0,
-      clean(event.message_type) || "text",
+      messageType,
       event.body,
       receivedAt,
       classification,
@@ -2826,6 +2828,12 @@ function recordUnmatchedWhatsAppInbound(database, event, { rawFile, classificati
   return database
     .prepare("select * from whatsapp_unmatched_inbound_events order by id desc limit 1")
     .get();
+}
+
+function normalizeWhatsAppInboundMessageType(messageType) {
+  const normalized = clean(messageType).toLowerCase();
+  if (!normalized || normalized === "text" || normalized === "chat") return "text";
+  return normalized;
 }
 
 function reconcileUnmatchedWhatsAppInbound(database, { limit }) {
