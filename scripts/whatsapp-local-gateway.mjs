@@ -195,10 +195,11 @@ function readDispatchableOutbox(database, limit) {
       from whatsapp_outbox o
       join leads l on l.id = o.lead_id
       join lead_conversation_state s on s.lead_id = o.lead_id
-      where o.status = 'approved'
+      where o.status in ('approved', 'failed')
         and o.guardian_decision = 'enviar'
         and o.humanizer_pass = 1
         and o.sent_at is null
+        and o.attempts < 2
         and coalesce(s.whatsapp_state, '') not in ('handoff_luiz', 'bloqueado_guardiao', 'encerrado')
       order by o.approved_at asc, o.id asc
       limit ?`,
@@ -267,10 +268,11 @@ function lockOutboxForDispatch(database, outboxId) {
       `update whatsapp_outbox
        set status = 'sending', dispatch_locked_at = ?
        where id = ?
-         and status = 'approved'
+         and status in ('approved', 'failed')
          and guardian_decision = 'enviar'
          and humanizer_pass = 1
          and sent_at is null
+         and attempts < 2
          and exists (
            select 1
            from lead_conversation_state s
@@ -385,13 +387,24 @@ function markOutboxSent(database, item, bridgeMessageId) {
 
 function markOutboxFailed(database, item, error) {
   const failedAt = new Date().toISOString();
+  const reason = clean(error || "falha ao enviar pelo bridge");
   database
     .prepare(
       `update whatsapp_outbox
        set status = 'failed', attempts = attempts + 1, failed_at = ?, dispatch_error = ?
        where id = ?`,
     )
-    .run(failedAt, clean(error || "falha ao enviar pelo bridge").slice(0, 1000), item.id);
+    .run(failedAt, reason.slice(0, 1000), item.id);
+  const updated = database.prepare("select attempts from whatsapp_outbox where id = ?").get(item.id);
+  if (updated?.attempts >= 2) {
+    database
+      .prepare(
+        `update lead_conversation_state
+         set whatsapp_state = 'handoff_luiz', handoff_reason = ?, updated_at = ?
+         where lead_id = ?`,
+      )
+      .run(`falha no envio automatico WhatsApp: ${reason.slice(0, 300)}`, failedAt, item.lead_id);
+  }
 }
 
 function markOutboxAmbiguousFailure(database, item, error) {

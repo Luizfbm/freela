@@ -364,6 +364,54 @@ test("gateway treats http 200 success false json as confirmed failed dispatch", 
   }
 });
 
+test("gateway moves whatsapp lead to handoff after two confirmed dispatch failures", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, message: "bridge down" }));
+  });
+  try {
+    const first = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(first.status, 0, first.stderr);
+    assert.match(first.stdout, /Falhas: 1/i);
+
+    const firstAudit = readLatestDispatchAudit(root);
+    assert.equal(firstAudit.outbox.status, "failed");
+    assert.equal(firstAudit.outbox.attempts, 1);
+    assert.equal(firstAudit.outbox.sent_at, null);
+    assert.notEqual(firstAudit.state.whatsapp_state, "handoff_luiz");
+
+    const second = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(second.status, 0, second.stderr);
+    assert.match(second.stdout, /Falhas: 1/i);
+    assert.equal(bridge.requests.length, 2);
+
+    const secondAudit = readLatestDispatchAudit(root);
+    assert.equal(secondAudit.outbox.status, "failed");
+    assert.equal(secondAudit.outbox.attempts, 2);
+    assert.equal(secondAudit.outbox.sent_at, null);
+    assert.equal(secondAudit.state.whatsapp_state, "handoff_luiz");
+    assert.match(secondAudit.state.handoff_reason, /falha no envio/i);
+  } finally {
+    await bridge.close();
+  }
+});
+
 test("gateway treats http 500 success false json as ambiguous handoff", async () => {
   const root = makeRoot();
   seedApprovedOutbox(root);
@@ -419,6 +467,46 @@ test("gateway treats http 500 empty body as ambiguous handoff", async () => {
     assert.equal(outbound.length, 0);
     assert.equal(state.whatsapp_state, "handoff_luiz");
     assert.match(state.handoff_reason, /confirmacao|ambigua/i);
+  } finally {
+    await bridge.close();
+  }
+});
+
+test("gateway does not automatically retry ambiguous dispatches", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, message: "bridge down" }));
+  });
+  try {
+    const first = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(first.status, 0, first.stderr);
+    assert.match(first.stdout, /Falhas: 1/i);
+
+    const second = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(second.status, 0, second.stderr);
+    assert.match(second.stdout, /Falhas: 0/i);
+    assert.equal(bridge.requests.length, 1);
+
+    const { outbox, state } = readLatestDispatchAudit(root);
+    assert.equal(outbox.status, "dispatch_ambiguous");
+    assert.equal(outbox.attempts, 1);
+    assert.equal(state.whatsapp_state, "handoff_luiz");
   } finally {
     await bridge.close();
   }
