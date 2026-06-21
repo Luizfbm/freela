@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -16,6 +17,51 @@ function makeRoot() {
 
 function runNode(args, options = {}) {
   return spawnSync(process.execPath, args, { cwd: repoRoot, encoding: "utf8", ...options });
+}
+
+function runNodeAsync(args, options = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, args, { cwd: repoRoot, ...options });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("close", (status) => {
+      resolve({ status, stdout, stderr });
+    });
+  });
+}
+
+function withBridgeServer(handler) {
+  return new Promise((resolve, reject) => {
+    const requests = [];
+    const server = http.createServer((req, res) => {
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+      req.on("end", () => {
+        requests.push({ method: req.method, url: req.url, body: body ? JSON.parse(body) : {} });
+        handler(req, res);
+      });
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      resolve({
+        baseUrl: `http://127.0.0.1:${port}`,
+        requests,
+        close: () => new Promise((done) => server.close(done)),
+      });
+    });
+    server.on("error", reject);
+  });
 }
 
 function seedApprovedOutbox(root) {
@@ -189,6 +235,56 @@ test("gateway dry-runs approved whatsapp outbox without sending", () => {
   const outbox = readLatestOutbox(root);
   assert.equal(outbox.status, "approved");
   assert.equal(outbox.sent_at, null);
+});
+
+test("gateway dispatches approved outbox once through bridge api", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  const bridge = await withBridgeServer((req, res) => {
+    assert.equal(req.method, "POST");
+    assert.equal(req.url, "/api/send");
+    const lockedDb = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+    const locked = lockedDb
+      .prepare("select status, dispatch_locked_at from whatsapp_outbox order by id desc limit 1")
+      .get();
+    lockedDb.close();
+    assert.equal(locked.status, "sending");
+    assert.ok(locked.dispatch_locked_at);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true, message: "sent-by-test-bridge" }));
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Enviados: 1/i);
+    assert.equal(bridge.requests.length, 1);
+    assert.equal(bridge.requests[0].body.recipient, "5527999990000@s.whatsapp.net");
+    assert.match(bridge.requests[0].body.message, /3 pontos/i);
+
+    const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+    const outbox = db.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+    const outbound = db
+      .prepare("select * from interactions where lead_id = ? and direction = 'outbound'")
+      .all(outbox.lead_id);
+    const state = db
+      .prepare("select * from lead_conversation_state where lead_id = ?")
+      .get(outbox.lead_id);
+    db.close();
+    assert.equal(outbox.status, "sent");
+    assert.ok(outbox.sent_at);
+    assert.equal(outbox.bridge_message_id, "sent-by-test-bridge");
+    assert.equal(outbound.length, 1);
+    assert.equal(state.last_outbox_id, outbox.id);
+  } finally {
+    await bridge.close();
+  }
 });
 
 test("gateway rejects unknown dispatch flags without mutating outbox", () => {
@@ -409,5 +505,5 @@ test("gateway importa mensagens novas do messages.db do whatsapp-mcp sem duplica
 
   const source = readFileSync(gateway, "utf8");
   assert.match(source, /messages\.db/i);
-  assert.doesNotMatch(source, /\/api\/send|send_message|send_file|send_audio_message/i);
+  assert.doesNotMatch(source, /send_message|send_file|send_audio_message/i);
 });

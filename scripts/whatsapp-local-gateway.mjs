@@ -207,7 +207,7 @@ function readDispatchableOutbox(database, limit) {
 }
 
 function validateDispatchApprovedOutboxFlags(flags) {
-  const allowed = new Set(["dry-run", "limit", "crm-db"]);
+  const allowed = new Set(["dry-run", "limit", "crm-db", "bridge-api-base", "timeout-ms"]);
   for (const flag of Object.keys(flags)) {
     if (!allowed.has(flag)) {
       throw new Error(`Opcao desconhecida para dispatch-approved-outbox: --${flag}`);
@@ -216,7 +216,147 @@ function validateDispatchApprovedOutboxFlags(flags) {
 }
 
 function dispatchOutboxItems(database, items, flags) {
-  return { sent: 0, failed: 0, skipped: items.length, items };
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+  for (const item of items) {
+    const locked = lockOutboxForDispatch(database, item.id);
+    if (!locked) {
+      skipped += 1;
+      continue;
+    }
+    const result = sendBridgeMessage({
+      bridgeApiBase:
+        flags["bridge-api-base"] ||
+        process.env.WHATSAPP_BRIDGE_API_BASE ||
+        "http://127.0.0.1:8080",
+      recipient: item.target_chat_id,
+      message: item.body,
+      timeoutMs: parsePositiveInt(flags["timeout-ms"] || "15000", "--timeout-ms"),
+    });
+    if (result.success) {
+      markOutboxSent(database, item, result.messageId);
+      sent += 1;
+    } else {
+      markOutboxFailed(database, item, result.error);
+      failed += 1;
+    }
+  }
+  return { sent, failed, skipped, items };
+}
+
+function lockOutboxForDispatch(database, outboxId) {
+  const result = database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'sending', dispatch_locked_at = ?
+       where id = ?
+         and status = 'approved'
+         and guardian_decision = 'enviar'
+         and humanizer_pass = 1
+         and sent_at is null`,
+    )
+    .run(new Date().toISOString(), outboxId);
+  return result.changes === 1;
+}
+
+function sendBridgeMessage({ bridgeApiBase, recipient, message, timeoutMs }) {
+  const url = new URL("/api/send", bridgeApiBase);
+  const result = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), Number(process.argv[4]));
+        try {
+          const response = await fetch(process.argv[1], {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recipient: process.argv[2], message: process.argv[3] }),
+            signal: controller.signal
+          });
+          const text = await response.text();
+          if (!response.ok) {
+            console.error(text || response.statusText);
+            process.exit(1);
+          }
+          console.log(text);
+        } catch (error) {
+          console.error(error.message);
+          process.exit(1);
+        } finally {
+          clearTimeout(timeout);
+        }
+      `,
+      url.toString(),
+      recipient,
+      message,
+      String(timeoutMs),
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) {
+    return {
+      success: false,
+      error: [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
+    };
+  }
+  try {
+    const parsed = result.stdout ? JSON.parse(result.stdout) : {};
+    return {
+      success: parsed.success !== false,
+      messageId: parsed.message || "",
+      error: parsed.success === false ? parsed.message || "bridge retornou success=false" : "",
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+function markOutboxSent(database, item, bridgeMessageId) {
+  const sentAt = new Date().toISOString();
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'sent', bridge_message_id = ?, sent_at = ?, failed_at = null, dispatch_error = null
+       where id = ?`,
+    )
+    .run(bridgeMessageId, sentAt, item.id);
+  database
+    .prepare(
+      `insert into interactions (
+        lead_id, direction, channel, body, occurred_at, raw_file, classification, created_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      item.lead_id,
+      "outbound",
+      "whatsapp",
+      item.body,
+      sentAt,
+      `whatsapp_outbox:${item.id}`,
+      "automatico_enviado",
+      sentAt,
+    );
+  database
+    .prepare(
+      `update lead_conversation_state
+       set last_outbox_id = ?, updated_at = ?
+       where lead_id = ?`,
+    )
+    .run(item.id, sentAt, item.lead_id);
+}
+
+function markOutboxFailed(database, item, error) {
+  const failedAt = new Date().toISOString();
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'failed', attempts = attempts + 1, failed_at = ?, dispatch_error = ?
+       where id = ?`,
+    )
+    .run(failedAt, clean(error || "falha ao enviar pelo bridge").slice(0, 1000), item.id);
 }
 
 function readMcpRows(database, cursor, limit) {
