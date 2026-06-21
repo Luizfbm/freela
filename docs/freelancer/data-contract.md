@@ -272,18 +272,18 @@ SQLite e a fonte oficial tambem para automacao WhatsApp. Mensagens recebidas de 
 
 Identidade WhatsApp:
 
-- O MCP pode entregar conversa individual como `@lid` em vez de telefone publico. Esse identificador deve ser salvo em `whatsapp_identity_aliases`.
+- A WAHA pode entregar conversa individual como `@lid` em vez de telefone publico. Esse identificador deve ser salvo em `whatsapp_identity_aliases`.
 - `@lid` e identidade de leitura/match, nao destinatario direto salvo na Outbox. Quando uma Outbox nasce de inbound `@lid`, a CLI deve usar o telefone real do lead como `target_chat_id` enviavel, por exemplo `5527999990000`; se nao houver telefone real, a proposta deve falhar cedo em vez de tentar enviar para `@lid`.
-- O Gateway bloqueia qualquer Outbox legada cujo `target_chat_id` termine em `@lid`, nao chama `/api/send` e move a conversa para `handoff_luiz` com motivo explicito para vincular telefone real.
+- O Gateway bloqueia qualquer Outbox legada cujo `target_chat_id` termine em `@lid`, nao chama endpoint de envio e move a conversa para `handoff_luiz` com motivo explicito para vincular telefone real.
 - No provider WAHA, o Gateway consulta `check-exists` com telefone real. Se a WAHA devolver `chatId` `@lid`, esse `@lid` resolvido pela propria WAHA pode ser usado em `/api/sendText`; isso nao autoriza salvar `@lid` direto na Outbox.
 - Quando o Gateway nao encontra lead confiavel, ele grava o evento em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`.
 - Para reconciliar, use `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
-- O import/watch com `--auto-wake` cria issue no Paperclip por roteamento seletivo; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama bridge e nao cria Outbox.
+- O webhook/import WAHA com `--auto-wake` cria issue no Paperclip por roteamento seletivo; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama endpoint de envio e nao cria Outbox.
 - Atendimento WhatsApp recebe conversa normal: `resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`.
 - Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `resposta_pediu_preco`/`preco_pedido`, `resposta_lead_quente`/`lead_quente`, `resposta_objecao`/`objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
 - Em teste ou ambiente alternativo, `--closer-agent-id` sobrescreve o agente closer padrao.
 
-O `lharries/whatsapp-mcp` e uma entrada local, nao a fonte oficial. O bridge grava conversas em `.scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db`; o Gateway Local importa mensagens novas com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-mcp-sqlite` e cursor em `.scratch/whatsapp-mcp-cursor.json`.
+WAHA e a entrada local autorizada. O Gateway Local recebe eventos pelo webhook com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela serve-waha-webhook --auto-wake` ou reprocessa um evento salvo com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-waha-event --file .scratch/waha-event.json --auto-wake`.
 
 Nenhum worker comercial envia WhatsApp diretamente. Somente o Gateway Local pode enviar itens `approved` da Outbox.
 

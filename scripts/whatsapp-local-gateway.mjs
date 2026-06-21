@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -34,18 +35,6 @@ function main() {
     return;
   }
 
-  if (command === "import-mcp-sqlite") {
-    const result = importMcpSqlite(root, flags);
-    console.log(`Importados: ${result.imported}`);
-    console.log(`Ignorados: ${result.skipped}`);
-    console.log(`Sem identidade: ${result.unmatched}`);
-    if (parseBooleanFlag(flags["auto-wake"])) {
-      console.log(`Auto-wakes: ${result.autoWakes}`);
-    }
-    console.log(`Falhas: ${result.failed}`);
-    return;
-  }
-
   if (command === "dispatch-approved-outbox") {
     const result = dispatchApprovedOutbox(root, flags);
     if (parseBooleanFlag(flags["dry-run"])) {
@@ -64,18 +53,12 @@ function main() {
 
   if (command === "import-waha-event") {
     const result = importWahaEvent(root, flags);
-    if (result.event === "message.ack") {
-      console.log(`WAHA ack atualizado: ${result.updated}`);
-    } else if (result.event === "message.waiting") {
-      console.log(`WAHA waiting atualizado: ${result.updated}`);
-    } else {
-      console.log(`WAHA evento ignorado: ${result.event || "desconhecido"}`);
-    }
+    printWahaEventResult(result, flags);
     return;
   }
 
-  if (command === "watch-mcp-sqlite") {
-    watchMcpSqlite(root, flags);
+  if (command === "serve-waha-webhook") {
+    serveWahaWebhook(root, flags);
     return;
   }
 
@@ -144,98 +127,6 @@ function ensureCrmInitialized(root, crmDbPath, explicitCrmDb) {
 
 function isUnknownLeadError(error) {
   return /Lead nao encontrado|Nenhum lead identificado/i.test(error.message);
-}
-
-function importMcpSqlite(root, flags) {
-  validateImportMcpSqliteFlags(flags);
-  const dbPath = resolve(
-    root,
-    flags.db || process.env.WHATSAPP_MCP_MESSAGES_DB || ".scratch/whatsapp-mcp/whatsapp-bridge/store/messages.db",
-  );
-  if (!existsSync(dbPath)) {
-    throw new Error(`messages.db do whatsapp-mcp nao encontrado: ${dbPath}`);
-  }
-
-  const limit = parsePositiveInt(flags.limit || "100", "--limit");
-  const scratchDir = join(root, ".scratch");
-  mkdirSync(scratchDir, { recursive: true });
-  const stateFile = resolve(root, flags["state-file"] || ".scratch/whatsapp-mcp-cursor.json");
-  const cursor = readCursor(stateFile);
-  const database = new DatabaseSync(dbPath);
-  let imported = 0;
-  let skipped = 0;
-  let unmatched = 0;
-  let autoWakes = 0;
-  let failed = 0;
-  const autoWake = parseBooleanFlag(flags["auto-wake"]);
-
-  try {
-    const rows = readMcpRows(database, cursor, limit);
-    for (const row of rows) {
-      const rowCursor = cursorForRow(row);
-      const event = eventFromMcpRow(row);
-
-      if (!event) {
-        skipped += 1;
-        writeCursor(stateFile, rowCursor);
-        continue;
-      }
-
-      const tempFile = join(
-        scratchDir,
-        `whatsapp-inbound-${sanitizeFilePart(event.bridge_message_id)}.json`,
-      );
-      writeFileSync(tempFile, JSON.stringify(event, null, 2));
-
-      try {
-        const crmResult = runCrm(root, ["whatsapp", "inbound", "ingest", "--file", tempFile]);
-        if (/WhatsApp inbound sem lead/i.test(crmResult.stdout)) {
-          rmSync(tempFile, { force: true });
-          unmatched += 1;
-        } else {
-          imported += 1;
-          if (autoWake) {
-            autoWakes += autoWakeForInbound(root, event, buildAutoWakeOptions(flags));
-          }
-        }
-      } catch (error) {
-        if (isUnknownLeadError(error)) {
-          rmSync(tempFile, { force: true });
-          unmatched += 1;
-        } else {
-          failed += 1;
-          writeFileSync(`${tempFile}.error.txt`, error.message);
-        }
-      }
-
-      writeCursor(stateFile, rowCursor);
-    }
-  } finally {
-    database.close();
-  }
-
-  return { imported, skipped, unmatched, autoWakes, failed };
-}
-
-function validateImportMcpSqliteFlags(flags) {
-  const allowed = new Set([
-    "db",
-    "state-file",
-    "limit",
-    "auto-wake",
-    "paperclip-api-base",
-    "paperclip-company-id",
-    "paperclip-api-key",
-    "paperclip-run-id",
-    "atendimento-agent-id",
-    "closer-agent-id",
-    "timeout-ms",
-  ]);
-  for (const flag of Object.keys(flags)) {
-    if (!allowed.has(flag)) {
-      throw new Error(`Opcao desconhecida para import-mcp-sqlite: --${flag}`);
-    }
-  }
 }
 
 function buildAutoWakeOptions(flags) {
@@ -1221,10 +1112,14 @@ function markOutboxAmbiguousFailure(database, item, error) {
 
 function importWahaEvent(root, flags) {
   validateImportWahaEventFlags(flags);
+  const event = JSON.parse(readFileSync(resolve(root, requireFlag(flags, "file")), "utf8"));
+  return processWahaEvent(root, flags, event);
+}
+
+function processWahaEvent(root, flags, event) {
   const explicitCrmDb = flags["crm-db"] !== undefined;
   const crmDbPath = resolve(root, flags["crm-db"] || ".scratch/db/freela.sqlite");
   ensureCrmInitialized(root, crmDbPath, explicitCrmDb);
-  const event = JSON.parse(readFileSync(resolve(root, requireFlag(flags, "file")), "utf8"));
   const database = new DatabaseSync(crmDbPath);
   try {
     if (event.event === "message.ack") {
@@ -1233,19 +1128,256 @@ function importWahaEvent(root, flags) {
     if (event.event === "message.waiting") {
       return { event: event.event, updated: applyWahaWaitingEvent(database, event) };
     }
-    return { event: clean(event.event), updated: 0 };
   } finally {
     database.close();
   }
+
+  const inbound = eventFromWahaMessage(event);
+  if (!inbound) {
+    return { event: clean(event.event), imported: 0, skipped: 1, unmatched: 0, autoWakes: 0, failed: 0 };
+  }
+  return {
+    event: "message",
+    ...importWahaInboundEvent(root, flags, inbound),
+  };
 }
 
 function validateImportWahaEventFlags(flags) {
-  const allowed = new Set(["file", "crm-db"]);
+  const allowed = new Set([
+    "file",
+    "crm-db",
+    "auto-wake",
+    "paperclip-api-base",
+    "paperclip-company-id",
+    "paperclip-api-key",
+    "paperclip-run-id",
+    "atendimento-agent-id",
+    "closer-agent-id",
+    "timeout-ms",
+  ]);
   for (const flag of Object.keys(flags)) {
     if (!allowed.has(flag)) {
       throw new Error(`Opcao desconhecida para import-waha-event: --${flag}`);
     }
   }
+}
+
+function importWahaInboundEvent(root, flags, event) {
+  if (isRecordedWhatsAppInbound(root, event.bridge_message_id)) {
+    return { imported: 0, skipped: 1, unmatched: 0, autoWakes: 0, failed: 0 };
+  }
+
+  const scratchDir = join(root, ".scratch");
+  mkdirSync(scratchDir, { recursive: true });
+  const tempFile = join(scratchDir, `whatsapp-inbound-${sanitizeFilePart(event.bridge_message_id)}.json`);
+  writeFileSync(tempFile, JSON.stringify(event, null, 2));
+
+  let autoWakes = 0;
+  const autoWake = parseBooleanFlag(flags["auto-wake"]);
+  try {
+    const crmResult = runCrm(root, ["whatsapp", "inbound", "ingest", "--file", tempFile]);
+    if (/WhatsApp inbound sem lead/i.test(crmResult.stdout)) {
+      rmSync(tempFile, { force: true });
+      return { imported: 0, skipped: 0, unmatched: 1, autoWakes: 0, failed: 0 };
+    }
+    if (autoWake) {
+      autoWakes = autoWakeForInbound(root, event, buildAutoWakeOptions(flags));
+    }
+    return { imported: 1, skipped: 0, unmatched: 0, autoWakes, failed: 0 };
+  } catch (error) {
+    if (isUnknownLeadError(error)) {
+      rmSync(tempFile, { force: true });
+      return { imported: 0, skipped: 0, unmatched: 1, autoWakes: 0, failed: 0 };
+    }
+    writeFileSync(`${tempFile}.error.txt`, error.message);
+    return { imported: 0, skipped: 0, unmatched: 0, autoWakes: 0, failed: 1 };
+  }
+}
+
+function isRecordedWhatsAppInbound(root, bridgeMessageId) {
+  const messageId = clean(bridgeMessageId);
+  if (!messageId) return false;
+  const dbPath = resolve(root, ".scratch/db/freela.sqlite");
+  if (!existsSync(dbPath)) return false;
+  const database = new DatabaseSync(dbPath);
+  try {
+    const inbound = database
+      .prepare("select id from whatsapp_inbound_events where bridge_message_id = ? limit 1")
+      .get(messageId);
+    if (inbound) return true;
+    const unmatched = database
+      .prepare("select id from whatsapp_unmatched_inbound_events where bridge_message_id = ? limit 1")
+      .get(messageId);
+    return Boolean(unmatched);
+  } finally {
+    database.close();
+  }
+}
+
+function eventFromWahaMessage(event) {
+  if (!isWahaInboundMessageEvent(event)) return null;
+  const payload = wahaPayload(event);
+  const fromMe = Boolean(payload.fromMe || payload._data?.id?.fromMe);
+  if (fromMe) return null;
+
+  const chatId = clean(
+    payload.from ||
+      payload.chatId ||
+      payload._data?.from ||
+      payload._data?.id?.remote ||
+      payload._data?.id?.participant,
+  );
+  if (!chatId || chatId.endsWith("@g.us")) return null;
+
+  const body = clean(payload.body || payload.text || payload.message?.body || payload._data?.body);
+  if (!body) return null;
+
+  const messageId = extractWahaEventMessageId(event);
+  if (!messageId) return null;
+
+  const senderPhone =
+    phoneFromValue(payload.from) ||
+    phoneFromValue(payload.chatId) ||
+    phoneFromValue(payload._data?.from) ||
+    phoneFromValue(payload.author);
+  return {
+    bridge_message_id: messageId,
+    chat_id: chatId,
+    sender_name:
+      clean(payload.notifyName || payload.pushName || payload._data?.notifyName || payload.contact?.name) ||
+      senderPhone ||
+      chatId,
+    sender_phone: senderPhone,
+    is_group: false,
+    message_type: clean(payload.type || payload.message_type || payload._data?.type) || "text",
+    body,
+    received_at: wahaReceivedAt(payload),
+    source: "waha/webhook",
+  };
+}
+
+function isWahaInboundMessageEvent(event) {
+  const eventName = clean(event?.event || event?.type).toLowerCase();
+  if (["message", "message.received", "message.any"].includes(eventName)) return true;
+  const payload = wahaPayload(event);
+  return Boolean(payload?.body && (payload.from || payload.chatId || payload._data?.from));
+}
+
+function wahaPayload(event) {
+  return event?.payload && typeof event.payload === "object" ? event.payload : event;
+}
+
+function wahaReceivedAt(payload) {
+  const raw = payload?.timestamp ?? payload?._data?.timestamp ?? payload?.t;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return new Date(raw > 1_000_000_000_000 ? raw : raw * 1000).toISOString();
+  }
+  if (/^\d+$/.test(clean(raw))) {
+    const numeric = Number.parseInt(clean(raw), 10);
+    return new Date(numeric > 1_000_000_000_000 ? numeric : numeric * 1000).toISOString();
+  }
+  return clean(raw) || new Date().toISOString();
+}
+
+function printWahaEventResult(result, flags) {
+  if (result.event === "message.ack") {
+    console.log(`WAHA ack atualizado: ${result.updated}`);
+    return;
+  }
+  if (result.event === "message.waiting") {
+    console.log(`WAHA waiting atualizado: ${result.updated}`);
+    return;
+  }
+  if (result.event === "message") {
+    console.log(`Importados: ${result.imported}`);
+    console.log(`Ignorados: ${result.skipped}`);
+    console.log(`Sem identidade: ${result.unmatched}`);
+    if (parseBooleanFlag(flags["auto-wake"])) {
+      console.log(`Auto-wakes: ${result.autoWakes}`);
+    }
+    console.log(`Falhas: ${result.failed}`);
+    return;
+  }
+  console.log(`WAHA evento ignorado: ${result.event || "desconhecido"}`);
+}
+
+function serveWahaWebhook(root, flags) {
+  validateServeWahaWebhookFlags(flags);
+  const host = clean(flags.host || process.env.WHATSAPP_WAHA_WEBHOOK_HOST || "127.0.0.1");
+  const port = parsePositiveInt(flags.port || process.env.WHATSAPP_WAHA_WEBHOOK_PORT || "3105", "--port");
+  const secret = clean(flags["webhook-secret"] || process.env.WHATSAPP_WAHA_WEBHOOK_SECRET || "");
+
+  const server = createServer(async (request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.method !== "POST" || request.url !== "/waha/webhook") {
+      response.statusCode = 404;
+      response.end(JSON.stringify({ ok: false, error: "not_found" }));
+      return;
+    }
+    if (secret && request.headers["x-webhook-secret"] !== secret) {
+      response.statusCode = 401;
+      response.end(JSON.stringify({ ok: false, error: "unauthorized" }));
+      return;
+    }
+
+    try {
+      const event = await readRequestJson(request);
+      const result = processWahaEvent(root, flags, event);
+      response.end(JSON.stringify({ ok: true, result }));
+    } catch (error) {
+      response.statusCode = 500;
+      response.end(JSON.stringify({ ok: false, error: error.message }));
+    }
+  });
+
+  server.listen(port, host, () => {
+    const address = server.address();
+    console.log(`Observando WAHA webhook em http://${host}:${address.port}/waha/webhook`);
+  });
+}
+
+function validateServeWahaWebhookFlags(flags) {
+  const allowed = new Set([
+    "host",
+    "port",
+    "webhook-secret",
+    "crm-db",
+    "auto-wake",
+    "paperclip-api-base",
+    "paperclip-company-id",
+    "paperclip-api-key",
+    "paperclip-run-id",
+    "atendimento-agent-id",
+    "closer-agent-id",
+    "timeout-ms",
+  ]);
+  for (const flag of Object.keys(flags)) {
+    if (!allowed.has(flag)) {
+      throw new Error(`Opcao desconhecida para serve-waha-webhook: --${flag}`);
+    }
+  }
+}
+
+function readRequestJson(request) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1024 * 1024) {
+        reject(new Error("payload grande demais"));
+        request.destroy();
+      }
+    });
+    request.on("end", () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (error) {
+        reject(new Error(`JSON invalido: ${error.message}`));
+      }
+    });
+    request.on("error", reject);
+  });
 }
 
 function applyWahaAckEvent(database, event) {
@@ -1335,159 +1467,11 @@ function extractWahaEventMessageId(event) {
     event?.payload?.messageId,
     event?.payload?.message_id,
     event?.payload?.message?.id,
+    event?.payload?._data?.id,
     event?.id,
     event?.messageId,
+    event?._data?.id,
   );
-}
-
-function readMcpRows(database, cursor, limit) {
-  return database
-    .prepare(
-      `select
-        m.id,
-        m.chat_jid,
-        m.sender,
-        m.content,
-        m.timestamp,
-        m.is_from_me,
-        m.media_type,
-        m.filename,
-        c.name as chat_name
-      from messages m
-      left join chats c on c.jid = m.chat_jid
-      where (? = ''
-        or m.timestamp > ?
-        or (m.timestamp = ? and (m.id || ':' || m.chat_jid) > ?))
-      order by m.timestamp asc, m.id asc, m.chat_jid asc
-      limit ?`,
-    )
-    .all(
-      cursor.lastTimestamp || "",
-      cursor.lastTimestamp || "",
-      cursor.lastTimestamp || "",
-      cursor.lastKey || "",
-      limit,
-    );
-}
-
-function eventFromMcpRow(row) {
-  const chatId = clean(row.chat_jid);
-  const body = clean(row.content);
-  const mediaType = clean(row.media_type);
-  if (!chatId || row.is_from_me) return null;
-  if (chatId.endsWith("@g.us")) return null;
-  if (!body || mediaType) return null;
-
-  const senderPhone = phoneFromValue(row.sender) || phoneFromValue(chatId);
-  return {
-    bridge_message_id: `${row.id}:${chatId}`,
-    chat_id: chatId,
-    sender_name: clean(row.chat_name) || senderPhone || clean(row.sender) || chatId,
-    sender_phone: senderPhone,
-    is_group: false,
-    message_type: "text",
-    body,
-    received_at: clean(row.timestamp) || new Date().toISOString(),
-    source: "whatsapp-mcp/messages.db",
-  };
-}
-
-function cursorForRow(row) {
-  return {
-    lastTimestamp: clean(row.timestamp),
-    lastKey: `${row.id}:${row.chat_jid}`,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-function readCursor(path) {
-  if (!existsSync(path)) return {};
-  return JSON.parse(readFileSync(path, "utf8"));
-}
-
-function writeCursor(path, cursor) {
-  writeFileSync(path, JSON.stringify(cursor, null, 2));
-}
-
-function watchMcpSqlite(root, flags) {
-  const dispatchApproved = parseBooleanFlag(flags["dispatch-approved"]);
-  const allowedFlags = new Set([
-    "db",
-    "state-file",
-    "interval-ms",
-    "dispatch-approved",
-    "provider",
-    "bridge-api-base",
-    "waha-api-base",
-    "waha-session",
-    "waha-api-key",
-    "timeout-ms",
-    "limit",
-    "crm-db",
-    "dry-run",
-    "auto-wake",
-    "paperclip-api-base",
-    "paperclip-company-id",
-    "paperclip-api-key",
-    "paperclip-run-id",
-    "atendimento-agent-id",
-    "closer-agent-id",
-  ]);
-  for (const flag of Object.keys(flags)) {
-    if (!allowedFlags.has(flag)) {
-      throw new Error(`Opcao desconhecida para watch-mcp-sqlite: --${flag}`);
-    }
-  }
-  const intervalMs = parsePositiveInt(flags["interval-ms"] || "10000", "--interval-ms");
-  console.log(`Observando whatsapp-mcp messages.db a cada ${intervalMs}ms`);
-  const run = () => {
-    try {
-      const importFlags = {};
-      for (const flag of [
-        "db",
-        "state-file",
-        "limit",
-        "auto-wake",
-        "paperclip-api-base",
-        "paperclip-company-id",
-        "paperclip-api-key",
-        "paperclip-run-id",
-        "atendimento-agent-id",
-        "closer-agent-id",
-        "timeout-ms",
-      ]) {
-        if (flags[flag] !== undefined) importFlags[flag] = flags[flag];
-      }
-      const result = importMcpSqlite(root, importFlags);
-      console.log(
-        `[${new Date().toISOString()}] importados=${result.imported} ignorados=${result.skipped} sem_identidade=${result.unmatched} auto_wakes=${result.autoWakes} falhas=${result.failed}`,
-      );
-      if (dispatchApproved) {
-        const dispatchFlags = {};
-        for (const flag of [
-          "provider",
-          "bridge-api-base",
-          "waha-api-base",
-          "waha-session",
-          "waha-api-key",
-          "timeout-ms",
-          "limit",
-          "crm-db",
-          "dry-run",
-        ]) {
-          if (flags[flag] !== undefined) dispatchFlags[flag] = flags[flag];
-        }
-        const dispatch = dispatchApprovedOutbox(root, dispatchFlags);
-        console.log(
-          `[${new Date().toISOString()}] enviados=${dispatch.sent} dispatch_pendentes=${dispatch.pending || 0} dispatch_falhas=${dispatch.failed} dispatch_ignorados=${dispatch.skipped}`,
-        );
-      }
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] ${error.message}`);
-    }
-  };
-  run();
-  setInterval(run, intervalMs);
 }
 
 function parsePositiveInt(value, flagName) {

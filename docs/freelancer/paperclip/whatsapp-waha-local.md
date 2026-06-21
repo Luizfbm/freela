@@ -10,6 +10,7 @@ Fluxo permitido:
 
 ```text
 Inbound WhatsApp
+-> WAHA webhook
 -> CRM SQLite
 -> Atendimento WhatsApp
 -> Humanizer
@@ -28,6 +29,52 @@ Worker -> WAHA
 Worker -> /api/sendText
 Worker -> mensagem direta para lead
 ```
+
+## Webhook de entrada
+
+O monitor local do Gateway recebe eventos WAHA em `POST /waha/webhook`, grava inbound no CRM e, com `--auto-wake`, acorda o worker certo sem criar Outbox e sem enviar mensagem.
+
+```bash
+node scripts/whatsapp-local-gateway.mjs \
+  --root /Users/luiz_fbm/Developer/freela \
+  serve-waha-webhook \
+  --host 127.0.0.1 \
+  --port 3105 \
+  --auto-wake
+```
+
+Configure a WAHA para enviar eventos para:
+
+```text
+http://127.0.0.1:3105/waha/webhook
+```
+
+Para replay/debug de um evento salvo:
+
+```bash
+node scripts/whatsapp-local-gateway.mjs \
+  --root /Users/luiz_fbm/Developer/freela \
+  import-waha-event \
+  --file .scratch/waha-event.json \
+  --auto-wake
+```
+
+Eventos `message` inbound entram em `whatsapp_inbound_events`. Se o lead nao for identificado, o Gateway grava em `whatsapp_unmatched_inbound_events`, imprime `Sem identidade: N` e nao envia nada.
+
+Para reconciliar identidade, use:
+
+```bash
+node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"
+node scripts/freela-crm.mjs whatsapp unmatched reconcile
+```
+
+O dedupe de acordar workers fica em `whatsapp_worker_wakes`.
+
+Roteamento com `--auto-wake`:
+
+- Atendimento WhatsApp recebe conversa normal: `resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`.
+- Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
+- Use `--closer-agent-id` apenas em teste para sobrescrever o agente closer.
 
 ## Setup local
 
@@ -50,7 +97,7 @@ export WHATSAPP_WAHA_API_KEY="sua-chave-local"
 
 ## Dispatch de laboratorio
 
-O dispatch WAHA e explicito. O provider padrao continua sendo o bridge atual.
+O dispatch WAHA e explicito e passa sempre pelo Gateway.
 
 ```bash
 node scripts/whatsapp-local-gateway.mjs \

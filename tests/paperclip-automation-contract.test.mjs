@@ -463,11 +463,8 @@ test("Paperclip orienta agentes a usar deploy automatico, nao cPanel manual", ()
 test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
   const readme = paperclipReadme();
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
   const wahaGuide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
-  const oldSpec = read("docs/superpowers/specs/2026-06-19-whatsapp-local-automation-design.md");
-  const controlledSpec = read("docs/superpowers/specs/2026-06-21-whatsapp-controlled-automation-design.md");
-  const controlledDocs = `${controlledSpec}\n${guide}\n${wahaGuide}\n${readme}`;
+  const controlledDocs = `${wahaGuide}\n${readme}`;
   const scriptSendCallers = walkFiles(join(rootDir, "scripts"))
     .filter((path) => readFileSync(path, "utf8").includes("/api/send"))
     .map((path) => relative(rootDir, path))
@@ -478,18 +475,15 @@ test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
     .sort();
 
   assert.match(gateway, /import-jsonl/i);
-  assert.match(gateway, /import-mcp-sqlite/i);
   assert.match(gateway, /import-waha-event/i);
-  assert.match(gateway, /watch-mcp-sqlite/i);
+  assert.match(gateway, /serve-waha-webhook/i);
   assert.match(gateway, /dispatch-approved-outbox/i);
   assert.match(gateway, /\/api\/send/i);
   assert.match(gateway, /\/api\/sendText/i);
   assert.deepEqual(scriptSendCallers, ["scripts/whatsapp-local-gateway.mjs"]);
   assert.deepEqual(wahaSendTextCallers, ["scripts/whatsapp-local-gateway.mjs"]);
   assert.doesNotMatch(gateway, /send_message|send_file|send_audio_message/i);
-  assert.match(oldSpec, /Outbox WhatsApp/i);
-  assert.match(controlledSpec, /humanizer_pass = true/i);
-  assert.match(controlledSpec, /scripts\/whatsapp-local-gateway\.mjs/i);
+  assert.doesNotMatch(gateway, /whatsapp-mcp|import-mcp-sqlite|watch-mcp-sqlite|WHATSAPP_MCP/i);
   for (const term of [/Humanizer/i, /Outbox/i, /Guardiao|Guardião/i, /Gateway/i]) {
     assert.match(controlledDocs, term);
   }
@@ -536,7 +530,7 @@ test("README documenta fronteira atual de automacao WhatsApp", () => {
 test("WhatsApp workers exigem Humanizer antes de qualquer Outbox automatica", () => {
   const atendimentoWa = read("docs/freelancer/prompt-thread-whatsapp-atendimento.md");
   const guardiaoWa = read("docs/freelancer/prompt-thread-whatsapp-guardiao.md");
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
 
   assert.match(atendimentoWa, /humanizer/i);
   assert.match(atendimentoWa, /humanizer_pass\s*=\s*true/i);
@@ -545,28 +539,28 @@ test("WhatsApp workers exigem Humanizer antes de qualquer Outbox automatica", ()
   assert.match(guardiaoWa, /humanizer_pass\s*=\s*true/i);
   assert.match(guardiaoWa, /5 respostas automaticas|5 respostas automáticas/i);
   assert.match(guide, /dispatch-approved-outbox/i);
-  assert.match(guide, /--dispatch-approved/i);
+  assert.match(guide, /serve-waha-webhook/i);
 });
 
-test("WhatsApp MCP local fica atras do gateway e nao vira tool direta dos workers", () => {
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+test("WhatsApp MCP foi removido da superficie operacional ativa", () => {
+  const mcpGuidePath = join(rootDir, "docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const activeFiles = [
+    ...walkFiles(join(rootDir, "docs/freelancer"))
+      .filter((path) => !path.includes("/docs/freelancer/paperclip/whatsapp-mcp-local.md"))
+      .filter((path) => !path.includes("/docs/freelancer/superpowers/")),
+    join(rootDir, "scripts/whatsapp-local-gateway.mjs"),
+  ];
 
-  assert.match(guide, /lharries\/whatsapp-mcp/i);
-  assert.match(guide, /go run .*main\.go/i);
-  assert.match(guide, /QR/i);
-  assert.match(guide, /store\/messages\.db/i);
-  assert.match(guide, /whatsapp-local-gateway\.mjs --root .* import-mcp-sqlite/i);
-  assert.match(guide, /watch-mcp-sqlite/i);
-  assert.match(guide, /dispatch-approved-outbox/i);
-  assert.match(guide, /message_id/i);
-  assert.match(guide, /dispatch_ambiguous/i);
-  assert.match(guide, /nao expor|não expor/i);
-  assert.match(guide, /send_message|send_file|send_audio_message/i);
-  assert.match(guide, /automacao controlada|automação controlada/i);
+  assert.equal(existsSync(mcpGuidePath), false);
+  for (const path of activeFiles) {
+    const text = readFileSync(path, "utf8");
+    assert.doesNotMatch(text, /lharries\/whatsapp-mcp|whatsapp-mcp|import-mcp-sqlite|watch-mcp-sqlite|WHATSAPP_MCP/i);
+    assert.doesNotMatch(text, /send_message|send_file|send_audio_message/i);
+  }
 });
 
 test("WhatsApp Identity e auto-wake ficam documentados no contrato operacional", () => {
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
   const contract = read("docs/freelancer/data-contract.md");
   const readme = paperclipReadme();
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
@@ -589,7 +583,7 @@ test("WhatsApp Identity e auto-wake ficam documentados no contrato operacional",
 });
 
 test("WhatsApp auto-wake roteia fechamento para Jhon Snow", () => {
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
   const contract = read("docs/freelancer/data-contract.md");
   const readme = paperclipReadme();
   const gateway = read("scripts/whatsapp-local-gateway.mjs");

@@ -132,6 +132,90 @@ function runNodeUntilOutput(args, pattern, options = {}) {
   });
 }
 
+function startNodeUntilStdout(args, pattern, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, { cwd: repoRoot, ...options });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGTERM");
+      reject(new Error(`Timed out waiting for ${pattern}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    }, 5000);
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+      if (!settled && pattern.test(stdout)) {
+        settled = true;
+        clearTimeout(timeout);
+        resolve({
+          child,
+          get stdout() {
+            return stdout;
+          },
+          get stderr() {
+            return stderr;
+          },
+        });
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(new Error(`Process exited before ${pattern}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    });
+  });
+}
+
+function stopChild(child) {
+  return new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode) {
+      resolve();
+      return;
+    }
+    child.once("close", resolve);
+    child.kill("SIGTERM");
+  });
+}
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+async function postJson(url, body, headers = {}) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  return {
+    status: response.status,
+    body: text ? JSON.parse(text) : null,
+  };
+}
+
 function withBridgeServer(handler) {
   return new Promise((resolve, reject) => {
     const requests = [];
@@ -343,34 +427,6 @@ function assertDryRunDispatchableCount(root, expected) {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, new RegExp(`Dry-run dispatchaveis: ${expected}`, "i"));
   return result;
-}
-
-function createEmptyMcpMessagesDb(path) {
-  const mcp = new DatabaseSync(path);
-  mcp.exec(`
-    create table chats (
-      jid text primary key,
-      name text,
-      last_message_time timestamp
-    );
-    create table messages (
-      id text,
-      chat_jid text,
-      sender text,
-      content text,
-      timestamp timestamp,
-      is_from_me boolean,
-      media_type text,
-      filename text,
-      url text,
-      media_key blob,
-      file_sha256 blob,
-      file_enc_sha256 blob,
-      file_length integer,
-      primary key (id, chat_jid)
-    );
-  `);
-  mcp.close();
 }
 
 test("gateway importa evento normalizado em dry-run sem expor send direto", () => {
@@ -1190,96 +1246,77 @@ test("gateway lock rechecks lead conversation state before dispatch", () => {
   assert.match(lockFunction, /encerrado/);
 });
 
-test("watcher supports optional approved outbox dispatch flag", () => {
+test("gateway exposes WAHA webhook monitor and rejects removed MCP commands", () => {
   const source = readFileSync(gateway, "utf8");
-  const watcher = source.match(/function watchMcpSqlite[\s\S]+?\n}\n\nfunction parsePositiveInt/)[0];
-  assert.match(source, /--dispatch-approved|dispatch-approved/i);
-  assert.match(watcher, /parseBooleanFlag\(flags\["dispatch-approved"\]\)/);
-  assert.match(
-    watcher,
-    /const importFlags = \{\}[\s\S]+importMcpSqlite\(root, importFlags\)[\s\S]+if \(dispatchApproved\)[\s\S]+dispatchApprovedOutbox\(root, dispatchFlags\)/,
-  );
-  assert.doesNotMatch(watcher, /dispatchApprovedOutbox\(root, flags\)/);
-});
 
-test("watcher dispatch dry-run does not send approved outbox", async () => {
-  const root = makeRoot();
-  seedApprovedOutbox(root);
-  const mcpDb = join(root, "empty-messages.db");
-  createEmptyMcpMessagesDb(mcpDb);
-  const bridge = await withBridgeServer((_req, res) => {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: true, message: "sent-by-test-bridge" }));
-  });
+  assert.match(source, /serve-waha-webhook/i);
+  assert.match(source, /\/waha\/webhook/i);
+  assert.match(source, /importWahaInboundEvent|eventFromWahaMessage/i);
+  assert.match(source, /dispatch-approved-outbox/i);
+  assert.doesNotMatch(source, /import-mcp-sqlite|watch-mcp-sqlite|whatsapp-mcp|WHATSAPP_MCP/i);
 
-  try {
-    const result = await runNodeUntilStdout(
-      [
-        gateway,
-        "--root",
-        root,
-        "watch-mcp-sqlite",
-        "--db",
-        mcpDb,
-        "--interval-ms",
-        "60000",
-        "--dispatch-approved",
-        "--dry-run",
-        "--bridge-api-base",
-        bridge.baseUrl,
-      ],
-      /dispatch_falhas=/i,
-    );
-    assert.match(result.stdout, /importados=0/i);
-    assert.equal(bridge.requests.length, 0);
-
-    const outbox = readLatestOutbox(root);
-    assert.equal(outbox.status, "approved");
-    assert.equal(outbox.sent_at, null);
-  } finally {
-    await bridge.close();
+  for (const command of ["import-mcp-sqlite", "watch-mcp-sqlite"]) {
+    const result = runNode([gateway, "--root", makeRoot(), command]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, new RegExp(`Comando desconhecido: ${command}`));
   }
 });
 
-test("watcher dispatch rejects unknown dryrun flag before sending", async () => {
+test("WAHA webhook monitor imports inbound events without dispatching approved outbox", async () => {
   const root = makeRoot();
+  const port = await getFreePort();
   seedApprovedOutbox(root);
-  const mcpDb = join(root, "empty-messages.db");
-  createEmptyMcpMessagesDb(mcpDb);
   const bridge = await withBridgeServer((_req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ success: true, message: "sent-by-test-bridge" }));
   });
+  const server = await startNodeUntilStdout(
+    [
+      gateway,
+      "--root",
+      root,
+      "serve-waha-webhook",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(port),
+    ],
+    /Observando WAHA webhook/i,
+  );
 
   try {
-    const result = await runNodeUntilOutput(
-      [
-        gateway,
-        "--root",
-        root,
-        "watch-mcp-sqlite",
-        "--db",
-        mcpDb,
-        "--interval-ms",
-        "60000",
-        "--dispatch-approved",
-        "--dryrun",
-        "--bridge-api-base",
-        bridge.baseUrl,
-      ],
-      /Opcao desconhecida para watch-mcp-sqlite: --dryrun|dispatch_falhas=/i,
-    );
-    assert.match(
-      result.stderr,
-      /Opcao desconhecida para watch-mcp-sqlite: --dryrun/i,
-    );
+    const response = await postJson(`http://127.0.0.1:${port}/waha/webhook`, {
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_5527999990000@c.us_3EB0WAHAWEBHOOK",
+        from: "5527999990000@c.us",
+        fromMe: false,
+        body: "Pode!",
+        notifyName: "Aghata Massoterapia",
+        timestamp: 1782051829,
+      },
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.ok, true);
+    assert.equal(response.body.result.imported, 1);
     assert.equal(bridge.requests.length, 0);
 
     const outbox = readLatestOutbox(root);
     assert.equal(outbox.status, "approved");
     assert.equal(outbox.sent_at, null);
-    assert.equal(outbox.dispatch_locked_at, null);
+
+    const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+    const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+    database.close();
+    assert.equal(inbound.bridge_message_id, "false_5527999990000@c.us_3EB0WAHAWEBHOOK");
+    assert.equal(inbound.chat_id, "5527999990000@c.us");
+    assert.equal(inbound.sender_phone, "5527999990000");
+    assert.equal(inbound.body, "Pode!");
+    assert.equal(JSON.parse(inbound.raw_json).source, "waha/webhook");
   } finally {
+    await stopChild(server.child);
     await bridge.close();
   }
 });
@@ -1373,7 +1410,7 @@ test("gateway dry-run skips closed conversations", () => {
   assertDryRunDispatchableCount(root, 0);
 });
 
-test("gateway importa mensagens novas do messages.db do whatsapp-mcp sem duplicar", () => {
+test("gateway importa eventos inbound WAHA e registra desconhecidos sem duplicar envio", () => {
   const root = makeRoot();
   assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
   const leadFile = join(root, "lead.json");
@@ -1389,108 +1426,86 @@ test("gateway importa mensagens novas do messages.db do whatsapp-mcp sem duplica
   );
   assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
 
-  const mcpDb = join(root, "messages.db");
-  const mcp = new DatabaseSync(mcpDb);
-  mcp.exec(`
-    create table chats (
-      jid text primary key,
-      name text,
-      last_message_time timestamp
-    );
-    create table messages (
-      id text,
-      chat_jid text,
-      sender text,
-      content text,
-      timestamp timestamp,
-      is_from_me boolean,
-      media_type text,
-      filename text,
-      url text,
-      media_key blob,
-      file_sha256 blob,
-      file_enc_sha256 blob,
-      file_length integer,
-      primary key (id, chat_jid)
-    );
-  `);
-  mcp
-    .prepare("insert into chats (jid, name, last_message_time) values (?, ?, ?)")
-    .run("5527999990000@s.whatsapp.net", "Aghata Massoterapia", "2026-06-19T10:02:00-03:00");
-  mcp
-    .prepare(
-      `insert into messages (
-        id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename
-      ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      "msg-in-001",
-      "5527999990000@s.whatsapp.net",
-      "5527999990000",
-      "Pode sim",
-      "2026-06-19T10:01:00-03:00",
-      0,
-      "",
-      "",
-    );
-  mcp
-    .prepare(
-      `insert into messages (
-        id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename
-      ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      "msg-out-001",
-      "5527999990000@s.whatsapp.net",
-      "5527999990000",
-      "Mensagem enviada por mim",
-      "2026-06-19T10:02:00-03:00",
-      1,
-      "",
-      "",
-    );
-  mcp
-    .prepare("insert into chats (jid, name, last_message_time) values (?, ?, ?)")
-    .run("5527991112222@s.whatsapp.net", "Contato fora do CRM", "2026-06-19T10:03:00-03:00");
-  mcp
-    .prepare(
-      `insert into messages (
-        id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename
-      ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      "msg-unknown-001",
-      "5527991112222@s.whatsapp.net",
-      "5527991112222",
-      "Oi, tudo bem?",
-      "2026-06-19T10:03:00-03:00",
-      0,
-      "",
-      "",
-    );
-  mcp.close();
+  const inboundFile = join(root, "waha-inbound.json");
+  writeFileSync(
+    inboundFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        _data: {
+          id: {
+            _serialized: "false_5527999990000@c.us_3EB0WAHAINBOUND",
+          },
+        },
+        from: "5527999990000@c.us",
+        fromMe: false,
+        body: "Pode sim",
+        notifyName: "Aghata Massoterapia",
+        timestamp: "2026-06-19T10:01:00-03:00",
+      },
+    }),
+  );
+  const outboundFile = join(root, "waha-outbound.json");
+  writeFileSync(
+    outboundFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "true_5527999990000@c.us_3EB0WAHAOUTBOUND",
+        from: "5527999990000@c.us",
+        fromMe: true,
+        body: "Mensagem enviada por mim",
+        timestamp: "2026-06-19T10:02:00-03:00",
+      },
+    }),
+  );
+  const unknownFile = join(root, "waha-unknown.json");
+  writeFileSync(
+    unknownFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_5527991112222@c.us_3EB0WAHAUNKNOWN",
+        from: "5527991112222@c.us",
+        fromMe: false,
+        body: "Oi, tudo bem?",
+        notifyName: "Contato fora do CRM",
+        timestamp: "2026-06-19T10:03:00-03:00",
+      },
+    }),
+  );
 
-  const first = runNode([gateway, "--root", root, "import-mcp-sqlite", "--db", mcpDb]);
+  const first = runNode([gateway, "--root", root, "import-waha-event", "--file", inboundFile]);
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stdout, /Importados: 1/i);
-  assert.match(first.stdout, /Ignorados: 1/i);
-  assert.match(first.stdout, /Sem identidade: 1/i);
   assert.match(first.stdout, /Falhas: 0/i);
 
-  const second = runNode([gateway, "--root", root, "import-mcp-sqlite", "--db", mcpDb]);
+  const skipped = runNode([gateway, "--root", root, "import-waha-event", "--file", outboundFile]);
+  assert.equal(skipped.status, 0, skipped.stderr);
+  assert.match(skipped.stdout, /Ignorados: 1/i);
+
+  const unknown = runNode([gateway, "--root", root, "import-waha-event", "--file", unknownFile]);
+  assert.equal(unknown.status, 0, unknown.stderr);
+  assert.match(unknown.stdout, /Sem identidade: 1/i);
+
+  const second = runNode([gateway, "--root", root, "import-waha-event", "--file", inboundFile]);
   assert.equal(second.status, 0, second.stderr);
   assert.match(second.stdout, /Importados: 0/i);
 
   const crmDb = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
   const inbound = crmDb.prepare("select * from whatsapp_inbound_events").all();
   assert.equal(inbound.length, 1);
-  assert.equal(inbound[0].bridge_message_id, "msg-in-001:5527999990000@s.whatsapp.net");
-  assert.equal(inbound[0].chat_id, "5527999990000@s.whatsapp.net");
+  assert.equal(inbound[0].bridge_message_id, "false_5527999990000@c.us_3EB0WAHAINBOUND");
+  assert.equal(inbound[0].chat_id, "5527999990000@c.us");
   assert.equal(inbound[0].sender_phone, "5527999990000");
   assert.equal(inbound[0].body, "Pode sim");
+  assert.equal(JSON.parse(inbound[0].raw_json).source, "waha/webhook");
   const unmatched = crmDb.prepare("select * from whatsapp_unmatched_inbound_events").all();
   assert.equal(unmatched.length, 1);
-  assert.equal(unmatched[0].bridge_message_id, "msg-unknown-001:5527991112222@s.whatsapp.net");
+  assert.equal(unmatched[0].bridge_message_id, "false_5527991112222@c.us_3EB0WAHAUNKNOWN");
   assert.equal(unmatched[0].status, "unmatched");
   assert.equal(unmatched[0].classification, "resposta_recebida");
   crmDb.close();
@@ -1501,13 +1516,13 @@ test("gateway importa mensagens novas do messages.db do whatsapp-mcp sem duplica
   assert.deepEqual(errorFiles, []);
   assert.equal(
     existsSync(
-      join(root, ".scratch/whatsapp-inbound-msg-unknown-001-5527991112222-s.whatsapp.net.json"),
+      join(root, ".scratch/whatsapp-inbound-false-5527991112222-c.us-3EB0WAHAUNKNOWN.json"),
     ),
     false,
   );
 
   const source = readFileSync(gateway, "utf8");
-  assert.match(source, /messages\.db/i);
+  assert.match(source, /waha\/webhook/i);
   assert.doesNotMatch(source, /send_message|send_file|send_audio_message/i);
 });
 
@@ -1527,29 +1542,22 @@ test("gateway auto-wake cria task Paperclip para inbound Pode e resposta comum s
   );
   assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
 
-  const mcpDb = join(root, "messages.db");
-  createEmptyMcpMessagesDb(mcpDb);
-  const mcp = new DatabaseSync(mcpDb);
-  mcp
-    .prepare("insert into chats (jid, name, last_message_time) values (?, ?, ?)")
-    .run("5527999990000@s.whatsapp.net", "Aghata Massoterapia", "2026-06-21T09:32:27-03:00");
-  mcp
-    .prepare(
-      `insert into messages (
-        id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename
-      ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      "msg-auto-001",
-      "5527999990000@s.whatsapp.net",
-      "5527999990000",
-      "Pode!",
-      "2026-06-21T09:32:27-03:00",
-      0,
-      "",
-      "",
-    );
-  mcp.close();
+  const firstInboundFile = join(root, "waha-auto-001.json");
+  writeFileSync(
+    firstInboundFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_5527999990000@c.us_3EB0WAHAAUTO001",
+        from: "5527999990000@c.us",
+        fromMe: false,
+        body: "Pode!",
+        notifyName: "Aghata Massoterapia",
+        timestamp: "2026-06-21T09:32:27-03:00",
+      },
+    }),
+  );
 
   const paperclip = await withPaperclipServer((req, res) => {
     assert.equal(req.method, "POST");
@@ -1563,9 +1571,9 @@ test("gateway auto-wake cria task Paperclip para inbound Pode e resposta comum s
       gateway,
       "--root",
       root,
-      "import-mcp-sqlite",
-      "--db",
-      mcpDb,
+      "import-waha-event",
+      "--file",
+      firstInboundFile,
       "--auto-wake",
       "--paperclip-api-base",
       paperclip.baseUrl,
@@ -1592,32 +1600,30 @@ test("gateway auto-wake cria task Paperclip para inbound Pode e resposta comum s
     assert.equal(database.prepare("select count(*) as count from whatsapp_outbox").get().count, 0);
     database.close();
 
-    const mcpAgain = new DatabaseSync(mcpDb);
-    mcpAgain
-      .prepare(
-        `insert into messages (
-          id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename
-        ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        "msg-auto-002",
-        "5527999990000@s.whatsapp.net",
-        "5527999990000",
-        "Oi, tudo bem?",
-        "2026-06-21T09:33:27-03:00",
-        0,
-        "",
-        "",
-      );
-    mcpAgain.close();
+    const secondInboundFile = join(root, "waha-auto-002.json");
+    writeFileSync(
+      secondInboundFile,
+      JSON.stringify({
+        event: "message",
+        session: "default",
+        payload: {
+          id: "false_5527999990000@c.us_3EB0WAHAAUTO002",
+          from: "5527999990000@c.us",
+          fromMe: false,
+          body: "Oi, tudo bem?",
+          notifyName: "Aghata Massoterapia",
+          timestamp: "2026-06-21T09:33:27-03:00",
+        },
+      }),
+    );
 
     const generic = await runNodeAsync([
       gateway,
       "--root",
       root,
-      "import-mcp-sqlite",
-      "--db",
-      mcpDb,
+      "import-waha-event",
+      "--file",
+      secondInboundFile,
       "--auto-wake",
       "--paperclip-api-base",
       paperclip.baseUrl,
@@ -1635,7 +1641,7 @@ test("gateway auto-wake cria task Paperclip para inbound Pode e resposta comum s
     const afterGeneric = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
     const genericInbound = afterGeneric
       .prepare("select * from whatsapp_inbound_events where bridge_message_id = ?")
-      .get("msg-auto-002:5527999990000@s.whatsapp.net");
+      .get("false_5527999990000@c.us_3EB0WAHAAUTO002");
     assert.equal(genericInbound.classification, "resposta_recebida");
     assert.equal(afterGeneric.prepare("select count(*) as count from whatsapp_worker_wakes").get().count, 2);
     assert.equal(afterGeneric.prepare("select count(*) as count from whatsapp_outbox").get().count, 0);
@@ -1661,38 +1667,38 @@ test("gateway auto-wake roteia preco e lead quente para Jhon Snow", async () => 
   );
   assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
 
-  const mcpDb = join(root, "messages.db");
-  createEmptyMcpMessagesDb(mcpDb);
-  const mcp = new DatabaseSync(mcpDb);
-  mcp
-    .prepare("insert into chats (jid, name, last_message_time) values (?, ?, ?)")
-    .run("5527999990000@s.whatsapp.net", "Aghata Massoterapia", "2026-06-21T09:36:27-03:00");
-  const insert = mcp.prepare(
-    `insert into messages (
-      id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename
-    ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
+  const priceFile = join(root, "waha-price.json");
+  writeFileSync(
+    priceFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_5527999990000@c.us_3EB0WAHAPRICE",
+        from: "5527999990000@c.us",
+        fromMe: false,
+        body: "Qual o valor?",
+        notifyName: "Aghata Massoterapia",
+        timestamp: "2026-06-21T09:35:27-03:00",
+      },
+    }),
   );
-  insert.run(
-    "msg-price-001",
-    "5527999990000@s.whatsapp.net",
-    "5527999990000",
-    "Qual o valor?",
-    "2026-06-21T09:35:27-03:00",
-    0,
-    "",
-    "",
+  const hotFile = join(root, "waha-hot.json");
+  writeFileSync(
+    hotFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_5527999990000@c.us_3EB0WAHAHOT",
+        from: "5527999990000@c.us",
+        fromMe: false,
+        body: "Gostei, quero fazer. Como contrato?",
+        notifyName: "Aghata Massoterapia",
+        timestamp: "2026-06-21T09:36:27-03:00",
+      },
+    }),
   );
-  insert.run(
-    "msg-hot-001",
-    "5527999990000@s.whatsapp.net",
-    "5527999990000",
-    "Gostei, quero fazer. Como contrato?",
-    "2026-06-21T09:36:27-03:00",
-    0,
-    "",
-    "",
-  );
-  mcp.close();
 
   const paperclip = await withPaperclipServer((_req, res, requests) => {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -1700,27 +1706,29 @@ test("gateway auto-wake roteia preco e lead quente para Jhon Snow", async () => 
   });
 
   try {
-    const result = await runNodeAsync([
-      gateway,
-      "--root",
-      root,
-      "import-mcp-sqlite",
-      "--db",
-      mcpDb,
-      "--auto-wake",
-      "--paperclip-api-base",
-      paperclip.baseUrl,
-      "--paperclip-company-id",
-      "company-test",
-      "--atendimento-agent-id",
-      "agent-atendimento-test",
-      "--closer-agent-id",
-      "agent-jhon-test",
-    ]);
+    for (const file of [priceFile, hotFile]) {
+      const result = await runNodeAsync([
+        gateway,
+        "--root",
+        root,
+        "import-waha-event",
+        "--file",
+        file,
+        "--auto-wake",
+        "--paperclip-api-base",
+        paperclip.baseUrl,
+        "--paperclip-company-id",
+        "company-test",
+        "--atendimento-agent-id",
+        "agent-atendimento-test",
+        "--closer-agent-id",
+        "agent-jhon-test",
+      ]);
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /Importados: 1/i);
+      assert.match(result.stdout, /Auto-wakes: 1/i);
+    }
 
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /Importados: 2/i);
-    assert.match(result.stdout, /Auto-wakes: 2/i);
     assert.equal(paperclip.requests.length, 2);
     assert.deepEqual(
       paperclip.requests.map((request) => request.body.assigneeAgentId),
