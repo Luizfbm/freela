@@ -2060,6 +2060,57 @@ test("whatsapp outbox propose cria resposta candidata sem enviar", () => {
   assert.equal(row.source, "atendimento-whatsapp");
 });
 
+test("whatsapp outbox usa telefone real para envio quando inbound veio por LID", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+  upsertLead(root, {
+    canonical_name: "Lidiane Teste WhatsApp",
+    phone_or_contact: "+55 27 99263-5649",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const link = run(root, [
+    "whatsapp",
+    "identity",
+    "link",
+    "--name",
+    "Lidiane Teste WhatsApp",
+    "--identity",
+    "273478418722987@lid",
+    "--source",
+    "teste",
+  ]);
+  assert.equal(link.status, 0, link.stderr);
+
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-lid-target-001",
+    chat_id: "273478418722987@lid",
+    sender_name: "273478418722987",
+    sender_phone: "273478418722987",
+    body: "Pode!",
+    received_at: "2026-06-21T09:32:27-03:00",
+  });
+
+  const propose = run(root, [
+    "whatsapp",
+    "outbox",
+    "propose",
+    "--name",
+    "Lidiane Teste WhatsApp",
+    "--body",
+    "Boa, vou te mandar bem direto os 3 pontos.",
+    "--source",
+    "atendimento-whatsapp",
+  ]);
+  assert.equal(propose.status, 0, propose.stderr);
+
+  const database = db(root);
+  const row = database.prepare("select * from whatsapp_outbox").get();
+  database.close();
+  assert.equal(row.target_chat_id, "5527992635649");
+  assert.doesNotMatch(row.target_chat_id, /@lid$/i);
+});
+
 test("whatsapp outbox records required humanizer and context metadata", () => {
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);

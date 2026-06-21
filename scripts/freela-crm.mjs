@@ -2630,6 +2630,7 @@ function proposeWhatsAppOutbox(
   if (!inbound) {
     throw usageError(`Evento inbound WhatsApp nao encontrado: ${state.last_inbound_event_id}`);
   }
+  const targetChatId = whatsappOutboxTargetChatId(lead, inbound);
 
   database
     .prepare(
@@ -2641,7 +2642,7 @@ function proposeWhatsAppOutbox(
     .run(
       lead.id,
       inbound.id,
-      inbound.chat_id,
+      targetChatId,
       body,
       source,
       "pending_guardian",
@@ -2653,6 +2654,43 @@ function proposeWhatsAppOutbox(
     );
 
   return database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+}
+
+function whatsappOutboxTargetChatId(lead, inbound) {
+  const inboundChatId = clean(inbound.chat_id);
+  if (!isWhatsAppLid(inboundChatId)) return inboundChatId;
+
+  const phoneTarget = whatsappSendPhoneFromLead(lead);
+  if (phoneTarget) return phoneTarget;
+
+  throw usageError(`Lead sem telefone real para envio WhatsApp: ${lead.canonical_name}`);
+}
+
+function isWhatsAppLid(value) {
+  return clean(value).toLowerCase().endsWith("@lid");
+}
+
+function whatsappSendPhoneFromLead(lead) {
+  for (const value of [lead.phone_or_contact, lead.phone_normalized]) {
+    const phone = whatsappSendPhoneFromValue(value);
+    if (phone) return phone;
+  }
+  return "";
+}
+
+function whatsappSendPhoneFromValue(value) {
+  const raw = clean(value);
+  if (!raw || isWhatsAppLid(raw)) return "";
+
+  const jidPhone = raw.toLowerCase().endsWith("@s.whatsapp.net") ? raw.split("@")[0] : "";
+  if (/^\d{8,15}$/.test(jidPhone)) return jidPhone;
+
+  const digits = raw.replace(/\D+/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("55") && digits.length >= 12 && digits.length <= 13) return digits;
+  if (raw.includes("+") && digits.length >= 8 && digits.length <= 15) return digits;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return "";
 }
 
 const WHATSAPP_AUTO_REPLY_LIMIT_REASON = "limite de 5 respostas automaticas atingido";

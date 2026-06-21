@@ -98,6 +98,8 @@ O WhatsApp pode entregar uma conversa individual como `273478418722987@lid` em v
 - `whatsapp_unmatched_inbound_events`: guarda inbound sem lead identificado;
 - `whatsapp_worker_wakes`: dedupe de tasks criadas automaticamente para workers.
 
+Regra de envio: `@lid` serve somente para leitura/match. A Outbox nao deve despachar para `@lid`. Quando o inbound vem por LID, o CRM usa o telefone real do lead como `target_chat_id` em formato enviavel, como `5527999990000`. Se uma Outbox antiga ainda tiver `target_chat_id` terminando em `@lid`, o Gateway bloqueia antes de chamar `/api/send` e move o lead para `handoff_luiz` pedindo telefone real.
+
 Quando o import mostrar `Sem identidade: 1`, localize o lead correto e vincule:
 
 ```bash
@@ -147,6 +149,8 @@ node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/program
 ```
 
 Somente o Gateway chama `/api/send`. Workers continuam sem acesso a `send_message`, `send_file` e `send_audio_message`.
+
+Antes de ligar envio continuo, rode `dispatch-approved-outbox --dry-run` e confirme que nenhum item aprovado tem `target_chat_id` em `@lid`. O dispatcher bloqueia esse caso, mas o correto e manter o cadastro do lead com telefone real e o LID apenas em `whatsapp_identity_aliases`.
 
 ## Variavel Opcional
 

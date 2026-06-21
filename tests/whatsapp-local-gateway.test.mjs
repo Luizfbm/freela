@@ -527,6 +527,40 @@ test("gateway dispatches approved outbox once through bridge api", async () => {
   }
 });
 
+test("gateway bloqueia dispatch legado com destinatario LID antes de chamar bridge", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestOutbox(root, "target_chat_id = ?", ["273478418722987@lid"]);
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true, message: "bridge must not be called" }));
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Falhas: 1/i);
+    assert.equal(bridge.requests.length, 0);
+
+    const { outbox, outbound, state } = readLatestDispatchAudit(root);
+    assert.equal(outbox.status, "failed");
+    assert.equal(outbox.attempts, 2);
+    assert.equal(outbox.sent_at, null);
+    assert.match(outbox.dispatch_error, /LID|telefone real/i);
+    assert.equal(outbound.length, 0);
+    assert.equal(state.whatsapp_state, "handoff_luiz");
+    assert.match(state.handoff_reason, /LID|telefone real/i);
+  } finally {
+    await bridge.close();
+  }
+});
+
 test("gateway treats bridge responses without explicit success true as ambiguous handoff", async () => {
   const cases = [
     { name: "missing success", body: "{}" },

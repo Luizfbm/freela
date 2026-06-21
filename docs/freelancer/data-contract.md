@@ -239,6 +239,8 @@ SQLite e a fonte oficial tambem para automacao WhatsApp. Mensagens recebidas de 
 Identidade WhatsApp:
 
 - O MCP pode entregar conversa individual como `@lid` em vez de telefone publico. Esse identificador deve ser salvo em `whatsapp_identity_aliases`.
+- `@lid` e identidade de leitura/match, nao destinatario de envio. Quando uma Outbox nasce de inbound `@lid`, a CLI deve usar o telefone real do lead como `target_chat_id` enviavel, por exemplo `5527999990000`; se nao houver telefone real, a proposta deve falhar cedo em vez de tentar enviar para `@lid`.
+- O Gateway bloqueia qualquer Outbox legada cujo `target_chat_id` termine em `@lid`, nao chama `/api/send` e move a conversa para `handoff_luiz` com motivo explicito para vincular telefone real.
 - Quando o Gateway nao encontra lead confiavel, ele grava o evento em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`.
 - Para reconciliar, use `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
 - O import/watch com `--auto-wake` cria issue no Paperclip por roteamento seletivo; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama bridge e nao cria Outbox.

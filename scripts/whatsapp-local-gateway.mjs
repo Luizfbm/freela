@@ -603,6 +603,15 @@ function dispatchOutboxItems(database, items, dispatchOptions) {
       skipped += 1;
       continue;
     }
+    if (isWhatsAppLidRecipient(item.target_chat_id)) {
+      markOutboxUnsendableRecipient(
+        database,
+        item,
+        "destinatario WhatsApp LID nao enviavel; vincule telefone real antes do dispatch",
+      );
+      failed += 1;
+      continue;
+    }
     const result = sendBridgeMessage({
       sendUrl: dispatchOptions.sendUrl,
       recipient: item.target_chat_id,
@@ -643,6 +652,33 @@ function lockOutboxForDispatch(database, outboxId) {
     )
     .run(new Date().toISOString(), outboxId);
   return result.changes === 1;
+}
+
+function isWhatsAppLidRecipient(value) {
+  return clean(value).toLowerCase().endsWith("@lid");
+}
+
+function markOutboxUnsendableRecipient(database, item, error) {
+  const failedAt = new Date().toISOString();
+  const reason = clean(error);
+  database
+    .prepare(
+      `update whatsapp_outbox
+       set status = 'failed',
+           attempts = 2,
+           failed_at = ?,
+           dispatch_error = ?,
+           dispatch_locked_at = null
+       where id = ?`,
+    )
+    .run(failedAt, reason.slice(0, 1000), item.id);
+  database
+    .prepare(
+      `update lead_conversation_state
+       set whatsapp_state = 'handoff_luiz', handoff_reason = ?, updated_at = ?
+       where lead_id = ?`,
+    )
+    .run(reason.slice(0, 1000), failedAt, item.lead_id);
 }
 
 function sendBridgeMessage({ sendUrl, recipient, message, timeoutMs }) {
