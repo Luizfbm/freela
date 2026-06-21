@@ -19,6 +19,7 @@ function runNode(args, options = {}) {
 }
 
 function seedApprovedOutbox(root) {
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
   const leadFile = join(root, "lead.json");
   writeFileSync(
     leadFile,
@@ -89,6 +90,39 @@ function seedApprovedOutbox(root) {
   );
 }
 
+function readLatestOutbox(root) {
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = db.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  db.close();
+  return outbox;
+}
+
+function updateLatestOutbox(root, assignments, values = []) {
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = db.prepare("select id from whatsapp_outbox order by id desc limit 1").get();
+  db.prepare(`update whatsapp_outbox set ${assignments} where id = ?`).run(...values, outbox.id);
+  db.close();
+}
+
+function updateLatestLeadState(root, whatsappState) {
+  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = db
+    .prepare("select lead_id from whatsapp_outbox order by id desc limit 1")
+    .get();
+  db.prepare("update lead_conversation_state set whatsapp_state = ? where lead_id = ?").run(
+    whatsappState,
+    outbox.lead_id,
+  );
+  db.close();
+}
+
+function assertDryRunDispatchableCount(root, expected) {
+  const result = runNode([gateway, "--root", root, "dispatch-approved-outbox", "--dry-run"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(`Dry-run dispatchaveis: ${expected}`, "i"));
+  return result;
+}
+
 test("gateway importa evento normalizado em dry-run sem expor send direto", () => {
   const root = makeRoot();
   assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
@@ -128,7 +162,6 @@ test("gateway importa evento normalizado em dry-run sem expor send direto", () =
 
 test("gateway dry-runs approved whatsapp outbox without sending", () => {
   const root = makeRoot();
-  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
   seedApprovedOutbox(root);
 
   const result = runNode([
@@ -137,19 +170,68 @@ test("gateway dry-runs approved whatsapp outbox without sending", () => {
     root,
     "dispatch-approved-outbox",
     "--dry-run",
-    "true",
+    "--limit",
+    "1",
   ]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Dry-run dispatchaveis: 1/i);
   assert.match(result.stdout, /Aghata Massoterapia/i);
 
-  const db = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
-  const outbox = db
-    .prepare("select status, sent_at from whatsapp_outbox order by id desc limit 1")
-    .get();
-  db.close();
+  const outbox = readLatestOutbox(root);
   assert.equal(outbox.status, "approved");
   assert.equal(outbox.sent_at, null);
+});
+
+test("gateway rejects invalid dry-run boolean without mutating outbox", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+
+  const result = runNode([
+    gateway,
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--dry-run",
+    "tru",
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Valor booleano invalido: tru/i);
+
+  const outbox = readLatestOutbox(root);
+  assert.equal(outbox.status, "approved");
+  assert.equal(outbox.sent_at, null);
+});
+
+test("gateway dry-run skips outbox without humanizer pass", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestOutbox(root, "humanizer_pass = 0");
+
+  assertDryRunDispatchableCount(root, 0);
+});
+
+test("gateway dry-run skips blocked guardian decisions", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestOutbox(root, "status = 'blocked', guardian_decision = 'bloquear'");
+
+  assertDryRunDispatchableCount(root, 0);
+});
+
+test("gateway dry-run skips already sent outbox", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestOutbox(root, "sent_at = ?", ["2026-06-21T12:00:00-03:00"]);
+
+  assertDryRunDispatchableCount(root, 0);
+});
+
+test("gateway dry-run skips leads in handoff", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestLeadState(root, "handoff_luiz");
+
+  assertDryRunDispatchableCount(root, 0);
 });
 
 test("gateway importa mensagens novas do messages.db do whatsapp-mcp sem duplicar", () => {

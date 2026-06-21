@@ -73,9 +73,12 @@ function parseArgs(argv) {
   while (args.length) {
     const key = args.shift();
     if (!key.startsWith("--")) throw new Error(`Opcao invalida: ${key}`);
-    const value = args.shift();
-    if (!value || value.startsWith("--")) throw new Error(`Valor obrigatorio para ${key}`);
-    flags[key.slice(2)] = value;
+    const value = args[0];
+    if (value === undefined || value.startsWith("--")) {
+      flags[key.slice(2)] = "true";
+    } else {
+      flags[key.slice(2)] = args.shift();
+    }
   }
 
   return { root, command, flags };
@@ -301,7 +304,11 @@ function parsePositiveInt(value, flagName) {
 }
 
 function parseBooleanFlag(value) {
-  return ["1", "true", "yes", "sim"].includes(clean(value).toLowerCase());
+  const normalized = clean(value).toLowerCase();
+  if (!normalized) return false;
+  if (["1", "true", "yes", "sim"].includes(normalized)) return true;
+  if (["0", "false", "no", "nao", "não"].includes(normalized)) return false;
+  throw new Error(`Valor booleano invalido: ${clean(value)}`);
 }
 
 function phoneFromValue(value) {
