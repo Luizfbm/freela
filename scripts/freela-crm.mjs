@@ -599,6 +599,12 @@ function migrateDatabase(database) {
   ensureColumn(database, "whatsapp_outbox", "humanizer_notes", "text");
   ensureColumn(database, "whatsapp_outbox", "dispatch_error", "text");
   ensureColumn(database, "whatsapp_outbox", "dispatch_locked_at", "text");
+  ensureColumn(database, "whatsapp_outbox", "dispatch_provider", "text");
+  ensureColumn(database, "whatsapp_outbox", "provider_message_id", "text");
+  ensureColumn(database, "whatsapp_outbox", "delivery_ack", "integer");
+  ensureColumn(database, "whatsapp_outbox", "delivery_ack_name", "text");
+  ensureColumn(database, "whatsapp_outbox", "delivered_at", "text");
+  ensureColumn(database, "whatsapp_outbox", "delivery_checked_at", "text");
   ensureColumn(database, "whatsapp_unmatched_inbound_events", "classification", "text");
   ensureColumn(database, "whatsapp_unmatched_inbound_events", "matched_lead_id", "integer references leads(id)");
   ensureColumn(database, "whatsapp_unmatched_inbound_events", "matched_inbound_event_id", "integer references whatsapp_inbound_events(id)");
@@ -1175,6 +1181,12 @@ function schemaSql() {
       humanizer_notes text,
       dispatch_error text,
       dispatch_locked_at text,
+      dispatch_provider text,
+      provider_message_id text,
+      delivery_ack integer,
+      delivery_ack_name text,
+      delivered_at text,
+      delivery_checked_at text,
       guardian_decision text,
       guardian_reason text,
       attempts integer not null default 0,

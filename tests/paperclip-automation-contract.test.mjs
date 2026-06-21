@@ -460,20 +460,28 @@ test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
   const readme = paperclipReadme();
   const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const wahaGuide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
   const oldSpec = read("docs/superpowers/specs/2026-06-19-whatsapp-local-automation-design.md");
   const controlledSpec = read("docs/superpowers/specs/2026-06-21-whatsapp-controlled-automation-design.md");
-  const controlledDocs = `${controlledSpec}\n${guide}\n${readme}`;
+  const controlledDocs = `${controlledSpec}\n${guide}\n${wahaGuide}\n${readme}`;
   const scriptSendCallers = walkFiles(join(rootDir, "scripts"))
     .filter((path) => readFileSync(path, "utf8").includes("/api/send"))
+    .map((path) => relative(rootDir, path))
+    .sort();
+  const wahaSendTextCallers = walkFiles(join(rootDir, "scripts"))
+    .filter((path) => readFileSync(path, "utf8").includes("/api/sendText"))
     .map((path) => relative(rootDir, path))
     .sort();
 
   assert.match(gateway, /import-jsonl/i);
   assert.match(gateway, /import-mcp-sqlite/i);
+  assert.match(gateway, /import-waha-event/i);
   assert.match(gateway, /watch-mcp-sqlite/i);
   assert.match(gateway, /dispatch-approved-outbox/i);
   assert.match(gateway, /\/api\/send/i);
+  assert.match(gateway, /\/api\/sendText/i);
   assert.deepEqual(scriptSendCallers, ["scripts/whatsapp-local-gateway.mjs"]);
+  assert.deepEqual(wahaSendTextCallers, ["scripts/whatsapp-local-gateway.mjs"]);
   assert.doesNotMatch(gateway, /send_message|send_file|send_audio_message/i);
   assert.match(oldSpec, /Outbox WhatsApp/i);
   assert.match(controlledSpec, /humanizer_pass = true/i);
@@ -481,6 +489,33 @@ test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
   for (const term of [/Humanizer/i, /Outbox/i, /Guardiao|Guardião/i, /Gateway/i]) {
     assert.match(controlledDocs, term);
   }
+});
+
+test("WAHA local fica em laboratorio ate ACK forte confirmar entrega", () => {
+  const readme = paperclipReadme();
+  const wahaGuide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
+  const gateway = read("scripts/whatsapp-local-gateway.mjs");
+  const crm = read("scripts/freela-crm.mjs");
+
+  for (const doc of [readme, wahaGuide]) {
+    assert.match(doc, /WAHA/i);
+    assert.match(doc, /laboratorio|laboratório/i);
+    assert.match(doc, /--provider waha/i);
+    assert.match(doc, /delivery_pending/i);
+    assert.match(doc, /message\.ack/i);
+    assert.match(doc, /DEVICE|READ|PLAYED/i);
+    assert.match(doc, /message\.waiting/i);
+    assert.match(doc, /@c\.us/i);
+    assert.match(doc, /@lid/i);
+  }
+
+  assert.match(gateway, /dispatch_provider/i);
+  assert.match(gateway, /provider_message_id/i);
+  assert.match(gateway, /delivery_pending/i);
+  assert.match(gateway, /message\.ack/i);
+  assert.match(gateway, /message\.waiting/i);
+  assert.match(crm, /delivery_ack_name/i);
+  assert.match(crm, /delivered_at/i);
 });
 
 test("README documenta fronteira atual de automacao WhatsApp", () => {

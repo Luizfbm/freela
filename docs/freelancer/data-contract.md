@@ -46,7 +46,7 @@ O contrato de passagem entre workers fica em `docs/freelancer/paperclip/worker-h
 - `outreach_queue`: fila de envio manual.
 - `message_reviews`: decisoes estruturadas do QA de Mensagens.
 - `worker_handoffs`: passagem estruturada de trabalho entre workers, com `pending_issue`, `issue_created`, `blocked`, `completed` ou `cancelled`; handoffs de um mesmo lote operacional devem preencher `workflow.batch_id`, e handoffs que nao podem duplicar issue podem usar `workflow.dedupe_key`, como `publish_fre7:50a2756c-2942-40c1-90f8-b16807a62ef3:YYYY-MM-DD`.
-- `whatsapp_inbound_events`, `whatsapp_outbox`, `whatsapp_guardian_decisions` e `lead_conversation_state`: automacao local de WhatsApp atras do Guardiao.
+- `whatsapp_inbound_events`, `whatsapp_outbox`, `whatsapp_guardian_decisions` e `lead_conversation_state`: automacao local de WhatsApp atras do Guardiao. `whatsapp_outbox` diferencia aceite de transporte e entrega real com `dispatch_provider`, `provider_message_id`, `delivery_ack`, `delivery_ack_name`, `delivered_at`, `delivery_checked_at` e status `delivery_pending`.
 - `whatsapp_identity_aliases`: vinculos entre leads e identidades WhatsApp/JID, incluindo contatos `@lid` que nao expõem telefone publico.
 - `whatsapp_unmatched_inbound_events`: mensagens inbound sem lead identificado; devem ser reconciliadas com `whatsapp identity link` e `whatsapp unmatched reconcile`, nao descartadas.
 - `whatsapp_worker_wakes`: dedupe de issues criadas automaticamente para workers por inbound WhatsApp, agente alvo e tipo de wake.

@@ -333,7 +333,9 @@ Fluxos implementados:
 
 O setup local do `lharries/whatsapp-mcp` esta em `docs/freelancer/paperclip/whatsapp-mcp-local.md`. Ele deve ficar em `.scratch/whatsapp-mcp`, parear por QR e ser lido pelo Gateway Local via `store/messages.db`.
 
-Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox` chama o bridge `/api/send`.
+WAHA fica documentado em `docs/freelancer/paperclip/whatsapp-waha-local.md` como laboratorio de envio automatico. Use somente pelo Gateway com `dispatch-approved-outbox --provider waha`; workers nao chamam `/api/sendText`. Enquanto o ACK forte nao chega, a Outbox fica em `delivery_pending`, sem contar como envio concluido. O CRM so considera entregue quando `message.ack` chega com `DEVICE`, `READ` ou `PLAYED`; `message.waiting` marca risco de placeholder e move para handoff. `@lid` continua identidade de leitura, e destino de envio precisa virar `@c.us`.
+
+Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox` chama o motor de envio autorizado: bridge `/api/send` ou WAHA `/api/sendText` em laboratorio.
 
 Workers nao acessam `send_message`, `send_file` ou `send_audio_message`. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Documents/programacao/freela import-mcp-sqlite`.
 
