@@ -2391,6 +2391,8 @@ function proposeWhatsAppOutbox(
   return database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
 }
 
+const WHATSAPP_AUTO_REPLY_LIMIT_REASON = "limite de 5 respostas automaticas atingido";
+
 function reviewWhatsAppOutbox(database, outboxId) {
   const outbox = database.prepare("select * from whatsapp_outbox where id = ?").get(outboxId);
   if (!outbox) throw usageError(`Outbox nao encontrado: ${outboxId}`);
@@ -2422,10 +2424,14 @@ function reviewWhatsAppOutbox(database, outboxId) {
   if (decision === "enviar") {
     incrementAutoReplies(database, outbox.lead_id, outbox.id);
   } else {
-    setWhatsAppHandoff(database, outbox.lead_id, "bloqueado_guardiao", reason);
+    setWhatsAppHandoff(database, outbox.lead_id, blockedWhatsAppStateForRules(rules), reason);
   }
 
   return { decision: status === "approved" ? "aprovado" : "bloqueado", reason, rules };
+}
+
+function blockedWhatsAppStateForRules(rules) {
+  return rules.includes(WHATSAPP_AUTO_REPLY_LIMIT_REASON) ? "handoff_luiz" : "bloqueado_guardiao";
 }
 
 function guardianRules({ outbox, state }) {
@@ -2437,7 +2443,7 @@ function guardianRules({ outbox, state }) {
   if (state?.whatsapp_state === "bloqueado_guardiao") rules.push("lead bloqueado pelo guardiao");
   if (state?.whatsapp_state === "encerrado") rules.push("conversa encerrada");
   if (state?.auto_replies_since_human >= 5) {
-    rules.push("limite de 5 respostas automaticas atingido");
+    rules.push(WHATSAPP_AUTO_REPLY_LIMIT_REASON);
   }
   if (!outbox.humanizer_pass) rules.push("humanizer_pass ausente");
   if (!outbox.used_last_inbound) rules.push("used_last_inbound ausente");
@@ -2456,14 +2462,23 @@ function guardianRules({ outbox, state }) {
   }
   if (/—|–|--/.test(outbox.body)) rules.push("mensagem contem travessao ou marcador artificial");
   if (outbox.body.length > 700) rules.push("mensagem longa demais");
-  if (/ignore as regras|ignore instrucoes|modo desenvolvedor|prompt/i.test(outbox.body)) {
+  if (/ignore as regras|ignore instrucoes|modo desenvolvedor|prompt/.test(body)) {
     rules.push("possivel prompt injection");
   }
-  if (/https?:\/\//i.test(outbox.body) && state?.whatsapp_state !== "exemplo_aprovado_para_envio") {
+  if (containsLinkLikeText(body, outbox.body) && state?.whatsapp_state !== "exemplo_aprovado_para_envio") {
     rules.push("link de exemplo sem estado exemplo_aprovado_para_envio");
   }
 
   return rules;
+}
+
+function containsLinkLikeText(body, rawBody) {
+  const raw = clean(rawBody);
+  return (
+    /https?:\/\//i.test(raw) ||
+    /(?:^|[\s([<{])(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*\.[a-z]{2,}(?:\/[^\s)\]}>]*)?/i.test(raw) ||
+    /\b(?:www|instagram|bit|wa) (?:com|ly|me)\b/.test(body)
+  );
 }
 
 function incrementAutoReplies(database, leadId, outboxId) {
