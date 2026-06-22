@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import {
+  executeCockpitAction,
   openCockpitDatabase,
   previewCommand,
   readLeadDetail,
@@ -513,4 +514,279 @@ test("command preview returns structured errors for invalid commands", () => {
   } finally {
     database.close();
   }
+});
+
+test("enviado action runs healthcheck and mark-contacted through CRM CLI", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  approveManualLeadCard(root, "Aghata Massoterapia", "Oi, posso te mandar 3 sugestoes rapidas?");
+
+  const calls = [];
+  const result = await executeCockpitAction({
+    root,
+    action: "enviado",
+    leadId: 1,
+    expectedStage: "ready_lead_card",
+    runCommand: async (args) => {
+      calls.push(args);
+      return { status: 0, stdout: "ok", stderr: "" };
+    },
+    syncPaperclip: async () => ({ ok: true }),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.crmUpdated, true);
+  assert.deepEqual(calls[0], ["healthcheck"]);
+  assert.deepEqual(calls[1], ["lead", "mark-contacted", "--name", "Aghata Massoterapia"]);
+});
+
+test("action execution blocks when lead stage changed before submit", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    status: "perdido",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  let commandCalled = false;
+  const result = await executeCockpitAction({
+    root,
+    action: "enviado",
+    leadId: 1,
+    expectedStage: "ready_lead_card",
+    runCommand: async () => {
+      commandCalled = true;
+      throw new Error("runCommand should not be called");
+    },
+    syncPaperclip: async () => ({ ok: true }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "lead_stage_changed");
+  assert.equal(result.crmUpdated, false);
+  assert.equal(commandCalled, false);
+});
+
+test("paperclip sync failure after CRM write returns partial success", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  approveManualLeadCard(root, "Aghata Massoterapia", "Oi, posso te mandar 3 sugestoes rapidas?");
+
+  const result = await executeCockpitAction({
+    root,
+    action: "enviado",
+    leadId: 1,
+    expectedStage: "ready_lead_card",
+    runCommand: async () => ({ status: 0, stdout: "ok", stderr: "" }),
+    syncPaperclip: async () => {
+      throw new Error("Paperclip offline");
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "paperclip_sync_failed");
+  assert.equal(result.crmUpdated, true);
+  assert.equal(result.paperclipUpdated, false);
+  assert.match(result.errors[0], /Paperclip offline/);
+});
+
+test("executeCockpitAction returns action_unavailable when refreshed lead cannot run mutation", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Clara Pilates",
+    status: "perdido",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const calls = [];
+  const result = await executeCockpitAction({
+    root,
+    action: "enviado",
+    leadId: 1,
+    runCommand: async (args) => {
+      calls.push(args);
+      return { status: 0, stdout: "ok", stderr: "" };
+    },
+    syncPaperclip: async () => ({ ok: true }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "action_unavailable");
+  assert.equal(result.crmUpdated, false);
+  assert.deepEqual(calls, []);
+});
+
+test("unsupported action returns unsupported_action and does not run commands", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const calls = [];
+  const result = await executeCockpitAction({
+    root,
+    action: "fazer_cafe",
+    leadId: 1,
+    runCommand: async (args) => {
+      calls.push(args);
+      return { status: 0, stdout: "ok", stderr: "" };
+    },
+    syncPaperclip: async () => ({ ok: true }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "unsupported_action");
+  assert.equal(result.crmUpdated, false);
+  assert.deepEqual(calls, []);
+});
+
+test("healthcheck failure returns healthcheck_failed and does not run write or sync", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  approveManualLeadCard(root, "Aghata Massoterapia", "Oi, posso te mandar 3 sugestoes rapidas?");
+
+  const calls = [];
+  let synced = false;
+  const result = await executeCockpitAction({
+    root,
+    action: "enviado",
+    leadId: 1,
+    expectedStage: "ready_lead_card",
+    runCommand: async (args) => {
+      calls.push(args);
+      return { status: 1, stdout: "", stderr: "crm indisponivel" };
+    },
+    syncPaperclip: async () => {
+      synced = true;
+      return { ok: true };
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "healthcheck_failed");
+  assert.equal(result.crmUpdated, false);
+  assert.equal(result.paperclipUpdated, false);
+  assert.equal(synced, false);
+  assert.deepEqual(calls, [["healthcheck"]]);
+});
+
+test("CRM write failure returns crm_write_failed and does not run sync", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  approveManualLeadCard(root, "Aghata Massoterapia", "Oi, posso te mandar 3 sugestoes rapidas?");
+
+  const calls = [];
+  let synced = false;
+  const result = await executeCockpitAction({
+    root,
+    action: "enviado",
+    leadId: 1,
+    expectedStage: "ready_lead_card",
+    runCommand: async (args) => {
+      calls.push(args);
+      return calls.length === 1
+        ? { status: 0, stdout: "ok", stderr: "" }
+        : { status: 2, stdout: "", stderr: "falha no CRM" };
+    },
+    syncPaperclip: async () => {
+      synced = true;
+      return { ok: true };
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "crm_write_failed");
+  assert.equal(result.crmUpdated, false);
+  assert.equal(result.paperclipUpdated, false);
+  assert.equal(synced, false);
+  assert.deepEqual(calls, [
+    ["healthcheck"],
+    ["lead", "mark-contacted", "--name", "Aghata Massoterapia"],
+  ]);
+});
+
+test("crm args for perdido and descartar preserve payload reason in notes", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  seedLead(root, {
+    canonical_name: "Clara Pilates",
+    phone_or_contact: "+55 27 90000-0001",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const calls = [];
+  const runCommand = async (args) => {
+    calls.push(args);
+    return { status: 0, stdout: "ok", stderr: "" };
+  };
+
+  const lost = await executeCockpitAction({
+    root,
+    action: "perdido",
+    leadId: 1,
+    payload: { reason: "sem fit agora" },
+    runCommand,
+    syncPaperclip: async () => ({ ok: true }),
+  });
+  const discarded = await executeCockpitAction({
+    root,
+    action: "descartar",
+    leadId: 2,
+    payload: { reason: "duplicado manual" },
+    runCommand,
+    syncPaperclip: async () => ({ ok: true }),
+  });
+
+  assert.equal(lost.ok, true);
+  assert.equal(discarded.ok, true);
+  assert.deepEqual(calls[1], [
+    "lead",
+    "update",
+    "--name",
+    "Aghata Massoterapia",
+    "--status",
+    "perdido",
+    "--notes",
+    "sem fit agora",
+  ]);
+  assert.deepEqual(calls[3], [
+    "lead",
+    "update",
+    "--name",
+    "Clara Pilates",
+    "--status",
+    "descartado",
+    "--notes",
+    "duplicado manual",
+  ]);
 });

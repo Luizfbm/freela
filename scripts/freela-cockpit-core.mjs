@@ -199,6 +199,124 @@ export function previewCommand(database, rawCommand) {
   };
 }
 
+export async function executeCockpitAction({
+  root,
+  dbPath = null,
+  action,
+  leadId,
+  expectedStage = null,
+  payload = {},
+  runCommand,
+  syncPaperclip,
+}) {
+  const database = openCockpitDatabase({ root, dbPath, readOnly: true });
+  let lead;
+  try {
+    lead = readLeadDetail(database, leadId);
+  } finally {
+    database.close();
+  }
+
+  if (expectedStage && lead.commercialStage !== expectedStage) {
+    return actionFailure({
+      reason: "lead_stage_changed",
+      action,
+      lead,
+      crmUpdated: false,
+      paperclipUpdated: false,
+      warnings: [`Lead saiu de ${expectedStage} para ${lead.commercialStage}`],
+      nextRefreshRecommended: true,
+      extra: {
+        expectedStage,
+        currentStage: lead.commercialStage,
+      },
+    });
+  }
+
+  if (isMutationAction(action) && !lead.availableActions.includes(action)) {
+    return actionFailure({
+      reason: "action_unavailable",
+      action,
+      lead,
+      crmUpdated: false,
+      paperclipUpdated: false,
+      warnings: [`Acao indisponivel para o lead no estado atual: ${action}`],
+      nextRefreshRecommended: true,
+      extra: {
+        availableActions: lead.availableActions,
+      },
+    });
+  }
+
+  const crmArgs = crmArgsForAction({ action, lead, payload });
+  if (!crmArgs) {
+    return actionFailure({
+      reason: "unsupported_action",
+      action,
+      lead,
+      crmUpdated: false,
+      paperclipUpdated: false,
+      errors: [`Acao nao suportada: ${action}`],
+      nextRefreshRecommended: false,
+    });
+  }
+
+  const health = await runCommand(["healthcheck"]);
+  if (commandFailed(health)) {
+    return commandFailure("healthcheck_failed", {
+      action,
+      lead,
+      command: ["healthcheck"],
+      result: health,
+      crmUpdated: false,
+    });
+  }
+
+  const write = await runCommand(crmArgs);
+  if (commandFailed(write)) {
+    return commandFailure("crm_write_failed", {
+      action,
+      lead,
+      command: crmArgs,
+      result: write,
+      crmUpdated: false,
+    });
+  }
+
+  try {
+    await syncPaperclip({ action, lead, payload });
+  } catch (error) {
+    const message = errorMessage(error);
+    return {
+      ok: false,
+      reason: "paperclip_sync_failed",
+      action,
+      leadId: lead.leadId,
+      lead,
+      crmUpdated: true,
+      paperclipUpdated: false,
+      agentRouted: false,
+      warnings: ["CRM atualizado; Paperclip pendente de republicacao."],
+      errors: [message],
+      error: message,
+      nextRefreshRecommended: true,
+    };
+  }
+
+  return {
+    ok: true,
+    action,
+    leadId: lead.leadId,
+    lead,
+    crmUpdated: true,
+    paperclipUpdated: true,
+    agentRouted: agentMayWakeForAction(action),
+    warnings: [],
+    errors: [],
+    nextRefreshRecommended: true,
+  };
+}
+
 export function parseOperatorCommand(rawCommand) {
   const command = clean(rawCommand);
   const lowerCommand = command.toLowerCase();
@@ -442,6 +560,117 @@ function resolveLeadMatches(database, name) {
     )
     .all(term)
     .map(mapLeadContextRow);
+}
+
+function crmArgsForAction({ action, lead, payload = {} }) {
+  const name = lead.canonicalName;
+  if (action === "enviado" || action === "followup_enviado") {
+    return ["lead", "mark-contacted", "--name", name];
+  }
+
+  if (action === "respondeu") {
+    return ["lead", "mark-response", "--name", name, "--message", clean(payload.message)];
+  }
+
+  if (action === "pediu_preco") {
+    return [
+      "lead",
+      "mark-response",
+      "--name",
+      name,
+      "--message",
+      clean(payload.message) || "Lead pediu preco.",
+      "--response-status",
+      "resposta_pediu_preco",
+    ];
+  }
+
+  if (action === "pediu_exemplo") {
+    return [
+      "lead",
+      "mark-response",
+      "--name",
+      name,
+      "--message",
+      clean(payload.message) || "Lead pediu exemplo.",
+      "--response-status",
+      "resposta_pediu_exemplo",
+    ];
+  }
+
+  if (action === "perdido") {
+    return ["lead", "update", "--name", name, "--status", "perdido", "--notes", clean(payload.reason)];
+  }
+
+  if (action === "descartar") {
+    return ["lead", "update", "--name", name, "--status", "descartado", "--notes", clean(payload.reason)];
+  }
+
+  return null;
+}
+
+function actionFailure({
+  reason,
+  action,
+  lead,
+  crmUpdated,
+  paperclipUpdated,
+  warnings = [],
+  errors = [],
+  nextRefreshRecommended,
+  extra = {},
+}) {
+  return {
+    ok: false,
+    reason,
+    action,
+    leadId: lead?.leadId,
+    lead,
+    crmUpdated,
+    paperclipUpdated,
+    agentRouted: false,
+    warnings,
+    errors,
+    nextRefreshRecommended,
+    ...extra,
+  };
+}
+
+function commandFailure(reason, { action, lead, command, result, crmUpdated }) {
+  const message = commandErrorMessage(command, result);
+  return actionFailure({
+    reason,
+    action,
+    lead,
+    crmUpdated,
+    paperclipUpdated: false,
+    errors: [message],
+    nextRefreshRecommended: true,
+    extra: {
+      command,
+      exitStatus: commandStatus(result),
+    },
+  });
+}
+
+function commandFailed(result) {
+  return commandStatus(result) !== 0;
+}
+
+function commandStatus(result) {
+  if (!result) return 1;
+  if (typeof result.status === "number") return result.status;
+  if (typeof result.exitCode === "number") return result.exitCode;
+  if (typeof result.code === "number") return result.code;
+  return 0;
+}
+
+function commandErrorMessage(command, result) {
+  return firstFilled(result?.stderr, result?.stdout, `Comando falhou: ${command.join(" ")}`);
+}
+
+function errorMessage(error) {
+  return clean(error?.message) || String(error);
 }
 
 function availableActionsForLead(row) {
