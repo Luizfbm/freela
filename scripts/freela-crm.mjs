@@ -4404,14 +4404,7 @@ function exportPipeline(database, root) {
 
 function exportTodayQueue(database, root, queueDate) {
   mkdirSync(join(root, ".scratch/crm"), { recursive: true });
-  const rows = database
-    .prepare(
-      `select *
-       from commercial_ready_lead_cards
-       where has_ready_message = 1
-       order by canonical_name`,
-    )
-    .all();
+  const rows = manualReadyLeadCardRows(database, "c.canonical_name");
 
   const chunks = [
     `# Hoje enviar - ${queueDate}`,
@@ -4438,16 +4431,10 @@ function exportTodayQueue(database, root, queueDate) {
 
 function exportPaperclipLeadCards(database, root, queueDate) {
   mkdirSync(join(root, ".scratch/crm"), { recursive: true });
-  const rows = database
-    .prepare(
-      `select *
-       from commercial_ready_lead_cards
-       where has_ready_message = 1
-       order by
-         case status when 'interessado' then 0 when 'respondeu' then 1 else 2 end,
-         canonical_name`,
-    )
-    .all();
+  const rows = manualReadyLeadCardRows(
+    database,
+    "case c.status when 'interessado' then 0 when 'respondeu' then 1 else 2 end, c.canonical_name",
+  );
 
   const chunks = [
     `# Leads para copiar e enviar - ${queueDate}`,
@@ -4501,6 +4488,52 @@ function exportPaperclipLeadCards(database, root, queueDate) {
   );
 }
 
+function manualReadyLeadCardRows(database, orderBy) {
+  const rows = database
+    .prepare(
+      `select c.*, s.whatsapp_state
+       from commercial_ready_lead_cards c
+       left join lead_conversation_state s on s.lead_id = c.lead_id
+       where c.has_ready_message = 1
+       order by ${orderBy}`,
+    )
+    .all();
+  return rows.filter((row) => shouldKeepManualLeadCard(database, row));
+}
+
+function shouldKeepManualLeadCard(database, lead) {
+  if (isManualWhatsAppException(lead)) return true;
+  return !leadHasActiveSafeOutbox(database, lead.lead_id);
+}
+
+function isManualWhatsAppException(lead) {
+  return [
+    "preco_pedido",
+    "lead_quente",
+    "objecao_comercial",
+    "handoff_luiz",
+    "bloqueado_guardiao",
+    "qualificacao_preco_pendente",
+  ].includes(clean(lead?.whatsapp_state));
+}
+
+function leadHasActiveSafeOutbox(database, leadId) {
+  const row = database
+    .prepare(
+      `select id
+       from whatsapp_outbox
+       where lead_id = ?
+         and status in ('pending_guardian', 'approved', 'delivery_pending', 'sent')
+         and humanizer_pass = 1
+         and used_last_inbound = 1
+         and contextual_reply = 1
+       order by id desc
+       limit 1`,
+    )
+    .get(leadId);
+  return Boolean(row);
+}
+
 function formatReadyMessage(row) {
   const message = clean(row.message);
   if (message && !message.startsWith("Preparar envio manual para ")) return message;
@@ -4531,12 +4564,7 @@ function formatMarkdownLink(value) {
 
 function exportOperatorStatus(database, root, queueDate) {
   mkdirSync(join(root, ".scratch/ops"), { recursive: true });
-  const manualActions = countRows(
-    database,
-    `select count(*) as count
-     from commercial_ready_lead_cards
-     where has_ready_message = 1`,
-  );
+  const manualActions = manualReadyLeadCardRows(database, "c.canonical_name").length;
   const awaitingQa = countRows(
     database,
     `select count(*) as count
@@ -4625,10 +4653,7 @@ function commercialStatusReport(database, queueDate) {
       "select count(*) as count from commercial_pending_qa where queue_date = ?",
       [queueDate],
     ),
-    readyLeadCards: countRows(
-      database,
-      "select count(*) as count from commercial_ready_lead_cards",
-    ),
+    readyLeadCards: manualReadyLeadCardRows(database, "c.canonical_name").length,
     followupsToday: countRows(database, "select count(*) as count from commercial_followups_today"),
     staleLeads: countRows(database, "select count(*) as count from commercial_stale_leads"),
     openHandoffs: countRows(
@@ -4699,7 +4724,7 @@ function exportCommercialFunnel(database, root, queueDate, report) {
     },
     {
       title: "Lead-cards prontos",
-      rows: database.prepare("select * from commercial_ready_lead_cards order by canonical_name").all(),
+      rows: manualReadyLeadCardRows(database, "c.canonical_name"),
     },
     {
       title: "Follow-ups ativos",

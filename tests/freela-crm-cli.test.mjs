@@ -171,6 +171,37 @@ function makeWhatsAppLeadRoot(bridgeMessageId, body = "Pode sim") {
   return root;
 }
 
+function approveManualLeadCard(
+  root,
+  name = "Aghata Massoterapia",
+  message = "Oi, posso te mandar 3 sugestoes rapidas?",
+  date = "2026-06-21",
+) {
+  assert.equal(run(root, ["queue", "generate", "--date", date]).status, 0);
+  const setMessage = run(root, [
+    "queue",
+    "set-message",
+    "--date",
+    date,
+    "--name",
+    name,
+    "--message",
+    message,
+  ]);
+  assert.equal(setMessage.status, 0, setMessage.stderr);
+  const approve = run(root, [
+    "queue",
+    "approve-card",
+    "--date",
+    date,
+    "--name",
+    name,
+    "--qa-status",
+    "aprovado_para_lead_cards",
+  ]);
+  assert.equal(approve.status, 0, approve.stderr);
+}
+
 const neutralPriceQualificationReply =
   "Depende um pouco do que precisa aparecer na pagina e do objetivo principal.\n\n" +
   "Para eu te direcionar melhor: voce quer usar essa pagina mais como apresentacao oficial do seu trabalho, ou mais para organizar o caminho de quem vem do Instagram/WhatsApp?";
@@ -2619,6 +2650,52 @@ test("whatsapp outbox status exposes dispatch contract without manual SQL", () =
   assert.match(status.stdout, /Guardiao: enviar/i);
   assert.match(status.stdout, /Pode despachar: sim/i);
   assert.match(status.stdout, /Gateway: node scripts\/whatsapp-local-gateway\.mjs .*--outbox-id 1/s);
+});
+
+test("safe approved WhatsApp outbox keeps lead out of manual lead-cards", () => {
+  const root = makeWhatsAppLeadRoot("wa-outbox-first-001", "Pode sim");
+  approveManualLeadCard(
+    root,
+    "Aghata Massoterapia",
+    "Oi, posso te mandar 3 sugestoes rapidas?",
+    "2026-06-21",
+  );
+
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito, vi aqui e tenho 3 pontos simples para te mandar.",
+  );
+  const review = run(root, ["whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+
+  const exportResult = run(root, ["export", "paperclip-cards", "--date", "2026-06-21"]);
+  assert.equal(exportResult.status, 0, exportResult.stderr);
+  const cards = readFileSync(join(root, ".scratch/crm/paperclip-lead-cards.md"), "utf8");
+
+  assert.doesNotMatch(cards, /Aghata Massoterapia/i);
+  assert.match(cards, /Nenhum envio manual pendente/i);
+});
+
+test("price and closing conversations stay manual even when WAHA is healthy", () => {
+  const root = makeWhatsAppLeadRoot("wa-outbox-first-price-001", "Pode mandar a proposta?");
+  approveManualLeadCard(
+    root,
+    "Aghata Massoterapia",
+    "Enviar manualmente: alinhar proposta e preco com Luiz antes de responder.",
+    "2026-06-21",
+  );
+
+  const outbox = proposeSafeWhatsApp(root, "Aghata Massoterapia", neutralPriceQualificationReply);
+  const review = run(root, ["whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+
+  const exportResult = run(root, ["export", "paperclip-cards", "--date", "2026-06-21"]);
+  assert.equal(exportResult.status, 0, exportResult.stderr);
+  const cards = readFileSync(join(root, ".scratch/crm/paperclip-lead-cards.md"), "utf8");
+
+  assert.match(cards, /Aghata Massoterapia/i);
+  assert.match(cards, /proposta|preco|manual/i);
 });
 
 test("whatsapp outbox propose defaults humanizer metadata to blocked values", () => {
