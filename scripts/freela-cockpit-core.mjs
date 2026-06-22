@@ -248,6 +248,18 @@ export async function executeCockpitAction({
     });
   }
 
+  const payloadError = validateActionPayload(action, payload);
+  if (payloadError) {
+    return actionFailure({
+      reason: payloadError,
+      action,
+      lead,
+      crmUpdated: false,
+      paperclipUpdated: false,
+      nextRefreshRecommended: false,
+    });
+  }
+
   const crmArgs = crmArgsForAction({ action, lead, payload });
   if (!crmArgs) {
     return actionFailure({
@@ -262,7 +274,7 @@ export async function executeCockpitAction({
   }
 
   const health = await runCommand(["healthcheck"]);
-  if (commandFailed(health)) {
+  if (runnerFailed(health)) {
     return commandFailure("healthcheck_failed", {
       action,
       lead,
@@ -273,7 +285,7 @@ export async function executeCockpitAction({
   }
 
   const write = await runCommand(crmArgs);
-  if (commandFailed(write)) {
+  if (runnerFailed(write)) {
     return commandFailure("crm_write_failed", {
       action,
       lead,
@@ -284,23 +296,12 @@ export async function executeCockpitAction({
   }
 
   try {
-    await syncPaperclip({ action, lead, payload });
+    const sync = await syncPaperclip({ action, lead, payload });
+    if (runnerFailed(sync)) {
+      return syncFailure({ action, lead, result: sync });
+    }
   } catch (error) {
-    const message = errorMessage(error);
-    return {
-      ok: false,
-      reason: "paperclip_sync_failed",
-      action,
-      leadId: lead.leadId,
-      lead,
-      crmUpdated: true,
-      paperclipUpdated: false,
-      agentRouted: false,
-      warnings: ["CRM atualizado; Paperclip pendente de republicacao."],
-      errors: [message],
-      error: message,
-      nextRefreshRecommended: true,
-    };
+    return syncFailure({ action, lead, result: error });
   }
 
   return {
@@ -609,6 +610,12 @@ function crmArgsForAction({ action, lead, payload = {} }) {
   return null;
 }
 
+function validateActionPayload(action, payload = {}) {
+  if (action === "respondeu" && !clean(payload.message)) return "response_message_required";
+  if (["perdido", "descartar"].includes(action) && !clean(payload.reason)) return "closure_reason_required";
+  return null;
+}
+
 function actionFailure({
   reason,
   action,
@@ -637,7 +644,7 @@ function actionFailure({
 }
 
 function commandFailure(reason, { action, lead, command, result, crmUpdated }) {
-  const message = commandErrorMessage(command, result);
+  const message = runnerErrorMessage(result, `Comando falhou: ${command.join(" ")}`);
   return actionFailure({
     reason,
     action,
@@ -648,28 +655,61 @@ function commandFailure(reason, { action, lead, command, result, crmUpdated }) {
     nextRefreshRecommended: true,
     extra: {
       command,
-      exitStatus: commandStatus(result),
+      exitStatus: runnerExitStatus(result),
     },
   });
 }
 
-function commandFailed(result) {
-  return commandStatus(result) !== 0;
+function syncFailure({ action, lead, result }) {
+  const message = runnerErrorMessage(result, "Paperclip sync falhou.");
+  return {
+    ok: false,
+    reason: "paperclip_sync_failed",
+    action,
+    leadId: lead.leadId,
+    lead,
+    crmUpdated: true,
+    paperclipUpdated: false,
+    agentRouted: false,
+    warnings: ["CRM atualizado; Paperclip pendente de republicacao."],
+    errors: [message],
+    error: message,
+    nextRefreshRecommended: true,
+  };
 }
 
-function commandStatus(result) {
-  if (!result) return 1;
+function runnerFailed(result) {
+  if (!result) return true;
+  if (result.error || result.signal || result.ok === false) return true;
+  const exitStatus = runnerExitStatus(result);
+  if (typeof exitStatus === "number") return exitStatus !== 0;
+  if (result.ok === true) return false;
+  return true;
+}
+
+function runnerExitStatus(result) {
+  if (!result) return null;
   if (typeof result.status === "number") return result.status;
   if (typeof result.exitCode === "number") return result.exitCode;
   if (typeof result.code === "number") return result.code;
-  return 0;
+  return null;
 }
 
-function commandErrorMessage(command, result) {
-  return firstFilled(result?.stderr, result?.stdout, `Comando falhou: ${command.join(" ")}`);
+function runnerErrorMessage(result, fallback) {
+  return firstFilled(
+    result?.stderr,
+    result?.stdout,
+    errorMessage(result?.error),
+    typeof result?.error === "string" ? result.error : "",
+    result?.signal ? `Processo interrompido por sinal: ${result.signal}` : "",
+    result?.error ? String(result.error) : "",
+    result instanceof Error ? result.message : "",
+    fallback,
+  );
 }
 
 function errorMessage(error) {
+  if (!error) return "";
   return clean(error?.message) || String(error);
 }
 
