@@ -269,6 +269,14 @@ test("kanban bloqueados includes WAHA blocker cards", () => {
     where canonical_name = 'Aghata Massoterapia';
     insert into whatsapp_outbox (
       lead_id, target_chat_id, body, source, status,
+      humanizer_pass, used_last_inbound, contextual_reply, created_at, delivery_checked_at
+    )
+    select id, phone_normalized, 'Mensagem checada recente', 'test', 'delivery_pending',
+      1, 1, 1, datetime('now', '-31 minutes'), datetime('now')
+    from leads
+    where canonical_name = 'Aghata Massoterapia';
+    insert into whatsapp_outbox (
+      lead_id, target_chat_id, body, source, status,
       humanizer_pass, used_last_inbound, contextual_reply, created_at
     )
     select id, phone_normalized, 'Mensagem com estado bloqueado', 'test', 'pending_guardian',
@@ -293,6 +301,7 @@ test("kanban bloqueados includes WAHA blocker cards", () => {
     );
     assert.equal(blockers.some((card) => card.message === "Mensagem pendente recente"), false);
     assert.equal(blockers.some((card) => card.message === "Mensagem enviada recente"), false);
+    assert.equal(blockers.some((card) => card.message === "Mensagem checada recente"), false);
     assert.equal(
       blockers.find((card) => card.status === "dispatch_ambiguous")?.validationBlocker,
       "ACK ambiguo no provedor",
