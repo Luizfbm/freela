@@ -38,6 +38,19 @@ Regra operacional para agentes:
 - `WAHA check-exists falhou: Unauthorized`: tratar como credencial ausente/desatualizada no processo de dispatch. Verificar `.env`, `WAHA_API_KEY`, sessao `default` e chamada via Gateway; nao reenviar a mesma Outbox automaticamente.
 - Outbox 8 da Lidiane: continua historicamente ambigua. Para novo teste, criar nova Outbox ou fazer liberacao explicita auditada.
 
+## Outbox-first WAHA mode
+
+Quando WAHA estiver saudavel, respostas seguras pos-consentimento deixam de ir para lead-cards por padrao. O caminho alvo e:
+
+1. Atendimento WhatsApp ou Jhon cria nova Outbox com `whatsapp outbox propose`.
+2. Guardiao revisa a Outbox.
+3. Gateway despacha somente com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+4. Follow-up so considera enviado apos ACK forte: `DEVICE`, `READ`, `PLAYED` ou `ack >= 2`.
+
+Continuam manuais: primeira abordagem fria, preco, desconto, proposta, pagamento, fechamento, objecao sensivel, Guardiao bloqueado, WAHA/Gateway falho, `delivery_pending` prolongado e `dispatch_ambiguous`.
+
+Workers nunca chamam `/api/sendText` diretamente.
+
 ## Fronteira
 
 Somente `scripts/whatsapp-local-gateway.mjs` pode chamar WAHA.

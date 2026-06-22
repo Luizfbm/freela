@@ -555,6 +555,38 @@ test("WAHA local usa Docker Compose com sessao persistente e webhook inbound seg
   assert.match(guide, /WHATSAPP_WAHA_WEBHOOK_SECRET/i);
 });
 
+test("WAHA pleno usa Outbox-first para respostas seguras e preserva manual para excecoes", () => {
+  const dataContract = read("docs/freelancer/data-contract.md");
+  const readme = paperclipReadme();
+  const waha = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
+
+  for (const [name, doc] of [
+    ["data-contract", dataContract],
+    ["paperclip README", readme],
+    ["WAHA local", waha],
+  ]) {
+    assert.match(doc, /Outbox-first|Outbox first|outbox-first/i, `${name} deve nomear o modo alvo`);
+    assert.match(
+      doc,
+      /pos-consentimento|p[oó]s-consentimento|depois do "Pode/i,
+      `${name} deve limitar a respostas apos consentimento`,
+    );
+    assert.match(
+      doc,
+      /primeira abordagem fria.*manual|manual.*primeira abordagem fria/is,
+      `${name} deve manter primeira abordagem manual`,
+    );
+    assert.match(doc, /preco|preço|fechamento|proposta/i, `${name} deve preservar excecoes comerciais`);
+    assert.match(doc, /ACK forte|DEVICE|READ|PLAYED/i, `${name} deve exigir ACK forte para entrega`);
+    assert.match(doc, /dispatch_ambiguous/i, `${name} deve tratar ambiguidade como excecao operacional`);
+    assert.doesNotMatch(
+      doc,
+      /\/api\/sendText.*permitido|permitido.*\/api\/sendText/i,
+      `${name} nao pode liberar envio cru`,
+    );
+  }
+});
+
 test("README documenta fronteira atual de automacao WhatsApp", () => {
   const readme = paperclipReadme();
 

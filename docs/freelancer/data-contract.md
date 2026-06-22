@@ -290,6 +290,19 @@ WAHA e a entrada local autorizada. O Gateway Local recebe eventos pelo webhook c
 
 Nenhum worker comercial envia WhatsApp diretamente. Somente o Gateway Local pode enviar itens `approved` da Outbox. Antes de despachar, o worker deve consultar `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]`; se `Pode despachar: sim`, o envio permitido e `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --provider waha --outbox-id [id]`. O modo sem `--outbox-id` fica reservado para operacao assistida em lote, nao para workers. `delivery_pending` nao e entrega: o CRM so conta como enviado quando `message.ack` forte (`DEVICE`, `READ`, `PLAYED` ou `ack >= 2`) atualizar a Outbox.
 
+## Outbox-first WAHA mode
+
+Quando WAHA estiver saudavel, respostas seguras pos-consentimento deixam de ir para lead-cards por padrao. O caminho alvo e:
+
+1. Atendimento WhatsApp ou Jhon cria nova Outbox com `whatsapp outbox propose`.
+2. Guardiao revisa a Outbox.
+3. Gateway despacha somente com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+4. Follow-up so considera enviado apos ACK forte: `DEVICE`, `READ`, `PLAYED` ou `ack >= 2`.
+
+Continuam manuais: primeira abordagem fria, preco, desconto, proposta, pagamento, fechamento, objecao sensivel, Guardiao bloqueado, WAHA/Gateway falho, `delivery_pending` prolongado e `dispatch_ambiguous`.
+
+Workers nunca chamam `/api/sendText` diretamente.
+
 Demo ja aprovada pedida no WhatsApp nao volta para lead-cards manual. Se o lead pediu demo/exemplo/link, o link seguro ja foi aprovado por QA e o estado esta em `exemplo_aprovado_para_envio`, o worker deve criar nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source [fonte] --humanizer-pass true --used-last-inbound true --contextual-reply true`, passar pelo Guardiao e despachar somente pelo Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`. So cair em manual se o Guardiao bloquear, se WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a resposta envolver preco/fechamento real.
 
 `Unauthorized` em `check-exists` da WAHA e falha de credencial/transporte do processo de dispatch. Nao e bloqueio de conteudo da mensagem. O Gateway deve registrar `dispatch_ambiguous`/`handoff_luiz`, e a mesma Outbox nao deve ser reutilizada automaticamente. Para novo teste, crie nova Outbox ou faca liberacao explicita auditada.
