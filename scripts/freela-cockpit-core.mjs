@@ -56,11 +56,12 @@ export function readKanban(database, options = {}) {
       ...database
         .prepare("select * from commercial_pending_qa where queue_date = ? order by canonical_name")
         .all(queueDate),
-    ].map(mapLeadContextRow),
+    ].map(mapLeadContextRow).concat(readActiveWorkerHandoffs(database)),
     bloqueados: database
       .prepare("select * from commercial_pending_validation order by canonical_name")
       .all()
-      .map(mapLeadContextRow),
+      .map(mapLeadContextRow)
+      .concat(readWahaBlockers(database)),
     revisar: database
       .prepare(
         `select *
@@ -156,6 +157,146 @@ function hasActiveSafeOutbox(database, leadId) {
   return Boolean(row);
 }
 
+function readActiveWorkerHandoffs(database) {
+  return database
+    .prepare(
+      `select *
+       from worker_handoffs
+       where status not in ('completed', 'cancelled')
+       order by datetime(updated_at) desc, id desc`,
+    )
+    .all()
+    .map(mapWorkerHandoffRow);
+}
+
+function readWahaBlockers(database) {
+  return database
+    .prepare(
+      `select
+         o.id as outbox_id,
+         o.lead_id,
+         o.target_chat_id,
+         o.body,
+         o.source,
+         o.status as outbox_status,
+         o.dispatch_error,
+         o.dispatch_locked_at,
+         o.dispatch_provider,
+         o.provider_message_id,
+         o.delivery_ack,
+         o.delivery_ack_name,
+         o.delivered_at,
+         o.delivery_checked_at,
+         o.guardian_decision,
+         o.guardian_reason,
+         o.attempts,
+         o.bridge_message_id,
+         o.created_at,
+         o.approved_at,
+         o.sent_at,
+         o.failed_at,
+         l.canonical_name,
+         l.status as lead_status,
+         l.category,
+         l.city,
+         l.area,
+         l.phone_or_contact,
+         l.instagram,
+         l.website_url,
+         l.recommended_offer,
+         s.whatsapp_state,
+         s.handoff_reason,
+         s.updated_at as state_updated_at
+       from whatsapp_outbox o
+       join leads l on l.id = o.lead_id
+       left join lead_conversation_state s on s.lead_id = o.lead_id
+       where o.status = 'dispatch_ambiguous'
+          or o.status = 'blocked'
+          or o.guardian_decision in ('bloquear', 'bloqueado', 'blocked')
+          or s.whatsapp_state = 'bloqueado_guardiao'
+          or (
+            o.status = 'delivery_pending'
+            and (
+              datetime(o.created_at) <= datetime('now', '-30 minutes')
+              or (
+                o.sent_at is not null
+                and datetime(o.sent_at) <= datetime('now', '-30 minutes')
+              )
+            )
+          )
+       order by datetime(coalesce(o.failed_at, o.sent_at, o.created_at)) desc, o.id desc`,
+    )
+    .all()
+    .map(mapWahaBlockerRow);
+}
+
+function mapWorkerHandoffRow(row) {
+  return {
+    cardKind: "worker_handoff",
+    handoffId: row.id,
+    canonicalName: row.title,
+    status: row.status,
+    commercialStage: "worker_handoff",
+    category: row.target_agent_name,
+    message: row.required_action,
+    updatedAt: row.updated_at,
+    createdAt: row.created_at,
+    targetAgentId: row.target_agent_id,
+    targetAgentName: row.target_agent_name,
+    sourceAgentId: row.source_agent_id,
+    sourceAgentName: row.source_agent_name,
+    workflowBatchId: row.workflow_batch_id,
+    workflowRunId: row.workflow_run_id,
+    workflowRoundDate: row.workflow_round_date,
+    workflowStage: row.workflow_stage,
+    workflowExpectedCount: row.workflow_expected_count,
+    workflowActualCount: row.workflow_actual_count,
+    workflowGateStatus: row.workflow_gate_status,
+    workflowNextOwner: row.workflow_next_owner,
+    paperclipIssueId: row.paperclip_issue_id,
+    paperclipIssueIdentifier: row.paperclip_issue_identifier,
+  };
+}
+
+function mapWahaBlockerRow(row) {
+  return {
+    cardKind: "waha_blocker",
+    outboxId: row.outbox_id,
+    leadId: row.lead_id,
+    canonicalName: row.canonical_name,
+    status: row.outbox_status,
+    commercialStage: "waha_blocked",
+    category: row.source,
+    city: row.city,
+    area: row.area,
+    contact: row.phone_or_contact || row.instagram || row.target_chat_id || "",
+    instagram: row.instagram,
+    websiteUrl: row.website_url,
+    recommendedOffer: row.recommended_offer,
+    targetChatId: row.target_chat_id,
+    guardianDecision: row.guardian_decision,
+    guardianReason: row.guardian_reason,
+    whatsappState: row.whatsapp_state,
+    validationBlocker: firstFilled(row.dispatch_error, row.guardian_reason, row.handoff_reason, row.outbox_status),
+    message: row.body,
+    dispatchError: row.dispatch_error,
+    dispatchLockedAt: row.dispatch_locked_at,
+    dispatchProvider: row.dispatch_provider,
+    providerMessageId: row.provider_message_id,
+    deliveryAck: row.delivery_ack,
+    deliveryAckName: row.delivery_ack_name,
+    deliveredAt: row.delivered_at,
+    deliveryCheckedAt: row.delivery_checked_at,
+    attempts: row.attempts,
+    bridgeMessageId: row.bridge_message_id,
+    createdAt: row.created_at,
+    approvedAt: row.approved_at,
+    sentAt: row.sent_at,
+    failedAt: row.failed_at,
+    updatedAt: firstFilled(row.delivery_checked_at, row.delivered_at, row.sent_at, row.failed_at, row.state_updated_at, row.created_at),
+  };
+}
+
 function mapLeadContextRow(row) {
   return {
     leadId: row.lead_id,
@@ -200,4 +341,12 @@ function nextCommercialStep(report) {
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+function firstFilled(...values) {
+  for (const value of values) {
+    const cleaned = clean(value);
+    if (cleaned) return cleaned;
+  }
+  return "";
 }
