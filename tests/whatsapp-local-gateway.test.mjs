@@ -435,6 +435,42 @@ function assertDryRunDispatchableCount(root, expected) {
   return result;
 }
 
+test("gateway refuses real batch dispatch without explicit confirmation", () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+
+  const result = runNode([
+    gateway,
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--provider",
+    "waha",
+  ]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--outbox-id ou --confirm-batch/i);
+});
+
+test("gateway allows batch dispatch in dry-run without confirmation", () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+
+  const result = runNode([
+    gateway,
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--provider",
+    "waha",
+    "--dry-run",
+    "true",
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Dry-run dispatchaveis: 1/i);
+});
+
 test("gateway importa evento normalizado em dry-run sem expor send direto", () => {
   const root = makeRoot();
   assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
@@ -569,6 +605,8 @@ test("gateway dispatches approved outbox once through bridge api", async () => {
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -653,6 +691,8 @@ test("gateway dispatches approved outbox through WAHA without marking sent befor
       "dispatch-approved-outbox",
       "--provider",
       "waha",
+      "--confirm-batch",
+      "true",
       "--waha-api-base",
       waha.baseUrl,
       "--waha-session",
@@ -717,6 +757,8 @@ test("gateway dispatch loads WAHA API key from local env file", async () => {
         "dispatch-approved-outbox",
         "--provider",
         "waha",
+        "--confirm-batch",
+        "true",
         "--waha-api-base",
         waha.baseUrl,
         "--waha-session",
@@ -760,6 +802,8 @@ test("gateway uses WAHA-resolved LID when check-exists returns one for a real ph
       "dispatch-approved-outbox",
       "--provider",
       "waha",
+      "--confirm-batch",
+      "true",
       "--waha-api-base",
       waha.baseUrl,
       "--waha-session",
@@ -816,6 +860,8 @@ test("gateway stores serialized WAHA object ids instead of object string", async
       "dispatch-approved-outbox",
       "--provider",
       "waha",
+      "--confirm-batch",
+      "true",
       "--waha-api-base",
       waha.baseUrl,
       "--waha-session",
@@ -856,6 +902,8 @@ test("gateway marks WAHA outbox sent only after DEVICE ack event", async () => {
       "dispatch-approved-outbox",
       "--provider",
       "waha",
+      "--confirm-batch",
+      "true",
       "--waha-api-base",
       waha.baseUrl,
     ]);
@@ -924,6 +972,8 @@ test("gateway treats WAHA waiting event as ambiguous handoff", async () => {
       "dispatch-approved-outbox",
       "--provider",
       "waha",
+      "--confirm-batch",
+      "true",
       "--waha-api-base",
       waha.baseUrl,
     ]);
@@ -977,6 +1027,8 @@ test("gateway bloqueia dispatch legado com destinatario LID antes de chamar brid
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -1019,6 +1071,8 @@ test("gateway treats bridge responses without explicit success true as ambiguous
         "--root",
         root,
         "dispatch-approved-outbox",
+        "--confirm-batch",
+        "true",
         "--bridge-api-base",
         bridge.baseUrl,
       ]);
@@ -1051,6 +1105,8 @@ test("gateway treats generic bridge success without WhatsApp message id as ambig
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -1081,6 +1137,8 @@ test("gateway treats http 200 success false json as confirmed failed dispatch", 
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -1112,6 +1170,8 @@ test("gateway moves whatsapp lead to handoff after two confirmed dispatch failur
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -1129,6 +1189,8 @@ test("gateway moves whatsapp lead to handoff after two confirmed dispatch failur
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -1160,6 +1222,8 @@ test("gateway treats http 500 success false json as ambiguous handoff", async ()
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -1190,6 +1254,8 @@ test("gateway treats http 500 empty body as ambiguous handoff", async () => {
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -1220,6 +1286,8 @@ test("gateway does not automatically retry ambiguous dispatches", async () => {
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -1231,6 +1299,8 @@ test("gateway does not automatically retry ambiguous dispatches", async () => {
       "--root",
       root,
       "dispatch-approved-outbox",
+      "--confirm-batch",
+      "true",
       "--bridge-api-base",
       bridge.baseUrl,
     ]);
@@ -1256,6 +1326,8 @@ test("gateway rejects invalid timeout before locking outbox", () => {
     "--root",
     root,
     "dispatch-approved-outbox",
+    "--confirm-batch",
+    "true",
     "--bridge-api-base",
     "http://127.0.0.1:9",
     "--timeout-ms",
@@ -1278,6 +1350,8 @@ test("gateway rejects timeout with numeric prefix before locking outbox", () => 
     "--root",
     root,
     "dispatch-approved-outbox",
+    "--confirm-batch",
+    "true",
     "--bridge-api-base",
     "http://127.0.0.1:9",
     "--timeout-ms",
@@ -1321,6 +1395,8 @@ test("gateway rejects invalid bridge base before locking outbox", () => {
     "--root",
     root,
     "dispatch-approved-outbox",
+    "--confirm-batch",
+    "true",
     "--bridge-api-base",
     "http://[::1",
   ]);

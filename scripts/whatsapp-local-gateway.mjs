@@ -459,8 +459,12 @@ function normalizePaperclipApiBase(value) {
 function dispatchApprovedOutbox(root, flags) {
   validateDispatchApprovedOutboxFlags(flags);
   const dryRun = parseBooleanFlag(flags["dry-run"]);
+  const confirmBatch = parseBooleanFlag(flags["confirm-batch"]);
   const limit = parsePositiveInt(flags.limit || "10", "--limit");
   const outboxId = flags["outbox-id"] ? parsePositiveInt(flags["outbox-id"], "--outbox-id") : null;
+  if (!outboxId && !dryRun && !confirmBatch) {
+    throw new Error("--outbox-id ou --confirm-batch obrigatorio para dispatch real em lote");
+  }
   const explicitCrmDb = flags["crm-db"] !== undefined;
   const crmDbPath = resolve(root, flags["crm-db"] || ".scratch/db/freela.sqlite");
   ensureCrmInitialized(root, crmDbPath, explicitCrmDb);
@@ -505,6 +509,7 @@ function readDispatchableOutbox(database, { limit, outboxId = null }) {
 function validateDispatchApprovedOutboxFlags(flags) {
   const allowed = new Set([
     "dry-run",
+    "confirm-batch",
     "limit",
     "outbox-id",
     "crm-db",

@@ -234,7 +234,7 @@ node scripts/whatsapp-local-gateway.mjs \
   --waha-session default
 ```
 
-Regra operacional: em fluxo de worker, sempre usar `--outbox-id`. O modo sem `--outbox-id` fica reservado para operacao assistida em lote, quando o operador explicitamente quiser despachar todos os aprovados elegiveis.
+Regra operacional: em fluxo de worker, sempre usar `--outbox-id`. O modo sem `--outbox-id` fica reservado para operacao assistida em lote, quando o operador explicitamente quiser despachar todos os aprovados elegiveis. Lote real exige `--confirm-batch true`; dry-run em lote continua permitido para auditoria.
 
 O Gateway recebe telefone real da Outbox e usa `GET /api/contacts/check-exists` antes de enviar. `@lid` continua sendo identidade de leitura no CRM/Outbox, mas o WAHA pode resolver um telefone real para um `chatId` `@lid`; nesse caso o Gateway pode usar esse `chatId` resolvido pela propria WAHA para entregar a mensagem.
 
