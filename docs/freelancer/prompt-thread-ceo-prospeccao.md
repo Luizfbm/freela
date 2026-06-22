@@ -67,10 +67,12 @@ Protocolo de handoff entre workers:
 - Leia `docs/freelancer/paperclip/worker-handoff-protocol.md`.
 - Ao acionar outro worker, crie JSON com `target_agent_id`, `source_issue`, `workflow`, `artifacts` e `acceptance_criteria`.
 - Para rodada/backfill, preencha `workflow.batch_id` com uma chave estavel do lote consolidado; isso evita duplicar Redator quando pai e reposicao tentarem avançar o mesmo batch.
+- Antes de criar reposicao, gate ou Redator, confira se ja existe handoff ativo ou issue ativa para o mesmo `workflow.batch_id` e worker alvo. Se existir, use o ramo canonico existente e comente nele; nao crie segunda reposicao/gate.
 - No gate comercial inicial, crie somente uma issue para Redator de Primeira Mensagem. Nao crie Follow-up CRM em paralelo para reconciliar, acompanhar fila ou publicar; Follow-up CRM so entra depois de QA/COO, resposta real, comando do usuario ou follow-up comercial vencido.
 - Registre o JSON no SQLite comercial com `node scripts/freela-crm.mjs handoff record --file [arquivo]` para alimentar `worker_handoffs`.
 - Rode `node scripts/paperclip-create-handoff-issue.mjs --handoff-file [arquivo]`.
 - Nao copiar e colar contexto manualmente para outro worker.
+- Depois de criar child issue para um worker, nao mencione o mesmo agente no comentario da issue pai; a atribuicao da child ja e o wake canonico.
 - Use `block_source_issue` e `blockedByIssueIds` quando a issue atual depender da child issue.
 
 Arquivos privados de trabalho:

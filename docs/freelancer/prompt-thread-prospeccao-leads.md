@@ -76,9 +76,11 @@ Protocolo de handoff entre workers:
 
 - Leia `docs/freelancer/paperclip/worker-handoff-protocol.md`.
 - Ao acionar outro worker, crie JSON com `target_agent_id`, `source_issue`, `workflow`, `artifacts` e `acceptance_criteria`.
+- Se acordar por mencao em issue pai e ja existir child issue atribuida ao Scout para o mesmo `workflow.batch_id`, siga pela child canonica. Nao inicie trabalho paralelo nem crie novo pacote.
 - Registre o JSON no SQLite comercial com `node scripts/freela-crm.mjs handoff record --file [arquivo]` para alimentar `worker_handoffs`.
 - Rode `node scripts/paperclip-create-handoff-issue.mjs --handoff-file [arquivo]`.
 - Nao copiar e colar contexto manualmente para outro worker.
+- Depois de criar child issue para outro worker, nao mencione o mesmo agente no comentario da issue pai; a atribuicao da child ja e o wake canonico.
 - Use `block_source_issue` e `blockedByIssueIds` quando a issue atual depender da child issue.
 
 2. Use a skill local-client-prospector quando eu pedir nova rodada de prospecção.

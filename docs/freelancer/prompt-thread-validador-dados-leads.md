@@ -48,9 +48,11 @@ Protocolo de handoff entre workers:
 
 - Leia `docs/freelancer/paperclip/worker-handoff-protocol.md`.
 - Ao acionar outro worker, crie JSON com `target_agent_id`, `source_issue`, `workflow`, `artifacts` e `acceptance_criteria`.
+- Antes de criar gate para Steve, confira se ja existe handoff ativo ou issue ativa para o mesmo `workflow.batch_id`/reposicao. Se existir, comente no ramo duplicado apontando para o gate canonico e nao crie outra child issue.
 - Registre o JSON no SQLite comercial com `node scripts/freela-crm.mjs handoff record --file [arquivo]` para alimentar `worker_handoffs`.
 - Rode `node scripts/paperclip-create-handoff-issue.mjs --handoff-file [arquivo]`.
 - Nao copiar e colar contexto manualmente para outro worker.
+- Depois de criar child issue para outro worker, nao mencione o mesmo agente no comentario da issue pai; a atribuicao da child ja e o wake canonico.
 - Use `block_source_issue` e `blockedByIssueIds` quando a issue atual depender da child issue.
 
 Entrada esperada:

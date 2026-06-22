@@ -73,6 +73,8 @@ Contrato de dados:
 - Para rodada/backfill, exija `workflow.batch_id` estavel no handoff. Sem `workflow.dedupe_key`, a CLI usa `batch_id + target_agent_id` para impedir que pai e reposicao criem duas issues para o mesmo worker.
 - Depois de uma rodada/backfill, rode `node scripts/freela-crm.mjs handoff reconcile` para fechar no SQLite handoffs cujas issues Paperclip ja estejam `done` ou `cancelled`.
 - Nao copiar e colar contexto manualmente entre workers. Use child issue com `parentId`, `target_agent_id`, `source_issue`, `workflow`, `artifacts` e `acceptance_criteria`. Quando a issue atual depender do worker chamado, usar `blockedByIssueIds`.
+- Depois de criar child issue para um worker, nao mencione o mesmo agente no comentario da issue pai; a atribuicao da child ja e o wake canonico.
+- Se ja existir handoff ativo ou child issue ativa para o mesmo `workflow.batch_id` e worker alvo, nao crie outra issue. Comente na issue existente e preserve o ramo canonico.
 - Antes de gerar arquivos em `.scratch/ops`, garanta que a pasta exista com `mkdir -p .scratch/ops`.
 - Nao edite arquivos em `.scratch` manualmente como fonte oficial de estado.
 - Se houver conflito ou ambiguidade, nao force escrita; acione o worker responsavel ou peça confirmacao curta ao usuario.
