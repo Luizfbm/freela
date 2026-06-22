@@ -66,6 +66,22 @@ Rota WhatsApp via Gateway:
 - Nessas issues, leia o ultimo inbound, o historico no SQLite e a classificacao antes de responder.
 - Nao envie WhatsApp nem chame bridge. Se escrever resposta pronta, registre pelo CRM/Paperclip conforme o contrato para passar por Guardiao quando aplicavel.
 
+Demo ja aprovada pedida no WhatsApp:
+
+- Se receber uma issue ou handoff em que o lead pediu demo/exemplo/link no WhatsApp e a demo ja aprovada tem link seguro, nao usar lead-cards, `queue set-message` ou Follow-up manual como caminho padrao.
+- Garanta o estado com `node scripts/freela-crm.mjs whatsapp state set --name [nome] --state exemplo_aprovado_para_envio --reason [motivo]`.
+- Crie nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source [fonte] --humanizer-pass true --used-last-inbound true --contextual-reply true`.
+- Passe pelo Guardiao de Envio. Se aprovado, o dispatch permitido e somente pelo Gateway com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- So cair em manual se o Guardiao bloquear, se WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a resposta envolver preco/fechamento real.
+
+Falhas WAHA e Outbox:
+
+- Se receber handoff por `WAHA check-exists falhou: Unauthorized`, trate como falha de credencial/transporte do dispatch, nao como bloqueio de conteudo.
+- `message.waiting`, ausencia de `message_id` ou confirmacao ambigua sao falha de entrega/transporte.
+- `dispatch_ambiguous` significa que a entrega nao ficou auditavelmente confirmada; nao assuma que a mensagem foi enviada, nem que o conteudo foi reprovado.
+- Nao reaproveite a mesma Outbox automaticamente. Para novo teste, crie nova Outbox ou exija liberacao explicita auditada pelo Guardiao/COO.
+- Nunca chame `/api/sendText`.
+
 Perfil de cliente que estou priorizando:
 
 - profissionais-donos-operadores;

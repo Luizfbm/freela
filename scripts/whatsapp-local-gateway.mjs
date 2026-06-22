@@ -14,6 +14,7 @@ const WHATSAPP_CLOSER_WAKE_TYPE = "whatsapp_closer";
 
 function main() {
   const { root, command, flags } = parseArgs(process.argv.slice(2));
+  loadLocalEnv(root);
 
   if (command === "import-jsonl") {
     const file = requireFlag(flags, "file");
@@ -89,6 +90,31 @@ function parseArgs(argv) {
   }
 
   return { root, command, flags };
+}
+
+function loadLocalEnv(root) {
+  const envPath = join(root, ".env");
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(trimmed);
+    if (!match) continue;
+    const [, key, rawValue] = match;
+    if (process.env[key] != null && process.env[key] !== "") continue;
+    process.env[key] = parseEnvValue(rawValue);
+  }
+}
+
+function parseEnvValue(value) {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
 }
 
 function requireFlag(flags, name) {
@@ -1232,7 +1258,7 @@ function eventFromWahaMessage(event) {
       payload._data?.id?.remote ||
       payload._data?.id?.participant,
   );
-  if (!chatId || chatId.endsWith("@g.us")) return null;
+  if (!chatId || isIgnoredWahaChatId(chatId)) return null;
 
   const body = clean(payload.body || payload.text || payload.message?.body || payload._data?.body);
   if (!body) return null;
@@ -1259,6 +1285,11 @@ function eventFromWahaMessage(event) {
     received_at: wahaReceivedAt(payload),
     source: "waha/webhook",
   };
+}
+
+function isIgnoredWahaChatId(chatId) {
+  const normalized = clean(chatId).toLowerCase();
+  return normalized.endsWith("@g.us") || normalized === "status@broadcast" || normalized.endsWith("@broadcast");
 }
 
 function normalizeWahaMessageType(messageType) {
@@ -1315,9 +1346,9 @@ function printWahaEventResult(result, flags) {
 function serveWahaWebhook(root, flags) {
   validateServeWahaWebhookFlags(flags);
   const host = clean(flags.host || process.env.WHATSAPP_WAHA_WEBHOOK_HOST || "127.0.0.1");
-  assertLoopbackWebhookHost(host);
   const port = parsePositiveInt(flags.port || process.env.WHATSAPP_WAHA_WEBHOOK_PORT || "3105", "--port");
   const secret = clean(flags["webhook-secret"] || process.env.WHATSAPP_WAHA_WEBHOOK_SECRET || "");
+  assertSafeWebhookHost(host, { hasSecret: Boolean(secret) });
 
   const server = createServer(async (request, response) => {
     response.setHeader("Content-Type", "application/json");
@@ -1352,12 +1383,18 @@ function serveWahaWebhook(root, flags) {
   });
 }
 
-function assertLoopbackWebhookHost(host) {
+function assertSafeWebhookHost(host, { hasSecret }) {
   const value = clean(host).toLowerCase();
   if (value === "localhost" || value === "::1" || value === "[::1]" || /^127(?:\.\d{1,3}){3}$/.test(value)) {
     return;
   }
-  throw new Error(`--host deve usar loopback local (127.0.0.1, localhost ou ::1); recebido: ${host || "-"}`);
+  if (hasSecret && (value === "0.0.0.0" || value === "::" || value === "[::]")) {
+    return;
+  }
+  throw new Error(
+    `--host deve usar loopback local (127.0.0.1, localhost ou ::1), ` +
+      `ou webhook secret para bind Docker; recebido: ${host || "-"}`,
+  );
 }
 
 function writeWahaWebhookAudit(root, event, result, error = null) {

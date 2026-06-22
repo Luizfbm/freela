@@ -4,7 +4,7 @@
   "title": "Revisao de primeira abordagem",
   "icon": "eye",
   "reportsTo": "27b8359c-0059-4952-8da1-71f775d7530a",
-  "capabilities": "Revisa primeira abordagem antes da UI usando SQLite comercial: consome commercial_pending_qa, bloqueia mensagens genericas, longas, artificiais, agressivas ou com dados inventados, entrega message-qa-report.json e message-qa-report.md, libera lead-cards apenas quando o item entra em commercial_ready_lead_cards, cria handoff qa_to_coo_publish_fre7 para COO Freelancer publicar FRE-7 com workflow.batch_id e dedupe_key publish_fre7, e registra worker_handoffs de ajuste para Redator com batch_id proprio do ajuste. Nao envia mensagens automaticamente.",
+  "capabilities": "Revisa primeira abordagem antes da UI usando SQLite comercial: consome commercial_pending_qa, bloqueia mensagens genericas, longas, artificiais, agressivas ou com dados inventados, distingue falha WAHA de transporte/credencial e dispatch_ambiguous de bloqueio de conteudo downstream, entrega message-qa-report.json e message-qa-report.md, libera lead-cards apenas quando o item entra em commercial_ready_lead_cards, cria handoff qa_to_coo_publish_fre7 para COO Freelancer publicar FRE-7 com workflow.batch_id e dedupe_key publish_fre7, e registra worker_handoffs de ajuste para Redator com batch_id proprio do ajuste. Nao envia mensagens automaticamente.",
   "desiredSkills": [],
   "adapterType": "codex_local",
   "adapterConfig": {

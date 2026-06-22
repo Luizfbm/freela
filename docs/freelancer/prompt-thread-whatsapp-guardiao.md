@@ -60,7 +60,12 @@ node scripts/whatsapp-local-gateway.mjs \
 3. Nunca rode `dispatch-approved-outbox` sem `--outbox-id`.
 4. Se o Gateway retornar `Pendentes: 1`, a Outbox ficou `delivery_pending`; aguarde `message.ack` do webhook/import WAHA para virar `sent`.
 5. Se o Gateway retornar `Enviados: 1`, houve ACK forte imediato e a Outbox pode ser considerada enviada.
-6. Se retornar `Falhas`, `Ignorados` ou erro de WAHA, marque a issue como `blocked` com o motivo e nao tente endpoint cru.
+6. Se o Gateway retornar `Falhas`, `Ignorados` ou erro de WAHA, classifique a falha antes de comentar:
+   - `WAHA check-exists falhou: Unauthorized`: falha de credencial/transporte do processo de dispatch. Nao e bloqueio de conteudo da mensagem aprovada.
+   - `message.waiting`, ausencia de `message_id` ou confirmacao ambigua: falha de entrega/transporte.
+   - Nesses casos, a Outbox pode ficar `dispatch_ambiguous` e a conversa pode ir para `handoff_luiz`; nao reaproveite essa mesma Outbox automaticamente.
+   - Para novo teste, crie nova Outbox ou exija liberacao explicita auditada.
+   - Nunca tente endpoint cru, nunca chame `/api/sendText` diretamente e nunca diga que o conteudo foi bloqueado quando o problema foi transporte.
 
 Nunca:
 

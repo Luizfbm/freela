@@ -1,6 +1,42 @@
 # WAHA Local Lab
 
-WAHA e um motor alternativo de WhatsApp HTTP API para laboratorio de envio automatico. Ele nao substitui o contrato comercial atual ate passar em teste real com telefone de controle. Workers continuam proibidos de chamar WAHA diretamente.
+WAHA e o motor local autorizado para inbound WhatsApp e dispatch controlado via Gateway. Ele nao substitui o contrato comercial manual nem libera envio livre: workers continuam proibidos de chamar WAHA diretamente, chamar `/api/sendText` cru ou enviar WhatsApp fora do Gateway.
+
+## Estado local atual
+
+Atualizado em 2026-06-21 21:25 -03.
+
+- Repo operacional: `/Users/luiz_fbm/Developer/freela`.
+- Compose versionado: `docker-compose.waha.yml`.
+- Container: `freela-waha`.
+- API/Dashboard local: `http://127.0.0.1:3000`.
+- Sessao persistida em `.scratch/waha/.sessions`.
+- Sessao `default`: validada como `WORKING`.
+- Gateway webhook local: porta `3105`.
+- Webhook do container: `http://host.docker.internal:3105/waha/webhook`.
+- O Gateway pode ouvir em `0.0.0.0` somente para o container Docker alcancar o host, e somente com `WHATSAPP_WAHA_WEBHOOK_SECRET` carregado do `.env` local privado.
+- `scripts/whatsapp-local-gateway.mjs` carrega automaticamente o `.env` local a partir de `--root` e nao sobrescreve variaveis ja existentes.
+- Envio real controlado comprovado: Outbox 6 da Lidiane foi enviada via provider `waha`, recebeu ACK forte `DEVICE` e o CRM marcou `sent`/`delivered_at`.
+- Incidente posterior: Outbox 8 ficou `dispatch_ambiguous` por `WAHA check-exists falhou: Unauthorized`; diagnostico operacional e falha de credencial/processo de dispatch, nao bloqueio de conteudo.
+- Segredos ficam somente no `.env` local privado. Nao registrar valores em docs, issues, prompts, logs publicos ou arquivos versionados.
+
+Regra operacional para agentes:
+
+- Workers nao chamam WAHA diretamente.
+- Workers nao chamam `/api/sendText`.
+- Workers nao recebem ferramenta crua de envio.
+- O unico caminho autorizado e `scripts/whatsapp-local-gateway.mjs`.
+- Outbound real via WAHA existe somente como dispatch controlado por Outbox aprovada, `--outbox-id` explicito, Humanizer, Guardiao e ACK forte.
+- `Unauthorized` em `check-exists` deve ser classificado como falha de credencial/transporte. Nao diga que WAHA esta quebrado por um `Unauthorized` isolado.
+- Outbox em `dispatch_ambiguous` nao deve ser reaproveitada automaticamente. Outbox 8 permanece ambigua/handoff ate decisao manual ou liberacao auditada.
+
+## Interpretação de incidentes
+
+- `sent` com ACK `DEVICE`, `READ`, `PLAYED` ou `ack >= 2`: entrega forte registrada no CRM.
+- `delivery_pending`: envio aceito, mas ainda nao entregue; aguardar `message.ack`.
+- `message.waiting`, ausencia de `message_id`, resposta ambigua ou erro de transporte: marcar `dispatch_ambiguous` e mover para `handoff_luiz`.
+- `WAHA check-exists falhou: Unauthorized`: tratar como credencial ausente/desatualizada no processo de dispatch. Verificar `.env`, `WAHA_API_KEY`, sessao `default` e chamada via Gateway; nao reenviar a mesma Outbox automaticamente.
+- Outbox 8 da Lidiane: continua historicamente ambigua. Para novo teste, criar nova Outbox ou fazer liberacao explicita auditada.
 
 ## Fronteira
 
@@ -49,6 +85,14 @@ Configure a WAHA para enviar eventos para:
 http://127.0.0.1:3105/waha/webhook
 ```
 
+Quando a WAHA roda em Docker, `127.0.0.1` dentro do container e o proprio container. Por isso o Compose local configura o webhook como:
+
+```text
+http://host.docker.internal:3105/waha/webhook
+```
+
+Esse webhook deve enviar `X-Webhook-Secret`, definido por `WHATSAPP_WAHA_WEBHOOK_SECRET` no `.env` local privado.
+
 Para replay/debug de um evento salvo:
 
 ```bash
@@ -91,23 +135,65 @@ Roteamento com `--auto-wake`:
 - Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
 - Use `--closer-agent-id` apenas em teste para sobrescrever o agente closer.
 
+Demo ja aprovada pedida no WhatsApp nao deve cair em lead-cards. Se o lead pediu demo/exemplo/link e ha link seguro aprovado por QA, garanta `exemplo_aprovado_para_envio`, crie nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source [fonte] --humanizer-pass true --used-last-inbound true --contextual-reply true`, passe pelo Guardiao e despache pelo Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`. Manual so se o Guardiao bloquear, WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a conversa envolver preco/fechamento real.
+
 ## Setup local
 
-WAHA deve rodar localmente, preso em `127.0.0.1`, com API key quando possivel. Nao exponha a API em rede publica.
+WAHA deve rodar localmente, preso em `127.0.0.1`, com sessao persistente e API key quando possivel. Nao exponha a API em rede publica.
 
-Comando base de laboratorio:
+Antes de recriar ou atualizar o container, preserve a sessao local:
 
 ```bash
-docker run -it --rm \
-  -p 127.0.0.1:3000:3000 \
-  --name waha \
-  devlikeapro/waha
+mkdir -p .scratch/ops
+tar -czf .scratch/ops/waha-sessions-snapshot-$(date +%Y%m%d-%H%M%S).tgz \
+  -C .scratch/waha .sessions
 ```
 
-Depois de subir, abrir o dashboard local, iniciar a sessao `default` e parear via QR Code. Se usar chave:
+Crie segredos locais se ainda nao existirem. Esse arquivo e privado e nao deve entrar no git:
 
 ```bash
-export WHATSAPP_WAHA_API_KEY="sua-chave-local"
+touch .env
+grep -q '^WAHA_API_KEY=' .env || printf "WAHA_API_KEY=%s\n" "$(openssl rand -hex 32)" >> .env
+grep -q '^WAHA_DASHBOARD_USERNAME=' .env || printf "WAHA_DASHBOARD_USERNAME=admin\n" >> .env
+grep -q '^WAHA_DASHBOARD_PASSWORD=' .env || printf "WAHA_DASHBOARD_PASSWORD=%s\n" "$(openssl rand -hex 24)" >> .env
+grep -q '^WHATSAPP_SWAGGER_USERNAME=' .env || printf "WHATSAPP_SWAGGER_USERNAME=admin\n" >> .env
+grep -q '^WHATSAPP_SWAGGER_PASSWORD=' .env || printf "WHATSAPP_SWAGGER_PASSWORD=%s\n" "$(openssl rand -hex 24)" >> .env
+grep -q '^WHATSAPP_WAHA_WEBHOOK_SECRET=' .env || printf "WHATSAPP_WAHA_WEBHOOK_SECRET=%s\n" "$(openssl rand -hex 24)" >> .env
+```
+
+Suba o WAHA pelo Compose versionado:
+
+```bash
+docker compose -f docker-compose.waha.yml up -d
+```
+
+O Compose monta `./.scratch/waha/.sessions` em `/app/.sessions`, prende a API em `http://127.0.0.1:3000`, exige `WAHA_API_KEY`/`WAHA_DASHBOARD_PASSWORD` do `.env` local e aponta o webhook interno do container para `http://host.docker.internal:3105/waha/webhook`.
+
+Para chamadas locais, o Gateway deve ficar em loopback. Para receber webhook vindo do container Docker Desktop, ele precisa ouvir em `0.0.0.0`, mas somente com `WHATSAPP_WAHA_WEBHOOK_SECRET` carregado do `.env`; sem segredo o script bloqueia esse bind.
+
+O Gateway carrega `.env` automaticamente a partir de `--root`, sem sobrescrever variaveis ja presentes no processo. O `set -a` abaixo continua aceitavel para operacao assistida, mas nao e requisito para `dispatch-approved-outbox`.
+
+```bash
+set -a
+. ./.env
+set +a
+node scripts/whatsapp-local-gateway.mjs \
+  --root /Users/luiz_fbm/Developer/freela \
+  serve-waha-webhook \
+  --host 0.0.0.0 \
+  --port 3105 \
+  --auto-wake
+```
+
+O endpoint local continua acessivel em `http://127.0.0.1:3105/waha/webhook`; requisicoes POST sem o header secreto recebem `401`.
+
+Depois de subir, abra o dashboard local em `http://127.0.0.1:3000`, verifique a sessao `default` e pareie via QR Code se aparecer `SCAN_QR_CODE`. Para validar a API:
+
+```bash
+set -a
+. ./.env
+set +a
+curl -H "X-Api-Key: $WAHA_API_KEY" http://127.0.0.1:3000/api/sessions
 ```
 
 ## Dispatch de laboratorio
@@ -138,6 +224,8 @@ node scripts/whatsapp-local-gateway.mjs \
 Regra operacional: em fluxo de worker, sempre usar `--outbox-id`. O modo sem `--outbox-id` fica reservado para operacao assistida em lote, quando o operador explicitamente quiser despachar todos os aprovados elegiveis.
 
 O Gateway recebe telefone real da Outbox e usa `GET /api/contacts/check-exists` antes de enviar. `@lid` continua sendo identidade de leitura no CRM/Outbox, mas o WAHA pode resolver um telefone real para um `chatId` `@lid`; nesse caso o Gateway pode usar esse `chatId` resolvido pela propria WAHA para entregar a mensagem.
+
+Se `check-exists` retornar `401 Unauthorized`, a leitura correta e falha de credencial/processo de dispatch. Valide o `.env` local e a API key pelo Gateway; nao transforme isso em bloqueio de conteudo e nao tente `/api/sendText` diretamente.
 
 Regras:
 

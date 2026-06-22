@@ -4,7 +4,7 @@
   "title": "Fila comercial e follow-ups",
   "icon": "radar",
   "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
-  "capabilities": "Mantem pipeline comercial pelo SQLite comercial, usando commercial_followups_today e commercial_ready_lead_cards para separar Fila do Dia/lead-cards como acao_manual_hoje, ops-status como status_executivo e CRM Historico como memoria. Faz triagem de respostas, gera resumo executivo, follow-up inteligente, exige QA de Mensagens antes de lead-cards, nao publica FRE-7 diretamente, cria handoff para COO Freelancer republicar superficies com dedupe_key publish_fre7 quando necessario, registra worker_handoffs, aciona Diagnostico 3 Pontos, cria demo-brief e coordena Atendimento/Criador/Entrega quando necessario.",
+  "capabilities": "Mantem pipeline comercial pelo SQLite comercial, usando commercial_followups_today e commercial_ready_lead_cards para separar Fila do Dia/lead-cards como acao_manual_hoje, ops-status como status_executivo e CRM Historico como memoria. Faz triagem de respostas, gera resumo executivo, follow-up inteligente, exige QA de Mensagens antes de lead-cards, distingue falha WAHA de transporte/credencial e dispatch_ambiguous de bloqueio de conteudo, nao publica FRE-7 diretamente, cria handoff para COO Freelancer republicar superficies com dedupe_key publish_fre7 quando necessario, registra worker_handoffs, aciona Diagnostico 3 Pontos, cria demo-brief e coordena Atendimento/Criador/Entrega quando necessario.",
   "desiredSkills": [],
   "adapterType": "codex_local",
   "adapterConfig": {

@@ -226,7 +226,12 @@ function withBridgeServer(handler) {
         body += chunk;
       });
       req.on("end", () => {
-        requests.push({ method: req.method, url: req.url, body: body ? JSON.parse(body) : {} });
+        requests.push({
+          method: req.method,
+          url: req.url,
+          headers: req.headers,
+          body: body ? JSON.parse(body) : {},
+        });
         handler(req, res);
       });
     });
@@ -677,6 +682,55 @@ test("gateway dispatches approved outbox through WAHA without marking sent befor
     assert.equal(outbox.delivered_at, null);
     assert.equal(outbound.length, 0);
     assert.notEqual(state.whatsapp_state, "handoff_luiz");
+  } finally {
+    await waha.close();
+  }
+});
+
+test("gateway dispatch loads WAHA API key from local env file", async () => {
+  const root = makeRoot();
+  seedApprovedOutbox(root);
+  updateLatestOutbox(root, "target_chat_id = ?", ["5527999990000"]);
+  writeFileSync(join(root, ".env"), "WAHA_API_KEY=local-waha-key\n");
+  const childEnv = { ...process.env };
+  delete childEnv.WAHA_API_KEY;
+  delete childEnv.WHATSAPP_WAHA_API_KEY;
+
+  const waha = await withBridgeServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    if (req.method === "GET" && req.url === "/api/contacts/check-exists?phone=5527999990000&session=default") {
+      res.end(JSON.stringify({ numberExists: true, chatId: "5527999990000@c.us" }));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/sendText") {
+      res.end(JSON.stringify({ id: "true_5527999990000@c.us_3EB0WAHAENV" }));
+      return;
+    }
+    res.end(JSON.stringify({ success: true }));
+  });
+  try {
+    const result = await runNodeAsync(
+      [
+        gateway,
+        "--root",
+        root,
+        "dispatch-approved-outbox",
+        "--provider",
+        "waha",
+        "--waha-api-base",
+        waha.baseUrl,
+        "--waha-session",
+        "default",
+      ],
+      { env: childEnv },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Pendentes: 1/i);
+    assert.equal(waha.requests[0].headers["x-api-key"], "local-waha-key");
+    assert.equal(
+      waha.requests.find((request) => request.url === "/api/sendText").headers["x-api-key"],
+      "local-waha-key",
+    );
   } finally {
     await waha.close();
   }
@@ -1394,6 +1448,42 @@ test("WAHA webhook monitor rejects non-loopback hosts", async () => {
   assert.match(result.stderr, /--host deve usar loopback/i);
 });
 
+test("WAHA webhook monitor allows Docker-facing host only with webhook secret", async () => {
+  const root = makeRoot();
+  const port = await getFreePort();
+  const server = await startNodeUntilStdout(
+    [
+      gateway,
+      "--root",
+      root,
+      "serve-waha-webhook",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      String(port),
+      "--webhook-secret",
+      "local-secret",
+    ],
+    /Observando WAHA webhook/i,
+  );
+
+  try {
+    const unauthorized = await postJson(`http://127.0.0.1:${port}/waha/webhook`, { event: "session.status" });
+    assert.equal(unauthorized.status, 401);
+
+    const accepted = await postJson(
+      `http://127.0.0.1:${port}/waha/webhook`,
+      { event: "session.status" },
+      { "X-Webhook-Secret": "local-secret" },
+    );
+    assert.equal(accepted.status, 200);
+    assert.equal(accepted.body.ok, true);
+    assert.equal(accepted.body.result.skipped, 1);
+  } finally {
+    await stopChild(server.child);
+  }
+});
+
 test("gateway rejects unknown dispatch flags without mutating outbox", () => {
   const root = makeRoot();
   seedApprovedOutbox(root);
@@ -1550,6 +1640,23 @@ test("gateway importa eventos inbound WAHA e registra desconhecidos sem duplicar
       },
     }),
   );
+  const statusBroadcastFile = join(root, "waha-status-broadcast.json");
+  writeFileSync(
+    statusBroadcastFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_status@broadcast_3EB0WAHASTATUS_273478418722987@lid",
+        from: "status@broadcast",
+        chatId: "status@broadcast",
+        fromMe: false,
+        body: "Atualizacao de status",
+        type: "image",
+        timestamp: "2026-06-19T10:04:00-03:00",
+      },
+    }),
+  );
 
   const first = runNode([gateway, "--root", root, "import-waha-event", "--file", inboundFile]);
   assert.equal(first.status, 0, first.stderr);
@@ -1563,6 +1670,18 @@ test("gateway importa eventos inbound WAHA e registra desconhecidos sem duplicar
   const unknown = runNode([gateway, "--root", root, "import-waha-event", "--file", unknownFile]);
   assert.equal(unknown.status, 0, unknown.stderr);
   assert.match(unknown.stdout, /Sem identidade: 1/i);
+
+  const statusBroadcast = runNode([
+    gateway,
+    "--root",
+    root,
+    "import-waha-event",
+    "--file",
+    statusBroadcastFile,
+  ]);
+  assert.equal(statusBroadcast.status, 0, statusBroadcast.stderr);
+  assert.match(statusBroadcast.stdout, /Ignorados: 1/i);
+  assert.match(statusBroadcast.stdout, /Falhas: 0/i);
 
   const second = runNode([gateway, "--root", root, "import-waha-event", "--file", inboundFile]);
   assert.equal(second.status, 0, second.stderr);

@@ -5009,6 +5009,13 @@ function classifyResponse(message) {
     return "resposta_sem_interesse";
   }
   if (
+    /\bexemplo\b|\bmodelo\b|\blink\b|\bsite\b|\bdemo\b|\bdemonstracao\b|\bcomo ficaria\b|\bficaria visualmente\b|\bvisualmente\b|\bver na pratica\b/.test(
+      normalized,
+    )
+  ) {
+    return "resposta_pediu_exemplo";
+  }
+  if (
     !/\bnao\b/.test(normalized) &&
     /\bgostei\b|\bquero fazer\b|\bquero fechar\b|\bbora\b|\bfechar\b|\bcontratar\b|\bcontrato\b|\bcomecar\b|\bcomeçar\b|\bvamos fazer\b|\bvou querer\b/.test(
       normalized,
@@ -5024,9 +5031,6 @@ function classifyResponse(message) {
     return "resposta_objecao";
   }
   if (/\bpode\b|\bclaro\b|\bsim\b/.test(normalized)) return "resposta_permissao";
-  if (/\bexemplo\b|\bmodelo\b|\blink\b|\bsite\b|\bcomo ficaria\b|\bficaria visualmente\b|\bvisualmente\b|\bver na pratica\b/.test(normalized)) {
-    return "resposta_pediu_exemplo";
-  }
   if (/\bnao\b|\bsem interesse\b/.test(normalized)) return "resposta_sem_interesse";
   return "resposta_recebida";
 }

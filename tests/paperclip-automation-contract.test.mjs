@@ -523,6 +523,38 @@ test("WAHA local fica em laboratorio ate ACK forte confirmar entrega", () => {
   assert.match(crm, /delivered_at/i);
 });
 
+test("WAHA local usa Docker Compose com sessao persistente e webhook inbound seguro", () => {
+  const compose = read("docker-compose.waha.yml");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
+
+  assert.match(compose, /container_name:\s*freela-waha/i);
+  assert.match(compose, /image:\s*devlikeapro\/waha:latest/i);
+  assert.match(compose, /platform:\s*linux\/amd64/i);
+  assert.match(compose, /127\.0\.0\.1:3000:3000/i);
+  assert.match(compose, /\.\/\.scratch\/waha\/\.sessions:\/app\/\.sessions/i);
+  assert.match(compose, /restart:\s*unless-stopped/i);
+  assert.match(compose, /WHATSAPP_HOOK_URL=http:\/\/host\.docker\.internal:3105\/waha\/webhook/i);
+  assert.match(compose, /WHATSAPP_HOOK_EVENTS=message,message\.ack,message\.waiting/i);
+  assert.match(compose, /WHATSAPP_HOOK_CUSTOM_HEADERS=X-Webhook-Secret:\$\{WHATSAPP_WAHA_WEBHOOK_SECRET(?::\?[^}]*)?\}/i);
+  assert.match(compose, /WAHA_API_KEY=\$\{WAHA_API_KEY(?::\?[^}]*)?\}/i);
+  assert.match(compose, /WAHA_DASHBOARD_USERNAME=\$\{WAHA_DASHBOARD_USERNAME:-admin\}/i);
+  assert.match(compose, /WAHA_DASHBOARD_PASSWORD=\$\{WAHA_DASHBOARD_PASSWORD(?::\?[^}]*)?\}/i);
+  assert.match(compose, /WHATSAPP_SWAGGER_USERNAME=\$\{WHATSAPP_SWAGGER_USERNAME:-admin\}/i);
+  assert.match(compose, /WHATSAPP_SWAGGER_PASSWORD=\$\{WHATSAPP_SWAGGER_PASSWORD(?::\?[^}]*)?\}/i);
+  assert.doesNotMatch(compose, /0\.0\.0\.0:3000/i);
+  assert.doesNotMatch(compose, /^\s*-\s*["']?3000:3000["']?\s*$/im);
+
+  assert.match(guide, /docker compose -f docker-compose\.waha\.yml up -d/i);
+  assert.match(guide, /host\.docker\.internal:3105\/waha\/webhook/i);
+  assert.match(guide, /127\.0\.0\.1:3000/i);
+  assert.match(guide, /\/app\/\.sessions/i);
+  assert.match(guide, /WAHA_API_KEY/i);
+  assert.match(guide, /WAHA_DASHBOARD_PASSWORD/i);
+  assert.match(guide, /127\.0\.0\.1:3105/i);
+  assert.match(guide, /--host\s+0\.0\.0\.0/i);
+  assert.match(guide, /WHATSAPP_WAHA_WEBHOOK_SECRET/i);
+});
+
 test("README documenta fronteira atual de automacao WhatsApp", () => {
   const readme = paperclipReadme();
 
@@ -579,7 +611,8 @@ test("WhatsApp Identity e auto-wake ficam documentados no contrato operacional",
     assert.match(doc, /whatsapp unmatched reconcile/i);
     assert.match(doc, /Sem identidade/i);
     assert.match(doc, /--auto-wake/i);
-    assert.match(doc, /--host\s+127\.0\.0\.1/i);
+    assert.match(doc, /--host\s+0\.0\.0\.0/i);
+    assert.match(doc, /WHATSAPP_WAHA_WEBHOOK_SECRET/i);
     assert.match(doc, /whatsapp_worker_wakes/i);
   }
 
@@ -659,8 +692,51 @@ test("Guardiao WhatsApp despacha somente via Gateway com outbox id explicito", (
   }
 
   assert.match(guardiaoWa, /nao chamar.*\/api\/sendText|não chamar.*\/api\/sendText/is);
+  assert.match(guardiaoWa, /Unauthorized/i);
+  assert.match(guardiaoWa, /check-exists/i);
+  assert.match(guardiaoWa, /falha de credencial|falha de transporte/i);
+  assert.match(guardiaoWa, /nao .*bloqueio de conteudo|não .*bloqueio de conteúdo/is);
+  assert.match(guardiaoWa, /dispatch_ambiguous/i);
+  assert.match(guardiaoWa, /nova Outbox|liberacao explicita auditada|liberação explícita auditada/i);
   assert.match(guardiaoAgent.capabilities, /Gateway/i);
   assert.match(guardiaoAgent.capabilities, /outbox-id/i);
+  assert.match(guardiaoAgent.capabilities, /transporte|credencial/i);
+});
+
+test("Workers WhatsApp compartilham contexto de falha WAHA operacional", () => {
+  const transportFailureDocs = [
+    ["COO Freelancer", read("docs/freelancer/prompt-thread-coo-freelancer.md")],
+    ["Atendimento WhatsApp", read("docs/freelancer/prompt-thread-whatsapp-atendimento.md")],
+    ["Atendimento e Fechamento", read("docs/freelancer/prompt-thread-atendimento-clientes.md")],
+    ["Follow-up CRM", read("docs/freelancer/prompt-thread-followup-crm.md")],
+    ["Redator de Primeira Mensagem", read("docs/freelancer/prompt-thread-redator-primeira-mensagem.md")],
+    ["QA de Mensagens", read("docs/freelancer/prompt-thread-qa-mensagens.md")],
+    ["Guardiao de Envio WhatsApp", read("docs/freelancer/prompt-thread-whatsapp-guardiao.md")],
+  ];
+
+  for (const [name, doc] of transportFailureDocs) {
+    assert.match(doc, /Unauthorized/i, `${name} deve reconhecer Unauthorized WAHA`);
+    assert.match(doc, /check-exists/i, `${name} deve reconhecer falha no check-exists`);
+    assert.match(doc, /dispatch_ambiguous/i, `${name} deve reconhecer outbox ambigua`);
+    assert.match(doc, /falha de credencial|falha de transporte|transporte\/credencial/i, `${name} deve classificar como transporte/credencial`);
+    assert.match(doc, /nao .*bloqueio de conteudo|não .*bloqueio de conteúdo/is, `${name} nao deve chamar transporte de bloqueio de conteudo`);
+    assert.match(doc, /nova Outbox|liberacao explicita auditada|liberação explícita auditada/i, `${name} deve exigir novo teste auditado`);
+    assert.doesNotMatch(doc, /chame\s+\/api\/sendText|chamar\s+\/api\/sendText diretamente/i, `${name} nao deve orientar envio cru`);
+  }
+
+  const contextAwareAgents = [
+    agentConfig("agent-coo-freelancer.json"),
+    agentConfig("agent-whatsapp-atendimento.json"),
+    agentConfig("agent-whatsapp-guardiao.json"),
+    agentConfig("agent-atendimento.json"),
+    agentConfig("agent-followup-crm.json"),
+    agentConfig("agent-redator-primeira-mensagem.json"),
+    agentConfig("agent-qa-mensagens.json"),
+  ];
+
+  for (const agent of contextAwareAgents) {
+    assert.match(agent.capabilities, /transporte|credencial|dispatch_ambiguous|WAHA/i, `${agent.name} deve expor contexto WAHA nas capabilities`);
+  }
 });
 
 test("Pedido de exemplo no WhatsApp passa por demo completa e QA antes do envio", () => {
@@ -677,6 +753,56 @@ test("Pedido de exemplo no WhatsApp passa por demo completa e QA antes do envio"
   assert.match(atendimentoWa, /nao enviar link direto|não enviar link direto/i);
   assert.match(guardiaoWa, /exemplo_aprovado_para_envio/i);
   assert.doesNotMatch(atendimentoWa, /copy-whatsapp\.md/i);
+});
+
+test("Demo aprovada pedida no WhatsApp vira nova Outbox, nao fluxo manual", () => {
+  const atendimentoComercial = atendimento();
+  const atendimentoWa = read("docs/freelancer/prompt-thread-whatsapp-atendimento.md");
+  const readme = paperclipReadme();
+  const jhonAgent = agentConfig("agent-atendimento.json");
+  const atendimentoWaAgent = agentConfig("agent-whatsapp-atendimento.json");
+
+  for (const [name, doc] of [
+    ["Atendimento e Fechamento", atendimentoComercial],
+    ["Atendimento WhatsApp", atendimentoWa],
+    ["Paperclip README", readme],
+  ]) {
+    assert.match(
+      doc,
+      /demo ja aprovada|demo já aprovada|exemplo aprovado|exemplo_aprovado_para_envio/i,
+      `${name} deve reconhecer demo ja aprovada`,
+    );
+    assert.match(
+      doc,
+      /whatsapp outbox propose/i,
+      `${name} deve criar nova Outbox para link aprovado`,
+    );
+    assert.match(
+      doc,
+      /Guardiao|Guardião/i,
+      `${name} deve passar pelo Guardiao`,
+    );
+    assert.match(
+      doc,
+      /dispatch-approved-outbox[\s\S]*--outbox-id|--outbox-id[\s\S]*dispatch-approved-outbox/i,
+      `${name} deve despachar pelo Gateway com outbox id explicito`,
+    );
+    assert.match(
+      doc,
+      /nao usar lead-cards|não usar lead-cards|nao cair em lead-cards|não cair em lead-cards/i,
+      `${name} nao deve voltar para lead-cards quando a demo ja esta aprovada`,
+    );
+    assert.match(
+      doc,
+      /manual[\s\S]*(Guardiao|Guardião)[\s\S]*bloque|manual[\s\S]*WAHA[\s\S]*falh|manual[\s\S]*(preco|preço|fechamento)/i,
+      `${name} deve limitar fallback manual a bloqueio, falha WAHA ou fechamento/preco`,
+    );
+  }
+
+  assert.match(jhonAgent.capabilities, /demo.*aprovad|exemplo_aprovado_para_envio/i);
+  assert.match(jhonAgent.capabilities, /Outbox|Gateway/i);
+  assert.match(atendimentoWaAgent.capabilities, /demo.*aprovad|exemplo_aprovado_para_envio/i);
+  assert.match(atendimentoWaAgent.capabilities, /Outbox|Gateway/i);
 });
 
 test("Follow-up CRM usa matriz inteligente por etapa do lead", () => {

@@ -2380,6 +2380,20 @@ test("whatsapp inbound classifies hot buying intent for closer routing", () => {
   assert.equal(state.whatsapp_state, "lead_quente");
 });
 
+test("whatsapp inbound classifies positive demo requests for demo routing", () => {
+  const root = makeWhatsAppLeadRoot(
+    "wa-demo-positive-001",
+    "Gostei, pode enviar uma demonstração?",
+  );
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+  assert.equal(inbound.classification, "resposta_pediu_exemplo");
+  assert.equal(state.whatsapp_state, "pedido_exemplo");
+});
+
 test("whatsapp inbound classifies commercial objections for closer routing", () => {
   const root = makeWhatsAppLeadRoot("wa-objection-001", "Achei caro, vou pensar um pouco");
 

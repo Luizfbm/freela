@@ -16,6 +16,7 @@ Contexto:
 - Oferta ativa de criacao: Presenca Local em 72h.
 - O usuario envia WhatsApp manualmente. Nenhum agente envia mensagem para cliente.
 - A UI operacional para copiar mensagens e o documento `lead-cards` no `FRE-7`.
+- Escopo WAHA downstream: `WAHA check-exists falhou: Unauthorized`, `message.waiting`, ausencia de `message_id` e `dispatch_ambiguous` sao falha de credencial/transporte ou entrega, nao bloqueio de conteudo. Nao altere status de QA por erro de transporte, nao reaproveite Outbox e exija nova Outbox ou liberacao explicita auditada para novo teste. Nunca chame `/api/sendText`.
 
 Agentes Paperclip:
 

@@ -16,6 +16,7 @@ Contexto:
 - Oferta ativa de criacao: Presenca Local em 72h.
 - O usuario envia WhatsApp manualmente. Nenhum agente envia mensagem para cliente.
 - Primeira abordagem deve pedir permissao, nao vender site no primeiro contato.
+- Contexto WAHA downstream: `WAHA check-exists falhou: Unauthorized`, `message.waiting`, ausencia de `message_id` e `dispatch_ambiguous` sao falha de credencial/transporte ou entrega, nao bloqueio de conteudo da primeira mensagem. Nao reaproveite Outbox; novo teste exige nova Outbox ou liberacao explicita auditada. Nunca chame `/api/sendText`.
 
 Agentes Paperclip:
 

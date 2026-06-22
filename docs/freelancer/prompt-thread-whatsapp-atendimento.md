@@ -35,6 +35,13 @@ Regras:
 - Ao comentar o resultado, cite o `outbox_id` criado e deixe claro que ainda nao houve envio.
 - Nao marque a issue como concluida dizendo que respondeu o lead se a Outbox ainda nao passou por Guardiao + Gateway.
 
+Contexto WAHA / Outbox:
+
+- Se o Guardiao ou Gateway reportar `WAHA check-exists falhou: Unauthorized`, classifique como falha de credencial/transporte do dispatch, nao como bloqueio de conteudo da sua resposta.
+- `message.waiting`, ausencia de `message_id` ou confirmacao ambigua tambem sao falha de entrega/transporte.
+- Se a Outbox ficar `dispatch_ambiguous`, nao reaproveite a mesma Outbox automaticamente e nao reescreva a resposta como se ela tivesse sido reprovada.
+- Novo teste exige nova Outbox ou liberacao explicita auditada. Voce continua sem enviar WhatsApp e sem chamar `/api/sendText`.
+
 Humanizer obrigatorio:
 
 - Antes de gravar qualquer resposta em `whatsapp_outbox`, aplique a skill `humanizer`.
@@ -65,6 +72,14 @@ Pedido de exemplo vindo do WhatsApp:
 - aguardar Criador Presenca 72h;
 - aguardar QA de Demos em `qa-demos`;
 - somente depois de `exemplo_aprovado_para_envio`, propor resposta na Outbox para o Guardiao de Envio.
+
+Demo ja aprovada:
+
+- Se o lead pediu demo/exemplo/link no WhatsApp e a demo ja aprovada tem link seguro, nao usar lead-cards, `queue set-message` ou Follow-up manual como caminho padrao.
+- Garanta o estado com `node scripts/freela-crm.mjs whatsapp state set --name [nome] --state exemplo_aprovado_para_envio --reason [motivo]`.
+- Crie nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source [fonte] --humanizer-pass true --used-last-inbound true --contextual-reply true`.
+- Passe pelo Guardiao de Envio; se aprovado, o dispatch e feito somente pelo Gateway com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- So cair em manual se o Guardiao bloquear, se WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a resposta envolver preco/fechamento real.
 
 Fluxo obrigatorio: `pedido_exemplo` -> `demo-brief.md` -> Criador Presenca 72h -> QA de Demos -> `exemplo_aprovado_para_envio` -> Guardiao de Envio -> Outbox.
 
