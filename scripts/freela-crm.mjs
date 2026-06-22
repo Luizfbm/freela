@@ -422,6 +422,11 @@ async function dispatch({ root, dbPath, command, args }) {
     return;
   }
 
+  if (command[0] === "whatsapp" && command[1] === "outbox" && command[2] === "list-dispatchable") {
+    listDispatchableWhatsAppOutboxes(database, root);
+    return;
+  }
+
   if (command[0] === "whatsapp" && command[1] === "guardian" && command[2] === "review") {
     const flags = parseFlags(args);
     requireFlag(flags, "outbox-id");
@@ -3212,6 +3217,39 @@ function whatsappOutboxStatus(database, outboxId, root) {
       `node scripts/whatsapp-local-gateway.mjs --root ${root} dispatch-approved-outbox ` +
       `--provider waha --outbox-id ${row.id}`,
   };
+}
+
+function listDispatchableWhatsAppOutboxes(database, root) {
+  const rows = database
+    .prepare(
+      `select
+        o.*,
+        l.canonical_name as lead_name,
+        s.whatsapp_state
+       from whatsapp_outbox o
+       join leads l on l.id = o.lead_id
+       left join lead_conversation_state s on s.lead_id = o.lead_id
+       where o.status = 'approved'
+         and o.guardian_decision = 'enviar'
+         and o.humanizer_pass = 1
+         and o.used_last_inbound = 1
+         and o.contextual_reply = 1
+       order by o.id asc`,
+    )
+    .all()
+    .filter((row) => whatsappOutboxDispatchCheck(row).canDispatch);
+
+  if (!rows.length) {
+    console.log("Nenhuma Outbox aprovada e despachavel.");
+    return;
+  }
+
+  for (const row of rows) {
+    console.log(`Outbox ${row.id}: ${row.lead_name}`);
+    console.log(
+      `  node scripts/whatsapp-local-gateway.mjs --root ${root} dispatch-approved-outbox --provider waha --outbox-id ${row.id}`,
+    );
+  }
 }
 
 function whatsappOutboxDispatchCheck(outbox) {

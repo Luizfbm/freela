@@ -356,6 +356,14 @@ Continuam manuais: primeira abordagem fria, preco, desconto, proposta, pagamento
 
 Workers nunca chamam `/api/sendText` diretamente.
 
+Para ver itens aprovados que podem sair pelo WAHA, use:
+
+```bash
+node scripts/freela-crm.mjs whatsapp outbox list-dispatchable
+```
+
+Cada linha deve ser enviada pelo Gateway com `--outbox-id` explicito.
+
 Demo ja aprovada pedida no WhatsApp segue o mesmo caminho automatizavel: lead pediu demo/exemplo/link, existe link seguro aprovado por QA e o estado esta em `exemplo_aprovado_para_envio` -> criar nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source [fonte] --humanizer-pass true --used-last-inbound true --contextual-reply true` -> Guardiao -> Gateway com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --provider waha --outbox-id [id]`. Nesse caso nao usar lead-cards, `queue set-message` ou Follow-up manual como caminho padrao. So cair em manual se o Guardiao bloquear, se WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a conversa envolver preco/fechamento real.
 
 Contrato de saida: depois de aprovar, Guardiao consulta `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]`. Se o status mostrar `Pode despachar: sim`, ele chama o Gateway com o mesmo `--outbox-id`. `delivery_pending` exige aguardar `message.ack`; `sent` so vale com ACK forte. `Unauthorized` em `check-exists` vira falha de transporte/credencial e `handoff_luiz`, nao retry automatico. O modo sem `--outbox-id` e reservado para operacao assistida em lote, nao para worker.

@@ -2677,6 +2677,23 @@ test("safe approved WhatsApp outbox keeps lead out of manual lead-cards", () => 
   assert.match(cards, /Nenhum envio manual pendente/i);
 });
 
+test("whatsapp outbox list-dispatchable exposes explicit ids for Gateway dispatch", () => {
+  const root = makeWhatsAppLeadRoot("wa-list-dispatchable-001", "Pode sim");
+
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito, posso te mandar os 3 pontos por aqui.",
+  );
+  const review = run(root, ["whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+
+  const list = run(root, ["whatsapp", "outbox", "list-dispatchable"]);
+  assert.equal(list.status, 0, list.stderr);
+  assert.match(list.stdout, new RegExp(`Outbox ${outbox.id}`));
+  assert.match(list.stdout, /dispatch-approved-outbox --provider waha --outbox-id/i);
+});
+
 test("price and closing conversations stay manual even when WAHA is healthy", () => {
   const root = makeWhatsAppLeadRoot("wa-outbox-first-price-001", "Pode mandar a proposta?");
   approveManualLeadCard(
