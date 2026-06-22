@@ -216,13 +216,7 @@ function readWahaBlockers(database) {
           or s.whatsapp_state = 'bloqueado_guardiao'
           or (
             o.status = 'delivery_pending'
-            and (
-              datetime(o.created_at) <= datetime('now', '-30 minutes')
-              or (
-                o.sent_at is not null
-                and datetime(o.sent_at) <= datetime('now', '-30 minutes')
-              )
-            )
+            and datetime(coalesce(o.sent_at, o.created_at)) <= datetime('now', '-30 minutes')
           )
        order by datetime(coalesce(o.failed_at, o.sent_at, o.created_at)) desc, o.id desc`,
     )
