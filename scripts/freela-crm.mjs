@@ -4682,6 +4682,7 @@ function exportCommercialSurfaces(database, root, queueDate) {
 }
 
 function commercialStatusReport(database, queueDate) {
+  const whatsappDelivery = whatsappDeliveryReport(database);
   const report = {
     queueDate,
     pendingValidation: countRows(database, "select count(*) as count from commercial_pending_validation"),
@@ -4698,9 +4699,42 @@ function commercialStatusReport(database, queueDate) {
       database,
       "select count(*) as count from worker_handoffs where status not in ('completed', 'cancelled')",
     ),
+    whatsappApproved: whatsappDelivery.approved,
+    whatsappDeliveryPending: whatsappDelivery.deliveryPending,
+    whatsappDispatchAmbiguous: whatsappDelivery.dispatchAmbiguous,
+    whatsappSentStrongAck: whatsappDelivery.sentStrongAck,
   };
   report.nextStep = nextCommercialStep(report);
   return report;
+}
+
+function whatsappDeliveryReport(database) {
+  const row = database
+    .prepare(
+      `select
+        sum(case when status = 'approved' then 1 else 0 end) as approved,
+        sum(case when status = 'delivery_pending' then 1 else 0 end) as delivery_pending,
+        sum(case when status = 'dispatch_ambiguous' then 1 else 0 end) as dispatch_ambiguous,
+        sum(
+          case
+            when status = 'sent'
+             and (
+               delivery_ack_name in ('DEVICE', 'READ', 'PLAYED')
+               or coalesce(delivery_ack, 0) >= 2
+             )
+            then 1
+            else 0
+          end
+        ) as sent_strong_ack
+       from whatsapp_outbox`,
+    )
+    .get();
+  return {
+    approved: row.approved ?? 0,
+    deliveryPending: row.delivery_pending ?? 0,
+    dispatchAmbiguous: row.dispatch_ambiguous ?? 0,
+    sentStrongAck: row.sent_strong_ack ?? 0,
+  };
 }
 
 function formatCommercialStatus(report) {
@@ -4711,6 +4745,10 @@ function formatCommercialStatus(report) {
     `Aguardando QA de Mensagens: ${report.pendingQa}`,
     `Lead-cards prontos: ${report.readyLeadCards}`,
     `Follow-ups ativos: ${report.followupsToday}`,
+    `WAHA aprovadas para envio: ${report.whatsappApproved}`,
+    `WAHA pendentes de ACK: ${report.whatsappDeliveryPending}`,
+    `WAHA ambiguas/handoff: ${report.whatsappDispatchAmbiguous}`,
+    `WAHA entregues com ACK forte: ${report.whatsappSentStrongAck}`,
     `Leads parados: ${report.staleLeads}`,
     `Handoffs abertos: ${report.openHandoffs}`,
     `Proximo melhor passo: ${report.nextStep}`,
@@ -4732,6 +4770,10 @@ function exportCommercialStatus(root, report) {
     `- Aguardando QA de Mensagens: ${report.pendingQa}`,
     `- Lead-cards prontos: ${report.readyLeadCards}`,
     `- Follow-ups ativos: ${report.followupsToday}`,
+    `- WAHA aprovadas para envio: ${report.whatsappApproved}`,
+    `- WAHA pendentes de ACK: ${report.whatsappDeliveryPending}`,
+    `- WAHA ambiguas/handoff: ${report.whatsappDispatchAmbiguous}`,
+    `- WAHA entregues com ACK forte: ${report.whatsappSentStrongAck}`,
     `- Leads parados: ${report.staleLeads}`,
     `- Handoffs abertos: ${report.openHandoffs}`,
     "",
@@ -4786,6 +4828,10 @@ function exportCommercialFunnel(database, root, queueDate, report) {
     `- Aguardando QA de Mensagens: ${report.pendingQa}`,
     `- Lead-cards prontos: ${report.readyLeadCards}`,
     `- Follow-ups ativos: ${report.followupsToday}`,
+    `- WAHA aprovadas para envio: ${report.whatsappApproved}`,
+    `- WAHA pendentes de ACK: ${report.whatsappDeliveryPending}`,
+    `- WAHA ambiguas/handoff: ${report.whatsappDispatchAmbiguous}`,
+    `- WAHA entregues com ACK forte: ${report.whatsappSentStrongAck}`,
     `- Leads parados: ${report.staleLeads}`,
     `- Handoffs abertos: ${report.openHandoffs}`,
     "",

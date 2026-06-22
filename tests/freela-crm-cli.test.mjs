@@ -2694,6 +2694,49 @@ test("whatsapp outbox list-dispatchable exposes explicit ids for Gateway dispatc
   assert.match(list.stdout, /dispatch-approved-outbox --provider waha --outbox-id/i);
 });
 
+test("delivery_pending outbox does not create follow-up as delivered", () => {
+  const root = makeWhatsAppLeadRoot("wa-followup-pending-001", "Pode sim");
+  const database = db(root);
+  const lead = database.prepare("select * from leads").get();
+  database
+    .prepare(
+      `insert into whatsapp_outbox
+        (lead_id, target_chat_id, body, source, status, guardian_decision, provider_message_id,
+         humanizer_pass, used_last_inbound, contextual_reply, created_at, approved_at)
+       values (?, ?, ?, 'followup_ack_test', 'delivery_pending', 'enviar', 'msg-pending',
+         1, 1, 1, datetime('now'), datetime('now'))`,
+    )
+    .run(lead.id, lead.phone_normalized, "Mensagem pendente");
+  database.close();
+
+  const status = run(root, ["commercial", "status"]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.match(status.stdout, /WAHA pendentes de ACK: 1/i);
+  assert.doesNotMatch(status.stdout, /follow-up.*enviado/i);
+});
+
+test("sent outbox with strong ack can advance follow-up surface", () => {
+  const root = makeWhatsAppLeadRoot("wa-followup-sent-001", "Pode sim");
+  const database = db(root);
+  const lead = database.prepare("select * from leads").get();
+  database
+    .prepare(
+      `insert into whatsapp_outbox
+        (lead_id, target_chat_id, body, source, status, guardian_decision, provider_message_id,
+         dispatch_provider, delivery_ack, delivery_ack_name, delivered_at,
+         humanizer_pass, used_last_inbound, contextual_reply, created_at, approved_at, sent_at)
+       values (?, ?, ?, 'followup_ack_test', 'sent', 'enviar', 'msg-1',
+         'waha', 2, 'DEVICE', datetime('now'),
+         1, 1, 1, datetime('now'), datetime('now'), datetime('now'))`,
+    )
+    .run(lead.id, lead.phone_normalized, "Mensagem entregue");
+  database.close();
+
+  const status = run(root, ["commercial", "status"]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.match(status.stdout, /WAHA entregues com ACK forte: 1/i);
+});
+
 test("price and closing conversations stay manual even when WAHA is healthy", () => {
   const root = makeWhatsAppLeadRoot("wa-outbox-first-price-001", "Pode mandar a proposta?");
   approveManualLeadCard(

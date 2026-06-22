@@ -566,6 +566,8 @@ Quando o usuario colar uma resposta de WhatsApp em uma issue:
 4. Crie a issue de handoff correta se necessario.
 5. Registre a proxima acao e data sugerida.
 
+Follow-up de WhatsApp automatico so nasce de entrega real. `delivery_pending` aguarda ACK; `dispatch_ambiguous` vira gargalo operacional; `sent` so conta como enviado com ACK forte (`DEVICE`, `READ`, `PLAYED` ou `ack >= 2`).
+
 Done:
 
 - `pipeline.md`, `hoje-enviar.md` e/ou `followups-do-dia.md` atualizados quando havia trabalho;
