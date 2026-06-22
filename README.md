@@ -87,6 +87,16 @@ Acesse:
 - Demo Clinica Equilibrio: `http://localhost:4173/demos/clinica-equilibrio-fisioterapia/`
 - Demo COI Odontologia: `http://localhost:4173/demos/coi-odontologia/`
 
+### Cockpit privado de leads
+
+Na maquina local, com SQLite privado disponivel:
+
+```bash
+node scripts/freela-cockpit.mjs
+```
+
+Acesse `http://127.0.0.1:3200`. O Cockpit e privado, le o SQLite oficial e executa escritas apenas pela CLI `scripts/freela-crm.mjs`.
+
 ## Regras de uso
 
 - Os demos usam informacoes publicas.

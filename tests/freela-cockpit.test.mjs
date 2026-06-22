@@ -1043,6 +1043,25 @@ test("cockpit server serves summary and rejects non-loopback host config", async
   }
 });
 
+test("cockpit server serves private frontend shell", async () => {
+  const server = createCockpitServer({ root: repoRoot, host: "127.0.0.1", port: 0 });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/`);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /Freela Cockpit/);
+    assert.match(html, /Console/);
+    assert.match(html, /Painel WAHA|WAHA/);
+    assert.match(html, /\/app\.js/);
+  } finally {
+    await closeServer(server);
+  }
+});
+
 test("cockpit server command preview does not mutate state", async () => {
   const root = makeRoot();
   assert.equal(runCrm(root, ["init"]).status, 0);
