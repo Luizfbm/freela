@@ -1,9 +1,14 @@
 const state = {
   requestCount: 0,
   modalOpen: false,
+  modalStale: false,
   currentLead: null,
+  modalSnapshot: null,
   selectedAction: null,
   refreshTimer: null,
+  leadWatchTimer: null,
+  leadWatchController: null,
+  leadWatchBusy: false,
   searchController: null,
   toastTimer: null,
   errorTimer: null,
@@ -97,6 +102,18 @@ elements.leadDetail.addEventListener("click", (event) => {
   const submitButton = event.target.closest("[data-submit-action]");
   if (submitButton) {
     submitSelectedAction();
+    return;
+  }
+
+  const retryPaperclipButton = event.target.closest("[data-retry-paperclip]");
+  if (retryPaperclipButton) {
+    retryPaperclipRefresh();
+    return;
+  }
+
+  const reloadButton = event.target.closest("[data-reload-open-lead]");
+  if (reloadButton) {
+    reloadOpenLead();
   }
 });
 
@@ -299,10 +316,13 @@ async function openLead(leadId) {
   try {
     const body = await fetchJson(`/api/leads/${encodeURIComponent(parsedLeadId)}`);
     state.currentLead = body.lead;
+    state.modalSnapshot = leadSnapshot(body.lead);
+    state.modalStale = false;
     state.selectedAction = null;
     state.modalOpen = true;
     renderLeadModal(body.lead);
     elements.modal.classList.remove("hidden");
+    startLeadWatch();
     elements.modalClose.focus();
   } catch (error) {
     showError(error.message);
@@ -346,7 +366,9 @@ function renderLeadModal(lead = {}) {
     <section class="detail-band">
       <h3>Acoes</h3>
       ${actionButtons}
+      <div id="modal-stale-warning"></div>
       <div id="action-form-slot"></div>
+      <div id="paperclip-recovery-slot"></div>
     </section>
     <section class="detail-band">
       <h3>Outbox</h3>
@@ -367,7 +389,7 @@ function detailItem(label, value) {
 function renderActionButton(action) {
   const tone = ["perdido", "descartar"].includes(action) ? "danger" : "";
   return `
-    <button class="button ${escapeAttr(tone)}" type="button" data-select-action="${escapeAttr(action)}" data-busy-control>
+    <button class="button ${escapeAttr(tone)}" type="button" data-select-action="${escapeAttr(action)}" data-busy-control data-action-control>
       ${escapeHtml(labelForAction(action))}
     </button>
   `;
@@ -443,7 +465,7 @@ function selectAction(action) {
           : ""
       }
       <div class="action-row">
-        <button id="action-submit" class="button ${["perdido", "descartar"].includes(action) ? "danger" : ""}" type="button" data-submit-action="${escapeAttr(action)}" data-busy-control>
+        <button id="action-submit" class="button ${["perdido", "descartar"].includes(action) ? "danger" : ""}" type="button" data-submit-action="${escapeAttr(action)}" data-busy-control data-action-control>
           Executar
         </button>
         <button class="button secondary" type="button" data-select-action="" data-busy-control>Cancelar</button>
@@ -473,7 +495,7 @@ function updateActionSubmitState() {
   const confirmed = document.getElementById("action-confirm")?.checked ?? true;
   const validMessage = !requiredMessageActions.has(action) || Boolean(message);
   const validReason = !requiredReasonActions.has(action) || Boolean(reason);
-  submit.disabled = isBusy() || !confirmed || !validMessage || !validReason;
+  submit.disabled = isBusy() || state.modalStale || !confirmed || !validMessage || !validReason;
 }
 
 async function submitSelectedAction() {
@@ -510,6 +532,12 @@ async function submitSelectedAction() {
     });
 
     const result = body.result ?? {};
+    if (isPaperclipPartialFailure(result)) {
+      showPaperclipRecovery(result);
+      showError("CRM atualizado. Publicacao Paperclip pendente.");
+      return;
+    }
+
     if (!body.ok || result.ok === false) {
       showActionError(result);
       if (result.nextRefreshRecommended) {
@@ -523,6 +551,27 @@ async function submitSelectedAction() {
     closeModal();
     await refresh({ manual: true, force: true });
   } catch (error) {
+    showError(error.message);
+  } finally {
+    endRequest();
+  }
+}
+
+async function retryPaperclipRefresh() {
+  startRequest();
+  try {
+    const body = await fetchJson("/api/refresh-paperclip", { method: "POST" });
+    if (!body.ok) {
+      showPaperclipRecovery({ reason: "paperclip_sync_failed", errors: [runnerMessage(body.result)] });
+      showError(runnerMessage(body.result) || "Publicacao Paperclip pendente.");
+      return;
+    }
+
+    showToast("Paperclip atualizado.");
+    closeModal();
+    await refresh({ manual: true, force: true });
+  } catch (error) {
+    showPaperclipRecovery({ reason: "paperclip_sync_failed", errors: [error.message] });
     showError(error.message);
   } finally {
     endRequest();
@@ -610,8 +659,11 @@ async function fetchJson(path, options = {}) {
 }
 
 function closeModal() {
+  stopLeadWatch();
   state.modalOpen = false;
+  state.modalStale = false;
   state.currentLead = null;
+  state.modalSnapshot = null;
   state.selectedAction = null;
   elements.modal.classList.add("hidden");
   elements.leadDetail.innerHTML = "";
@@ -640,6 +692,9 @@ function syncBusyState() {
   for (const button of document.querySelectorAll("[data-busy-control]")) {
     button.disabled = busy;
   }
+  for (const button of document.querySelectorAll("[data-action-control]")) {
+    button.disabled = busy || state.modalStale;
+  }
   updateActionSubmitState();
 }
 
@@ -655,6 +710,135 @@ function showActionError(result = {}) {
     ...(Array.isArray(result.errors) ? result.errors : []),
   ].filter(Boolean);
   showError(messages.join("\n") || "Acao incompleta.");
+}
+
+function showPaperclipRecovery(result = {}) {
+  const slot = document.getElementById("paperclip-recovery-slot");
+  if (!slot) return;
+
+  const details = [
+    ...(Array.isArray(result.warnings) ? result.warnings : []),
+    ...(Array.isArray(result.errors) ? result.errors : []),
+  ].filter(Boolean);
+
+  slot.innerHTML = `
+    <section class="action-form paperclip-recovery" role="alert">
+      <h3>Paperclip pendente</h3>
+      <p>CRM atualizado. Publicacao Paperclip pendente.</p>
+      ${details.length ? `<pre class="code-block">${escapeHtml(details.join("\n"))}</pre>` : ""}
+      <div class="action-row">
+        <button class="button secondary" type="button" data-retry-paperclip data-busy-control>
+          Republicar Paperclip
+        </button>
+      </div>
+    </section>
+  `;
+  syncBusyState();
+}
+
+async function reloadOpenLead() {
+  const leadId = numberOrNull(state.currentLead?.leadId);
+  if (!leadId) return;
+
+  startRequest();
+  try {
+    const body = await fetchJson(`/api/leads/${encodeURIComponent(leadId)}`);
+    state.currentLead = body.lead;
+    state.modalSnapshot = leadSnapshot(body.lead);
+    state.modalStale = false;
+    state.selectedAction = null;
+    renderLeadModal(body.lead);
+    startLeadWatch();
+    showToast("Lead atualizado.");
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    endRequest();
+  }
+}
+
+function startLeadWatch() {
+  stopLeadWatch();
+  state.leadWatchTimer = setInterval(() => {
+    pollOpenLead();
+  }, 10000);
+}
+
+function stopLeadWatch() {
+  if (state.leadWatchTimer) {
+    clearInterval(state.leadWatchTimer);
+    state.leadWatchTimer = null;
+  }
+  if (state.leadWatchController) {
+    state.leadWatchController.abort();
+    state.leadWatchController = null;
+  }
+  state.leadWatchBusy = false;
+}
+
+async function pollOpenLead() {
+  const leadId = numberOrNull(state.currentLead?.leadId);
+  if (!state.modalOpen || state.modalStale || state.leadWatchBusy || isBusy() || !leadId) return;
+
+  state.leadWatchBusy = true;
+  state.leadWatchController = new AbortController();
+  try {
+    const body = await fetchJson(`/api/leads/${encodeURIComponent(leadId)}`, {
+      signal: state.leadWatchController.signal,
+    });
+    if (hasLeadMaterialChange(state.modalSnapshot, body.lead)) {
+      markModalStale();
+    }
+  } catch (error) {
+    if (error.name !== "AbortError") showError(error.message);
+  } finally {
+    state.leadWatchBusy = false;
+    state.leadWatchController = null;
+  }
+}
+
+function markModalStale() {
+  state.modalStale = true;
+  const warning = document.getElementById("modal-stale-warning");
+  if (warning) {
+    warning.innerHTML = `
+      <section class="stale-warning" role="alert">
+        <p>Este lead mudou desde que voce abriu</p>
+        <button class="button secondary" type="button" data-reload-open-lead data-busy-control>
+          Recarregar lead
+        </button>
+      </section>
+    `;
+  }
+  syncBusyState();
+}
+
+function hasLeadMaterialChange(openedSnapshot, latestLead) {
+  const latestSnapshot = leadSnapshot(latestLead);
+  if (!openedSnapshot || !latestSnapshot) return false;
+  return (
+    openedSnapshot.status !== latestSnapshot.status ||
+    openedSnapshot.commercialStage !== latestSnapshot.commercialStage ||
+    openedSnapshot.updatedAt !== latestSnapshot.updatedAt ||
+    openedSnapshot.availableActions !== latestSnapshot.availableActions
+  );
+}
+
+function leadSnapshot(lead = {}) {
+  return {
+    status: String(lead.status ?? ""),
+    commercialStage: String(lead.commercialStage ?? ""),
+    updatedAt: String(lead.updatedAt ?? ""),
+    availableActions: Array.isArray(lead.availableActions) ? [...lead.availableActions].sort().join("|") : "",
+  };
+}
+
+function isPaperclipPartialFailure(result = {}) {
+  return result.reason === "paperclip_sync_failed" || (result.crmUpdated === true && result.paperclipUpdated === false);
+}
+
+function runnerMessage(result = {}) {
+  return String(result?.stderr || result?.stdout || result?.error || "Publicacao Paperclip pendente.").trim();
 }
 
 function showToast(message) {

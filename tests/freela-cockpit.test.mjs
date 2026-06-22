@@ -105,6 +105,21 @@ async function closeServer(server) {
   await new Promise((resolve) => server.close(resolve));
 }
 
+async function readServedCockpitApp() {
+  const server = createCockpitServer({ root: repoRoot, host: "127.0.0.1", port: 0 });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/app.js`);
+    assert.equal(response.status, 200);
+    return await response.text();
+  } finally {
+    await closeServer(server);
+  }
+}
+
 test("cockpit summary and kanban read official SQLite views", () => {
   const root = makeRoot();
   assert.equal(runCrm(root, ["init"]).status, 0);
@@ -1204,4 +1219,23 @@ test("cockpit server refuses static traversal and symlink escapes", async () => 
   } finally {
     await closeServer(server);
   }
+});
+
+test("cockpit frontend exposes Paperclip retry only through local API", async () => {
+  const app = await readServedCockpitApp();
+
+  assert.match(app, /paperclip_sync_failed/);
+  assert.match(app, /CRM atualizado/);
+  assert.match(app, /Publicacao Paperclip pendente/);
+  assert.match(app, /\/api\/refresh-paperclip/);
+  assert.doesNotMatch(app, /\/api\/sendText|whatsapp-local-gateway/i);
+});
+
+test("cockpit frontend warns and blocks stale modal actions", async () => {
+  const app = await readServedCockpitApp();
+
+  assert.match(app, /Este lead mudou desde que voce abriu/);
+  assert.match(app, /hasLeadMaterialChange/);
+  assert.match(app, /reloadOpenLead/);
+  assert.match(app, /state\.modalStale/);
 });
