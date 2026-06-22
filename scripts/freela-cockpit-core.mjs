@@ -175,6 +175,17 @@ export function previewCommand(database, rawCommand) {
 
   const action = parsed.action;
   const lead = readLeadDetail(database, matches[0].leadId);
+  if (isMutationAction(action) && !lead.availableActions.includes(action)) {
+    return {
+      ok: false,
+      reason: "action_unavailable",
+      action,
+      lead,
+      leadId: lead.leadId,
+      availableActions: lead.availableActions,
+    };
+  }
+
   return {
     ok: true,
     action,
@@ -212,10 +223,10 @@ export function parseOperatorCommand(rawCommand) {
     return parseNamedAction(command, "pediu preco ", "pediu_preco");
   }
   if (lowerCommand.startsWith("perdido ") || lowerCommand === "perdido") {
-    return parseNamedAction(command, "perdido ", "perdido");
+    return parseClosureAction(command, "perdido ", "perdido");
   }
   if (lowerCommand.startsWith("descartar ") || lowerCommand === "descartar") {
-    return parseNamedAction(command, "descartar ", "descartar");
+    return parseClosureAction(command, "descartar ", "descartar");
   }
   return { ok: false, reason: "unknown_command" };
 }
@@ -389,6 +400,22 @@ function parseResponseCommand(command) {
   return { ok: true, action: "respondeu", name, payload: { message } };
 }
 
+function parseClosureAction(command, prefix, action) {
+  const body = clean(command.slice(prefix.length));
+  if (!body) return { ok: false, reason: "lead_name_required", action };
+
+  const separator = body.indexOf(":");
+  if (separator === -1) return { ok: false, reason: "closure_reason_required", action };
+
+  const name = clean(body.slice(0, separator));
+  if (!name) return { ok: false, reason: "lead_name_required", action };
+
+  const reason = clean(body.slice(separator + 1));
+  if (!reason) return { ok: false, reason: "closure_reason_required", action };
+
+  return { ok: true, action, name, payload: { reason } };
+}
+
 function resolveLeadMatches(database, name) {
   const query = clean(name).toLowerCase();
   if (!query) return [];
@@ -425,10 +452,16 @@ function availableActionsForLead(row) {
   const actions = [];
   if (commercialStage === "ready_lead_card") actions.push("enviado");
   if (commercialStage === "followup" || ["abordado", "respondeu", "interessado", "tem_demo"].includes(status)) {
-    actions.push("followup_enviado", "respondeu", "pediu_exemplo", "pediu_preco");
+    actions.push("followup_enviado");
   }
-  actions.push("perdido", "descartar");
+  actions.push("respondeu", "pediu_exemplo", "pediu_preco", "perdido", "descartar");
   return [...new Set(actions)];
+}
+
+function isMutationAction(action) {
+  return ["enviado", "followup_enviado", "respondeu", "pediu_exemplo", "pediu_preco", "perdido", "descartar"].includes(
+    action,
+  );
 }
 
 function crmEffectForAction(action) {

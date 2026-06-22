@@ -422,3 +422,95 @@ test("command preview resolves resposta command with required message", () => {
     database.close();
   }
 });
+
+test("command preview blocks unavailable actions for closed leads", () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Clara Pilates",
+    city: "Vila Velha",
+    category: "pilates",
+    phone_or_contact: "+55 27 90000-0001",
+    status: "perdido",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const database = openCockpitDatabase({ root, readOnly: true });
+  try {
+    const preview = previewCommand(database, "enviado Clara Pilates");
+    assert.equal(preview.ok, false);
+    assert.equal(preview.reason, "action_unavailable");
+    assert.equal(preview.action, "enviado");
+    assert.equal(preview.lead.canonicalName, "Clara Pilates");
+    assert.deepEqual(preview.availableActions, []);
+  } finally {
+    database.close();
+  }
+});
+
+test("command preview requires and preserves closure reason", () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const database = openCockpitDatabase({ root, readOnly: true });
+  try {
+    const missingReason = previewCommand(database, "perdido Aghata Massoterapia");
+    assert.equal(missingReason.ok, false);
+    assert.equal(missingReason.reason, "closure_reason_required");
+
+    const withReason = previewCommand(database, "perdido Aghata Massoterapia: sem fit agora");
+    assert.equal(withReason.ok, true);
+    assert.equal(withReason.action, "perdido");
+    assert.equal(withReason.requiresStrongConfirmation, true);
+    assert.equal(withReason.payload.reason, "sem fit agora");
+  } finally {
+    database.close();
+  }
+});
+
+test("readLeadDetail reports missing lead with code and status", () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+
+  const database = openCockpitDatabase({ root, readOnly: true });
+  try {
+    assert.throws(
+      () => readLeadDetail(database, 999_999),
+      (error) => error.code === "LEAD_NOT_FOUND" && error.status === 404,
+    );
+  } finally {
+    database.close();
+  }
+});
+
+test("command preview returns structured errors for invalid commands", () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const database = openCockpitDatabase({ root, readOnly: true });
+  try {
+    assert.deepEqual(previewCommand(database, ""), { ok: false, reason: "empty_command" });
+    assert.deepEqual(previewCommand(database, "fazer cafe"), { ok: false, reason: "unknown_command" });
+    assert.deepEqual(previewCommand(database, "respondeu Aghata Massoterapia"), {
+      ok: false,
+      reason: "response_message_required",
+    });
+    assert.deepEqual(previewCommand(database, "enviado Lead Inexistente"), {
+      ok: false,
+      reason: "lead_not_found",
+      matches: [],
+    });
+  } finally {
+    database.close();
+  }
+});
