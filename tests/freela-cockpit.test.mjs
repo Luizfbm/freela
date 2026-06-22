@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +17,7 @@ import {
   searchLeads,
   readWahaSummary,
 } from "../scripts/freela-cockpit-core.mjs";
+import { createCockpitServer } from "../scripts/freela-cockpit.mjs";
 
 const repoRoot = new URL("..", import.meta.url).pathname;
 const crm = join(repoRoot, "scripts/freela-crm.mjs");
@@ -997,4 +999,65 @@ test("crm args for perdido and descartar preserve payload reason in notes", asyn
     "--notes",
     "duplicado manual",
   ]);
+});
+
+test("cockpit server serves summary and rejects non-loopback host config", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+
+  assert.throws(() => createCockpitServer({ root, host: "0.0.0.0", port: 0 }), /loopback/i);
+
+  const server = createCockpitServer({ root, host: "127.0.0.1", port: 0 });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/summary`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.equal(typeof body.summary.readyLeadCards, "number");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("cockpit server command preview does not mutate state", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  approveManualLeadCard(root, "Aghata Massoterapia", "Oi, posso te mandar 3 sugestoes rapidas?");
+
+  const server = createCockpitServer({ root, host: "127.0.0.1", port: 0 });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/command/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: "enviado Aghata Massoterapia" }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.preview.ok, true);
+    assert.equal(body.preview.action, "enviado");
+
+    const database = openCockpitDatabase({ root, readOnly: true });
+    try {
+      const detail = readLeadDetail(database, body.preview.leadId);
+      assert.equal(detail.status, "novo");
+      assert.equal(detail.commercialStage, "ready_lead_card");
+    } finally {
+      database.close();
+    }
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
