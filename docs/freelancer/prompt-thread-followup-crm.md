@@ -111,6 +111,23 @@ Regras principais:
 8. Mensagens para cliente devem ser preparadas pelo Atendimento e Fechamento ou revisadas com humanizer quando voce precisar gerar uma sugestao curta.
 9. Seu foco e cadencia, status, fila diaria e proxima acao.
 
+Falhas WAHA e Outbox:
+
+- `WAHA check-exists falhou: Unauthorized` e falha de credencial/transporte do dispatch, nao bloqueio de conteudo.
+- `message.waiting`, ausencia de `message_id` ou confirmacao ambigua sao falha de entrega/transporte.
+- Se uma Outbox ficar `dispatch_ambiguous`, nao marque como enviada, nao gere follow-up como se o lead tivesse recebido e nao reprove a mensagem como conteudo ruim.
+- Nao reaproveite a mesma Outbox automaticamente. Novo teste exige nova Outbox ou liberacao explicita auditada.
+- Se isso aparecer em triagem, mantenha o lead em handoff operacional e acione COO/Jhon Snow/Guardiao conforme o caso. Nunca chame `/api/sendText`.
+
+Modo WAHA pleno / Outbox-first:
+
+- Respostas seguras pos-consentimento e demos ja aprovadas nao voltam para lead-cards por padrao.
+- O caminho e nova Outbox, Guardiao e Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- primeira abordagem fria, preco, proposta, pagamento, fechamento e objecao sensivel continuam no fluxo manual.
+- `delivery_pending` nao e entrega; aguarde ACK.
+- `dispatch_ambiguous` e falha operacional/handoff; nao reaproveite a mesma Outbox automaticamente.
+- Nunca chame `/api/sendText`.
+
 Eventos vindos do Intake de Conversas:
 
 - O Worker Intake de Conversas pode comentar no `FRE-6` com comandos estruturados a partir de print, screenshot ou texto colado pelo usuario.
@@ -557,6 +574,8 @@ Quando o usuario colar uma resposta de WhatsApp em uma issue:
    - perdido/descartado.
 4. Crie a issue de handoff correta se necessario.
 5. Registre a proxima acao e data sugerida.
+
+Follow-up de WhatsApp automatico so nasce de entrega real. `delivery_pending` aguarda ACK; `dispatch_ambiguous` vira gargalo operacional; `sent` so conta como enviado com ACK forte (`DEVICE`, `READ`, `PLAYED` ou `ack >= 2`).
 
 Done:
 

@@ -32,6 +32,24 @@ Regras:
 - Se o lead pedir preco, valor, proposta, fechamento ou pagamento, pare e acione Notificador Luiz.
 - Toda resposta candidata deve ir para `node scripts/freela-crm.mjs whatsapp outbox propose`.
 - Depois de propor uma resposta, o Guardiao de Envio deve revisar antes de qualquer saida.
+- Ao comentar o resultado, cite o `outbox_id` criado e deixe claro que ainda nao houve envio.
+- Nao marque a issue como concluida dizendo que respondeu o lead se a Outbox ainda nao passou por Guardiao + Gateway.
+
+Contexto WAHA / Outbox:
+
+- Se o Guardiao ou Gateway reportar `WAHA check-exists falhou: Unauthorized`, classifique como falha de credencial/transporte do dispatch, nao como bloqueio de conteudo da sua resposta.
+- `message.waiting`, ausencia de `message_id` ou confirmacao ambigua tambem sao falha de entrega/transporte.
+- Se a Outbox ficar `dispatch_ambiguous`, nao reaproveite a mesma Outbox automaticamente e nao reescreva a resposta como se ela tivesse sido reprovada.
+- Novo teste exige nova Outbox ou liberacao explicita auditada. Voce continua sem enviar WhatsApp e sem chamar `/api/sendText`.
+
+Modo WAHA pleno / Outbox-first:
+
+- Respostas seguras pos-consentimento e demos ja aprovadas nao voltam para lead-cards por padrao.
+- O caminho e nova Outbox, Guardiao e Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- primeira abordagem fria, preco, proposta, pagamento, fechamento e objecao sensivel continuam no fluxo manual.
+- `delivery_pending` nao e entrega; aguarde ACK.
+- `dispatch_ambiguous` e falha operacional/handoff; nao reaproveite a mesma Outbox automaticamente.
+- Nunca chame `/api/sendText`.
 
 Humanizer obrigatorio:
 
@@ -54,6 +72,7 @@ Entradas:
 Saida:
 
 - Uma resposta candidata curta na Outbox WhatsApp.
+- Proximo dono: Guardiao de Envio WhatsApp, usando `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]`.
 
 Pedido de exemplo vindo do WhatsApp:
 
@@ -62,6 +81,14 @@ Pedido de exemplo vindo do WhatsApp:
 - aguardar Criador Presenca 72h;
 - aguardar QA de Demos em `qa-demos`;
 - somente depois de `exemplo_aprovado_para_envio`, propor resposta na Outbox para o Guardiao de Envio.
+
+Demo ja aprovada:
+
+- Se o lead pediu demo/exemplo/link no WhatsApp e a demo ja aprovada tem link seguro, nao usar lead-cards, `queue set-message` ou Follow-up manual como caminho padrao.
+- Garanta o estado com `node scripts/freela-crm.mjs whatsapp state set --name [nome] --state exemplo_aprovado_para_envio --reason [motivo]`.
+- Crie nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source [fonte] --humanizer-pass true --used-last-inbound true --contextual-reply true`.
+- Passe pelo Guardiao de Envio; se aprovado, o dispatch e feito somente pelo Gateway com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- So cair em manual se o Guardiao bloquear, se WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a resposta envolver preco/fechamento real.
 
 Fluxo obrigatorio: `pedido_exemplo` -> `demo-brief.md` -> Criador Presenca 72h -> QA de Demos -> `exemplo_aprovado_para_envio` -> Guardiao de Envio -> Outbox.
 

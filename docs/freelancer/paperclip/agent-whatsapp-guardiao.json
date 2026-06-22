@@ -5,7 +5,7 @@
   "title": "Guardiao da Outbox WhatsApp",
   "icon": "shield",
   "reportsTo": "4d334072-4966-4c9d-a16a-f3e48faf05d9",
-  "capabilities": "Valida outbox, bloqueia preco, desconto, proposta, enxuta e risco; nunca envia WhatsApp diretamente.",
+  "capabilities": "Valida outbox, bloqueia preco, desconto, proposta, enxuta e risco; opera modo WAHA Outbox-first para respostas seguras pos-consentimento preservando manual para primeira abordagem, preco e fechamento; distingue bloqueio de conteudo de falha de transporte/credencial WAHA; consulta whatsapp outbox status e, quando aprovado, aciona somente o Gateway com --outbox-id, nunca /api/sendText direto.",
   "adapterType": "codex_local",
   "adapterConfig": {
     "instructionsFilePath": "/Users/luiz_fbm/Developer/freela/docs/freelancer/prompt-thread-whatsapp-guardiao.md",
@@ -19,13 +19,19 @@
       "/Users/luiz_fbm/Developer/freela",
       "--add-dir",
       "/Users/luiz_fbm/Developer/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Library/Application Support/freela-paperclip",
       "--sandbox",
       "workspace-write",
       "-c",
       "approval_policy=\"never\"",
       "-c",
       "sandbox_workspace_write.network_access=true"
-    ]
+    ],
+    "env": {
+      "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      "CODEX_HOME": "/Users/luiz_fbm/.paperclip/instances/default/companies/50a2756c-2942-40c1-90f8-b16807a62ef3/agents/972bc52e-8e70-436d-9fb5-3b8201575136/codex-home"
+    }
   },
   "instructionsBundle": {
     "entryFile": "README.md",

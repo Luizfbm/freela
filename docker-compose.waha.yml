@@ -1,0 +1,23 @@
+services:
+  waha:
+    container_name: freela-waha
+    image: devlikeapro/waha:latest
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+      - WHATSAPP_START_SESSION=default
+      - WAHA_API_KEY=${WAHA_API_KEY:?Set WAHA_API_KEY in local .env}
+      - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME:-admin}
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:?Set WAHA_DASHBOARD_PASSWORD in local .env}
+      - WHATSAPP_SWAGGER_USERNAME=${WHATSAPP_SWAGGER_USERNAME:-admin}
+      - WHATSAPP_SWAGGER_PASSWORD=${WHATSAPP_SWAGGER_PASSWORD:?Set WHATSAPP_SWAGGER_PASSWORD in local .env}
+      - WHATSAPP_HOOK_URL=http://host.docker.internal:3105/waha/webhook
+      - WHATSAPP_HOOK_EVENTS=message,message.ack,message.waiting
+      - WHATSAPP_HOOK_CUSTOM_HEADERS=X-Webhook-Secret:${WHATSAPP_WAHA_WEBHOOK_SECRET:?Set WHATSAPP_WAHA_WEBHOOK_SECRET in local .env}
+    volumes:
+      - ./.scratch/waha/.sessions:/app/.sessions
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

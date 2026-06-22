@@ -254,6 +254,62 @@ test("snapshot creates verified hourly and daily backups outside Documents and c
   assert.equal(readStatus(root).status, "green");
 });
 
+test("check ignores whatsapp inbound registrado como no_match", () => {
+  const root = makeRoot();
+  initDb(root);
+
+  assert.equal(
+    runOps(root, ["snapshot", "--backup-dir", appBackupDir(root), "--now", "2026-06-21T12:00:00.000Z"]).status,
+    0,
+  );
+
+  const eventFile = join(root, "wa-no-match.json");
+  writeFileSync(
+    eventFile,
+    JSON.stringify(
+      {
+        bridge_message_id: "ops-no-match-001",
+        chat_id: "status@broadcast",
+        sender_name: "30782047428831",
+        sender_phone: "71605829013592",
+        is_group: false,
+        message_type: "text",
+        body: "oi domingo e meu niver",
+        received_at: "2026-06-21T09:32:27-03:00",
+      },
+      null,
+      2,
+    ),
+  );
+  assert.equal(runCrm(root, ["whatsapp", "inbound", "ingest", "--file", eventFile]).status, 0);
+  assert.equal(
+    runCrm(root, [
+      "whatsapp",
+      "unmatched",
+      "mark-no-match",
+      "--chat-id",
+      "status@broadcast",
+      "--reason",
+      "status broadcast sem lead comercial",
+    ]).status,
+    0,
+  );
+
+  const check = runOps(root, [
+    "check",
+    "--backup-dir",
+    appBackupDir(root),
+    "--now",
+    "2026-06-21T12:10:00.000Z",
+  ]);
+
+  assert.equal(check.status, 0, check.stderr);
+  const status = readStatus(root);
+  assert.equal(status.status, "green");
+  assert.equal(status.checks.sqlite.counts.whatsapp_unmatched_open, 0);
+  assert.equal(status.checks.sqlite.counts.whatsapp_unmatched_no_match, 1);
+});
+
 test("check is yellow when hourly snapshot is stale but daily snapshot is still valid", () => {
   const root = makeRoot();
   initDb(root);
@@ -343,6 +399,13 @@ test("publish updates Paperclip Ops Health without leaking private lead data", a
   );
 
   await withOpsHealthServer(async (apiBase, requests, documents) => {
+    documents.set("FRE-OPS/reliability-status", {
+      key: "reliability-status",
+      title: "Reliability Status",
+      latestRevisionId: "rev-current",
+      body: "old status",
+    });
+
     const result = await runOpsAsync(root, [
       "publish",
       "--backup-dir",
@@ -359,6 +422,7 @@ test("publish updates Paperclip Ops Health without leaking private lead data", a
     const put = requests.find((request) => request.method === "PUT");
     assert.ok(put);
     assert.equal(put.url, "/api/issues/FRE-OPS/documents/reliability-status");
+    assert.equal(put.body.baseRevisionId, "rev-current");
     const body = put.body.body;
     assert.match(body, /Status: green/i);
     assert.match(body, /Ultimo snapshot integro/i);

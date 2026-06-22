@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
+  chmodSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   readlinkSync,
+  rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:http";
@@ -168,6 +171,37 @@ function makeWhatsAppLeadRoot(bridgeMessageId, body = "Pode sim") {
   return root;
 }
 
+function approveManualLeadCard(
+  root,
+  name = "Aghata Massoterapia",
+  message = "Oi, posso te mandar 3 sugestoes rapidas?",
+  date = "2026-06-21",
+) {
+  assert.equal(run(root, ["queue", "generate", "--date", date]).status, 0);
+  const setMessage = run(root, [
+    "queue",
+    "set-message",
+    "--date",
+    date,
+    "--name",
+    name,
+    "--message",
+    message,
+  ]);
+  assert.equal(setMessage.status, 0, setMessage.stderr);
+  const approve = run(root, [
+    "queue",
+    "approve-card",
+    "--date",
+    date,
+    "--name",
+    name,
+    "--qa-status",
+    "aprovado_para_lead_cards",
+  ]);
+  assert.equal(approve.status, 0, approve.stderr);
+}
+
 const neutralPriceQualificationReply =
   "Depende um pouco do que precisa aparecer na pagina e do objetivo principal.\n\n" +
   "Para eu te direcionar melhor: voce quer usar essa pagina mais como apresentacao oficial do seu trabalho, ou mais para organizar o caminho de quem vem do Instagram/WhatsApp?";
@@ -178,6 +212,18 @@ function db(root) {
 
 function backupFiles(root) {
   const dir = join(root, ".scratch/db/backups");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((file) => file.endsWith(".sqlite")).sort();
+}
+
+function opsBackupFiles(root) {
+  const dir = join(root, ".scratch/ops/sqlite-backups");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((file) => file.endsWith(".sqlite")).sort();
+}
+
+function workspaceBackupFiles(root) {
+  const dir = join(root, ".scratch/db-backups");
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((file) => file.endsWith(".sqlite")).sort();
 }
@@ -353,6 +399,138 @@ test("escrita critica cria backup SQLite consistente antes de modificar e aplica
 
   backups = backupFiles(root);
   assert.equal(backups.length, 2);
+});
+
+test("escrita critica usa backup privado de ops quando diretorio padrao esta bloqueado", () => {
+  const root = makeRoot();
+
+  assert.equal(run(root, ["init"]).status, 0);
+  const defaultBackupDir = join(root, ".scratch/db/backups");
+  mkdirSync(defaultBackupDir, { recursive: true });
+  chmodSync(defaultBackupDir, 0o555);
+
+  const leadFile = writeJson(root, "fallback-backup-lead.json", [
+    {
+      canonical_name: "Fallback Backup Lead",
+      city: "Vitoria",
+      phone_or_contact: "27 99999-0101",
+      recommended_offer: "Presenca Local em 72h",
+    },
+  ]);
+  const result = run(root, ["lead", "upsert", "--file", leadFile]);
+  chmodSync(defaultBackupDir, 0o755);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(backupFiles(root), []);
+
+  const backups = opsBackupFiles(root);
+  assert.equal(backups.length, 1);
+
+  const backup = new DatabaseSync(join(root, ".scratch/ops/sqlite-backups", backups[0]), {
+    readOnly: true,
+  });
+  assert.equal(backup.prepare("pragma integrity_check").get().integrity_check, "ok");
+  assert.equal(backup.prepare("select count(*) as count from leads").get().count, 0);
+  backup.close();
+
+  const database = db(root);
+  assert.equal(
+    database.prepare("select count(*) as count from leads where canonical_name = ?").get("Fallback Backup Lead")
+      .count,
+    1,
+  );
+  database.close();
+});
+
+test("comando read-only usa DB oficial por symlink sem criar backup", () => {
+  const root = makeRoot();
+  const externalDbDir = mkdtempSync(join(tmpdir(), "Freela Application Support "));
+  const externalDbPath = join(externalDbDir, "freela.sqlite");
+
+  try {
+    assert.equal(run(root, ["--db", externalDbPath, "init"]).status, 0);
+    const leadFile = writeJson(root, "external-symlink-lead.json", [
+      {
+        canonical_name: "Symlink Lead",
+        city: "Vitoria",
+        phone_or_contact: "27 99999-8811",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]);
+    assert.equal(run(root, ["--db", externalDbPath, "lead", "upsert", "--file", leadFile]).status, 0);
+    rmSync(join(externalDbDir, "backups"), { recursive: true, force: true });
+    rmSync(join(root, ".scratch/db-backups"), { recursive: true, force: true });
+
+    mkdirSync(join(root, ".scratch"), { recursive: true });
+    symlinkSync(externalDbDir, join(root, ".scratch/db"), "dir");
+
+    const status = run(root, ["lead", "status", "--name", "Symlink Lead"]);
+
+    assert.equal(status.status, 0, status.stderr);
+    assert.match(status.stdout, /Symlink Lead/);
+    assert.deepEqual(backupFiles(root), []);
+    assert.equal(existsSync(join(root, ".scratch/db-backups")), false);
+  } finally {
+    rmSync(externalDbDir, { recursive: true, force: true });
+  }
+});
+
+test("escrita em DB oficial por symlink cria backup dentro do workspace", () => {
+  const root = makeRoot();
+  const externalDbDir = mkdtempSync(join(tmpdir(), "Freela Application Support "));
+  const externalDbPath = join(externalDbDir, "freela.sqlite");
+
+  try {
+    assert.equal(run(root, ["--db", externalDbPath, "init"]).status, 0);
+    rmSync(join(externalDbDir, "backups"), { recursive: true, force: true });
+
+    mkdirSync(join(root, ".scratch"), { recursive: true });
+    symlinkSync(externalDbDir, join(root, ".scratch/db"), "dir");
+
+    const leadFile = writeJson(root, "external-write-lead.json", [
+      {
+        canonical_name: "External Write Lead",
+        city: "Vitoria",
+        phone_or_contact: "27 99999-8833",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]);
+    const write = run(root, ["lead", "upsert", "--file", leadFile]);
+
+    assert.equal(write.status, 0, write.stderr);
+    assert.deepEqual(backupFiles(root), []);
+    assert.equal(workspaceBackupFiles(root).length, 1);
+  } finally {
+    rmSync(externalDbDir, { recursive: true, force: true });
+  }
+});
+
+test("global --db aceita file URI sem materializar diretorio file colon", () => {
+  const root = makeRoot();
+  const externalDbDir = mkdtempSync(join(tmpdir(), "Freela Application Support "));
+  const externalDbPath = join(externalDbDir, "freela.sqlite");
+
+  try {
+    assert.equal(run(root, ["--db", externalDbPath, "init"]).status, 0);
+    const leadFile = writeJson(root, "file-uri-lead.json", [
+      {
+        canonical_name: "URI Lead",
+        city: "Vitoria",
+        phone_or_contact: "27 99999-8822",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]);
+    assert.equal(run(root, ["--db", externalDbPath, "lead", "upsert", "--file", leadFile]).status, 0);
+
+    const dbUri = `file:${externalDbPath}?mode=rw`;
+    const status = run(root, ["--db", dbUri, "lead", "status", "--name", "URI Lead"]);
+
+    assert.equal(status.status, 0, status.stderr);
+    assert.match(status.stdout, /URI Lead/);
+    assert.equal(existsSync(join(root, "file:")), false);
+  } finally {
+    rmSync(externalDbDir, { recursive: true, force: true });
+  }
 });
 
 test("sqlite localizer moves official DB to local app data and leaves compatibility symlink", () => {
@@ -1995,7 +2173,7 @@ test("whatsapp inbound ingest registra evento bruto e atualiza estado do lead", 
     sender_name: "Aghata",
     sender_phone: "+55 27 99999-0000",
     is_group: false,
-    message_type: "text",
+    message_type: "chat",
     body: "Pode sim",
     received_at: "2026-06-19T09:30:00-03:00",
   });
@@ -2008,6 +2186,7 @@ test("whatsapp inbound ingest registra evento bruto e atualiza estado do lead", 
   const database = db(root);
   const inbound = database.prepare("select * from whatsapp_inbound_events").get();
   assert.equal(inbound.bridge_message_id, "msg-001");
+  assert.equal(inbound.message_type, "text");
   assert.equal(inbound.body, "Pode sim");
   assert.equal(inbound.processing_status, "classified");
   assert.equal(inbound.classification, "resposta_permissao");
@@ -2131,6 +2310,57 @@ test("whatsapp inbound desconhecido entra na fila unmatched e reconcilia apos vi
   assert.equal(reconciled.matched_inbound_event_id, inbound.id);
 });
 
+test("whatsapp unmatched mark-no-match preserva inbound sem lead comercial e tira da conciliacao", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+
+  const event = {
+    bridge_message_id: "lid-no-match-001",
+    chat_id: "status@broadcast",
+    sender_name: "30782047428831",
+    sender_phone: "71605829013592",
+    is_group: false,
+    message_type: "text",
+    body: "oi domingo e meu niver\n\nquero abracos",
+    received_at: "2026-06-21T09:32:27-03:00",
+  };
+  const eventFile = writeJson(root, "wa-lid-no-match.json", event);
+  const ingest = run(root, ["whatsapp", "inbound", "ingest", "--file", eventFile]);
+  assert.equal(ingest.status, 0, ingest.stderr);
+  assert.match(ingest.stdout, /WhatsApp inbound sem lead/i);
+
+  const marked = run(root, [
+    "whatsapp",
+    "unmatched",
+    "mark-no-match",
+    "--chat-id",
+    "status@broadcast",
+    "--reason",
+    "status broadcast sem lead comercial",
+  ]);
+  assert.equal(marked.status, 0, marked.stderr);
+  assert.match(marked.stdout, /Eventos sem match registrados: 1/i);
+
+  const reconcile = run(root, ["whatsapp", "unmatched", "reconcile"]);
+  assert.equal(reconcile.status, 0, reconcile.stderr);
+  assert.match(reconcile.stdout, /Reconciliados: 0/i);
+  assert.match(reconcile.stdout, /Pendentes: 0/i);
+
+  const database = db(root);
+  const unmatched = database.prepare("select * from whatsapp_unmatched_inbound_events").get();
+  assert.equal(unmatched.status, "no_match");
+  assert.equal(unmatched.match_reason, "status broadcast sem lead comercial");
+  assert.equal(database.prepare("select count(*) as count from whatsapp_inbound_events").get().count, 0);
+  const audit = database
+    .prepare("select entity_type, entity_id, action, details_json from audit_log order by id desc limit 1")
+    .get();
+  assert.equal(audit.entity_type, "whatsapp_unmatched_inbound_event");
+  assert.equal(audit.entity_id, unmatched.id);
+  assert.equal(audit.action, "mark-no-match");
+  assert.match(audit.details_json, /status broadcast sem lead comercial/i);
+  database.close();
+});
+
 test("whatsapp inbound classifies orçamento as price request", () => {
   const root = makeWhatsAppLeadRoot("wa-price-synonym-001", "Qual o orçamento?");
 
@@ -2179,6 +2409,20 @@ test("whatsapp inbound classifies hot buying intent for closer routing", () => {
   database.close();
   assert.equal(inbound.classification, "resposta_lead_quente");
   assert.equal(state.whatsapp_state, "lead_quente");
+});
+
+test("whatsapp inbound classifies positive demo requests for demo routing", () => {
+  const root = makeWhatsAppLeadRoot(
+    "wa-demo-positive-001",
+    "Gostei, pode enviar uma demonstração?",
+  );
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+  assert.equal(inbound.classification, "resposta_pediu_exemplo");
+  assert.equal(state.whatsapp_state, "pedido_exemplo");
 });
 
 test("whatsapp inbound classifies commercial objections for closer routing", () => {
@@ -2385,6 +2629,133 @@ test("whatsapp outbox records required humanizer and context metadata", () => {
   assert.equal(outbox.used_last_inbound, 1);
   assert.equal(outbox.contextual_reply, 1);
   assert.equal(outbox.humanizer_notes, "removido tom de template");
+});
+
+test("whatsapp outbox status exposes dispatch contract without manual SQL", () => {
+  const root = makeWhatsAppLeadRoot("wa-status-001");
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Vi aqui seu retorno e vou te mandar os 3 pontos de forma bem objetiva.",
+  );
+  const review = run(root, ["whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+
+  const status = run(root, ["whatsapp", "outbox", "status", "--outbox-id", String(outbox.id)]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.match(status.stdout, /Outbox: 1/i);
+  assert.match(status.stdout, /Lead: Aghata Massoterapia/i);
+  assert.match(status.stdout, /Status: approved/i);
+  assert.match(status.stdout, /Destino: 5527999990000@s\.whatsapp\.net/i);
+  assert.match(status.stdout, /Guardiao: enviar/i);
+  assert.match(status.stdout, /Pode despachar: sim/i);
+  assert.match(status.stdout, /Gateway: node scripts\/whatsapp-local-gateway\.mjs .*--outbox-id 1/s);
+});
+
+test("safe approved WhatsApp outbox keeps lead out of manual lead-cards", () => {
+  const root = makeWhatsAppLeadRoot("wa-outbox-first-001", "Pode sim");
+  approveManualLeadCard(
+    root,
+    "Aghata Massoterapia",
+    "Oi, posso te mandar 3 sugestoes rapidas?",
+    "2026-06-21",
+  );
+
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito, vi aqui e tenho 3 pontos simples para te mandar.",
+  );
+  const review = run(root, ["whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+
+  const exportResult = run(root, ["export", "paperclip-cards", "--date", "2026-06-21"]);
+  assert.equal(exportResult.status, 0, exportResult.stderr);
+  const cards = readFileSync(join(root, ".scratch/crm/paperclip-lead-cards.md"), "utf8");
+
+  assert.doesNotMatch(cards, /Aghata Massoterapia/i);
+  assert.match(cards, /Nenhum envio manual pendente/i);
+});
+
+test("whatsapp outbox list-dispatchable exposes explicit ids for Gateway dispatch", () => {
+  const root = makeWhatsAppLeadRoot("wa-list-dispatchable-001", "Pode sim");
+
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito, posso te mandar os 3 pontos por aqui.",
+  );
+  const review = run(root, ["whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+
+  const list = run(root, ["whatsapp", "outbox", "list-dispatchable"]);
+  assert.equal(list.status, 0, list.stderr);
+  assert.match(list.stdout, new RegExp(`Outbox ${outbox.id}`));
+  assert.match(list.stdout, /dispatch-approved-outbox --provider waha --outbox-id/i);
+});
+
+test("delivery_pending outbox does not create follow-up as delivered", () => {
+  const root = makeWhatsAppLeadRoot("wa-followup-pending-001", "Pode sim");
+  const database = db(root);
+  const lead = database.prepare("select * from leads").get();
+  database
+    .prepare(
+      `insert into whatsapp_outbox
+        (lead_id, target_chat_id, body, source, status, guardian_decision, provider_message_id,
+         humanizer_pass, used_last_inbound, contextual_reply, created_at, approved_at)
+       values (?, ?, ?, 'followup_ack_test', 'delivery_pending', 'enviar', 'msg-pending',
+         1, 1, 1, datetime('now'), datetime('now'))`,
+    )
+    .run(lead.id, lead.phone_normalized, "Mensagem pendente");
+  database.close();
+
+  const status = run(root, ["commercial", "status"]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.match(status.stdout, /WAHA pendentes de ACK: 1/i);
+  assert.doesNotMatch(status.stdout, /follow-up.*enviado/i);
+});
+
+test("sent outbox with strong ack can advance follow-up surface", () => {
+  const root = makeWhatsAppLeadRoot("wa-followup-sent-001", "Pode sim");
+  const database = db(root);
+  const lead = database.prepare("select * from leads").get();
+  database
+    .prepare(
+      `insert into whatsapp_outbox
+        (lead_id, target_chat_id, body, source, status, guardian_decision, provider_message_id,
+         dispatch_provider, delivery_ack, delivery_ack_name, delivered_at,
+         humanizer_pass, used_last_inbound, contextual_reply, created_at, approved_at, sent_at)
+       values (?, ?, ?, 'followup_ack_test', 'sent', 'enviar', 'msg-1',
+         'waha', 2, 'DEVICE', datetime('now'),
+         1, 1, 1, datetime('now'), datetime('now'), datetime('now'))`,
+    )
+    .run(lead.id, lead.phone_normalized, "Mensagem entregue");
+  database.close();
+
+  const status = run(root, ["commercial", "status"]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.match(status.stdout, /WAHA entregues com ACK forte: 1/i);
+});
+
+test("price and closing conversations stay manual even when WAHA is healthy", () => {
+  const root = makeWhatsAppLeadRoot("wa-outbox-first-price-001", "Pode mandar a proposta?");
+  approveManualLeadCard(
+    root,
+    "Aghata Massoterapia",
+    "Enviar manualmente: alinhar proposta e preco com Luiz antes de responder.",
+    "2026-06-21",
+  );
+
+  const outbox = proposeSafeWhatsApp(root, "Aghata Massoterapia", neutralPriceQualificationReply);
+  const review = run(root, ["whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+
+  const exportResult = run(root, ["export", "paperclip-cards", "--date", "2026-06-21"]);
+  assert.equal(exportResult.status, 0, exportResult.stderr);
+  const cards = readFileSync(join(root, ".scratch/crm/paperclip-lead-cards.md"), "utf8");
+
+  assert.match(cards, /Aghata Massoterapia/i);
+  assert.match(cards, /proposta|preco|manual/i);
 });
 
 test("whatsapp outbox propose defaults humanizer metadata to blocked values", () => {

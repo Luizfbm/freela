@@ -77,6 +77,22 @@ Contrato de dados:
 - Nao edite arquivos em `.scratch` manualmente como fonte oficial de estado.
 - Se houver conflito ou ambiguidade, nao force escrita; acione o worker responsavel ou peça confirmacao curta ao usuario.
 
+Contexto WAHA / Outbox:
+
+- `WAHA check-exists falhou: Unauthorized` e falha de credencial/transporte do processo de dispatch, nao e bloqueio de conteudo.
+- `message.waiting`, ausencia de `message_id` ou confirmacao ambigua sao falha de entrega/transporte, nao reprova da mensagem.
+- Quando uma Outbox ficar `dispatch_ambiguous`, trate como incidente operacional: roteie para Jhon Snow/Atendimento e Fechamento ou Guardiao conforme a issue, registre o gargalo em `ops-status` quando relevante e nao mande reaproveitar a mesma Outbox.
+- Novo teste de envio exige nova Outbox ou liberacao explicita auditada. Nunca oriente endpoint cru e nao chame `/api/sendText`.
+
+Modo WAHA pleno / Outbox-first:
+
+- Respostas seguras pos-consentimento e demos ja aprovadas nao voltam para lead-cards por padrao.
+- O caminho e nova Outbox, Guardiao e Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- primeira abordagem fria, preco, proposta, pagamento, fechamento e objecao sensivel continuam no fluxo manual.
+- `delivery_pending` nao e entrega; aguarde ACK.
+- `dispatch_ambiguous` e falha operacional/handoff; nao reaproveite a mesma Outbox automaticamente.
+- Nunca chame `/api/sendText`.
+
 Deploy automatico:
 
 - Agentes podem acionar deploy automatico quando a tarefa exigir publicacao de site, demo ou correcao publica.

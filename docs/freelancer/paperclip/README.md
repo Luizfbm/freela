@@ -92,6 +92,7 @@ Esse script usa API direta do Paperclip, nao `npx`/`paperclipai`, para nao depen
 - O Paperclip pode pesquisar, organizar informacoes e criar arquivos locais.
 - Primeira abordagem fria continua manual.
 - Workers nao recebem ferramentas cruas de envio.
+- WAHA local esta documentado em `docs/freelancer/paperclip/whatsapp-waha-local.md`: API em `127.0.0.1:3000`, container `freela-waha`, sessao `default` persistida em `.scratch/waha/.sessions`, Gateway em `3105`, segredos somente no `.env` privado e envio real apenas via Gateway com Outbox aprovada, `--outbox-id` explicito e ACK forte.
 - Respostas depois do "Pode!" podem ser despachadas automaticamente somente via Gateway + Outbox aprovada + Humanizer + Guardiao.
 - Preco, fechamento e handoff continuam com Luiz.
 - Dados privados de leads ficam em `.scratch/`, nao em `docs/`, `demos/` ou `outputs/`.
@@ -136,11 +137,14 @@ Todos usam:
 - Adapter: `codex_local`
 - Modelo: `gpt-5.5`
 - Reasoning effort: `xhigh`
-- `CODEX_HOME=/Users/luiz_fbm/.codex`
+- `CODEX_HOME=/Users/luiz_fbm/.paperclip/instances/default/companies/50a2756c-2942-40c1-90f8-b16807a62ef3/agents/[agent-id]/codex-home`
+- `adapterConfig.env` deve conter apenas `PATH` e `CODEX_HOME`; segredos ficam fora do espelho versionado.
 - Sandbox do Codex: `workspace-write` por padrao.
 - Excecao de navegador assistido: COO Freelancer e Scout - Lead Searcher GV usam `danger-full-access`, porque `workspace-write` quebra LaunchServices/Spotlight no macOS e impede `node scripts/paperclip-open-chrome-window.mjs --preflight` de abrir Chrome pessoal. Essa excecao nao autoriza envio automatico nem acao social; continua valendo `dangerouslyBypassApprovalsAndSandbox=false`, `approval_policy="never"` e as regras de somente leitura de `docs/freelancer/paperclip/browser-automation.md`.
 - Raiz de trabalho explicita: `-C /Users/luiz_fbm/Developer/freela`
-- Raiz gravavel explicita: `--add-dir /Users/luiz_fbm/Developer/freela`
+- Raizes gravaveis explicitas:
+  - `--add-dir /Users/luiz_fbm/Developer/freela`
+  - `--add-dir /Users/luiz_fbm/Library/Application Support/freela-paperclip`
 - Approval policy: `never`
 - Network no sandbox: `sandbox_workspace_write.network_access=true`
 - Sem bypass perigoso de sandbox: `dangerouslyBypassApprovalsAndSandbox=false`
@@ -161,7 +165,7 @@ Para aplicar depois de revisar o diff:
 node scripts/paperclip-sync-agents.mjs --apply
 ```
 
-O sync usa uma allowlist curta: `name`, `role`, `title`, `icon`, `reportsTo`, `capabilities` e `metadata`. Para `adapterConfig`, ele sincroniza somente os paths operacionais `cwd`, `extraArgs` e `instructionsRootPath`; `adapterConfig.instructionsFilePath` nao passa pelo patch generico e usa a rota dedicada `PATCH /api/agents/:id/instructions-path`. O script nao sincroniza modelo, env, comando, budget, permissoes, runtime, skills ou bundle de instrucoes.
+O sync usa uma allowlist curta: `name`, `role`, `title`, `icon`, `reportsTo`, `capabilities` e `metadata`. Para `adapterConfig`, ele sincroniza somente os paths operacionais `cwd`, `extraArgs`, `instructionsRootPath` e `env` limitado a `PATH` + `CODEX_HOME`; `adapterConfig.instructionsFilePath` nao passa pelo patch generico e usa a rota dedicada `PATCH /api/agents/:id/instructions-path`. O script nao sincroniza modelo, comando, budget, permissoes, runtime, skills, segredos ou bundle de instrucoes.
 
 ## Projetos
 
@@ -333,17 +337,44 @@ Fluxos implementados:
 
 ## WhatsApp Local Automation
 
-O setup local do `lharries/whatsapp-mcp` esta em `docs/freelancer/paperclip/whatsapp-mcp-local.md`. Ele deve ficar em `.scratch/whatsapp-mcp`, parear por QR e ser lido pelo Gateway Local via `store/messages.db`.
+WAHA e o unico transporte operacional de WhatsApp para inbound e dispatch controlado em laboratorio. Ele fica documentado em `docs/freelancer/paperclip/whatsapp-waha-local.md`. Use somente pelo Gateway com `serve-waha-webhook`, `import-waha-event` e `dispatch-approved-outbox --provider waha --outbox-id [id]`; workers nao chamam `/api/sendText`. Enquanto o ACK forte nao chega, a Outbox fica em `delivery_pending`, sem contar como envio concluido. O CRM so considera entregue quando `message.ack` chega com `DEVICE`, `READ` ou `PLAYED`; `message.waiting` marca risco de placeholder e move para handoff. `@lid` continua identidade de leitura e nao deve ser salvo como destino direto na Outbox; telefone real pode virar `@c.us`, mas o Gateway tambem pode usar `@lid` quando ele vier resolvido pelo `check-exists` da WAHA a partir desse telefone real.
 
-WAHA fica documentado em `docs/freelancer/paperclip/whatsapp-waha-local.md` como laboratorio de envio automatico. Use somente pelo Gateway com `dispatch-approved-outbox --provider waha`; workers nao chamam `/api/sendText`. Enquanto o ACK forte nao chega, a Outbox fica em `delivery_pending`, sem contar como envio concluido. O CRM so considera entregue quando `message.ack` chega com `DEVICE`, `READ` ou `PLAYED`; `message.waiting` marca risco de placeholder e move para handoff. `@lid` continua identidade de leitura e nao deve ser salvo como destino direto na Outbox; telefone real pode virar `@c.us`, mas o Gateway tambem pode usar `@lid` quando ele vier resolvido pelo `check-exists` da WAHA a partir desse telefone real.
+Estado confirmado em 2026-06-21: a Outbox 6 da Lidiane foi enviada por WAHA com ACK forte `DEVICE`, provando que WAHA + Gateway + ACK forte funcionam quando a credencial esta carregada. A Outbox 8 falhou depois com `WAHA check-exists falhou: Unauthorized`; isso e falha de credencial/processo de dispatch, nao bloqueio de conteudo. Outbox em `dispatch_ambiguous` nao e reaproveitada automaticamente; crie nova Outbox ou faca liberacao explicita auditada.
 
-Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox` chama o motor de envio autorizado: bridge `/api/send` ou WAHA `/api/sendText` em laboratorio.
+Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound do webhook WAHA, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox --provider waha --outbox-id [id]` chama o motor de envio autorizado.
 
-Workers nao acessam `send_message`, `send_file` ou `send_audio_message`. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-mcp-sqlite`.
+### Outbox-first WAHA mode
 
-Identidade WhatsApp e parte do contrato operacional. Se o MCP entregar um contato como `@lid` ou outro JID que nao bate com telefone publico, o Gateway nao descarta: ele registra em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`. Vincule o lead com `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois rode `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
+Quando WAHA estiver saudavel, respostas seguras pos-consentimento deixam de ir para lead-cards por padrao. O caminho alvo e:
 
-`@lid` e identidade de leitura, nao destino direto de Outbox. A Outbox deve despachar para telefone real em formato enviavel, como `5527999990000`. Se uma Outbox legada ainda tiver destino `@lid`, o Gateway bloqueia antes de chamar `/api/send` e move o lead para `handoff_luiz`. No provider WAHA, depois que o telefone real passa por `check-exists`, um `chatId` resolvido como `@lid` pode ser usado pelo Gateway em `/api/sendText`.
+1. Atendimento WhatsApp ou Jhon cria nova Outbox com `whatsapp outbox propose`.
+2. Guardiao revisa a Outbox.
+3. Gateway despacha somente com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+4. Follow-up so considera enviado apos ACK forte: `DEVICE`, `READ`, `PLAYED` ou `ack >= 2`.
+
+Continuam manuais: primeira abordagem fria, preco, desconto, proposta, pagamento, fechamento, objecao sensivel, Guardiao bloqueado, WAHA/Gateway falho, `delivery_pending` prolongado e `dispatch_ambiguous`.
+
+Workers nunca chamam `/api/sendText` diretamente.
+
+Para ver itens aprovados que podem sair pelo WAHA, use:
+
+```bash
+node scripts/freela-crm.mjs whatsapp outbox list-dispatchable
+```
+
+Cada linha deve ser enviada pelo Gateway com `--outbox-id` explicito.
+
+Demo ja aprovada pedida no WhatsApp segue o mesmo caminho automatizavel: lead pediu demo/exemplo/link, existe link seguro aprovado por QA e o estado esta em `exemplo_aprovado_para_envio` -> criar nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source [fonte] --humanizer-pass true --used-last-inbound true --contextual-reply true` -> Guardiao -> Gateway com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --provider waha --outbox-id [id]`. Nesse caso nao usar lead-cards, `queue set-message` ou Follow-up manual como caminho padrao. So cair em manual se o Guardiao bloquear, se WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a conversa envolver preco/fechamento real.
+
+Contrato de saida: depois de aprovar, Guardiao consulta `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]`. Se o status mostrar `Pode despachar: sim`, ele chama o Gateway com o mesmo `--outbox-id`. `delivery_pending` exige aguardar `message.ack`; `sent` so vale com ACK forte. `Unauthorized` em `check-exists` vira falha de transporte/credencial e `handoff_luiz`, nao retry automatico. O modo sem `--outbox-id` e reservado para operacao assistida em lote, nao para worker.
+
+Workers nao recebem ferramentas cruas de envio. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `set -a; . ./.env; set +a; node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela serve-waha-webhook --host 0.0.0.0 --port 3105 --auto-wake` ou, para replay/debug, `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-waha-event --file .scratch/waha-event.json --auto-wake`. A WAHA local sobe com `docker compose -f docker-compose.waha.yml up -d`, API presa em `http://127.0.0.1:3000`, sessao persistida em `.scratch/waha/.sessions`, credenciais fixas vindas do `.env` local privado (`WAHA_API_KEY`, `WAHA_DASHBOARD_PASSWORD`, `WHATSAPP_SWAGGER_PASSWORD`, `WHATSAPP_WAHA_WEBHOOK_SECRET`) e webhook interno apontando para `http://host.docker.internal:3105/waha/webhook` com header `X-Webhook-Secret`. O Gateway carrega `.env` automaticamente a partir de `--root` e nao sobrescreve variaveis ja existentes. Texto normal da WAHA pode chegar como `type: "chat"` e e normalizado para `message_type: "text"`.
+
+O monitor WAHA grava auditoria privada em `.scratch/whatsapp/waha-webhook-events.jsonl`. Se a WAHA mostrar HTTP 200 mas o CRM nao refletir a mensagem, consulte esse JSONL antes de mexer em identidade, Outbox ou workers.
+
+Identidade WhatsApp e parte do contrato operacional. Se a WAHA entregar um contato como `@lid` ou outro JID que nao bate com telefone publico, o Gateway nao descarta: ele registra em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`. Vincule o lead com `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois rode `node scripts/freela-crm.mjs whatsapp unmatched reconcile`. Quando a auditoria mostrar que o inbound nao e lead comercial, preserve o registro como `no_match` com `node scripts/freela-crm.mjs whatsapp unmatched mark-no-match --id [id] --reason [motivo]` ou `--chat-id [jid]`.
+
+`@lid` e identidade de leitura, nao destino direto de Outbox. A Outbox deve despachar para telefone real em formato enviavel, como `5527999990000`. Se uma Outbox legada ainda tiver destino `@lid`, o Gateway bloqueia antes de chamar endpoint de envio e move o lead para `handoff_luiz`. No provider WAHA, depois que o telefone real passa por `check-exists`, um `chatId` resolvido como `@lid` pode ser usado pelo Gateway em `/api/sendText`.
 
 Com `--auto-wake`, o Gateway roteia seletivamente por classificacao/estado. Atendimento WhatsApp recebe conversa normal (`resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`). Jhon Snow / Atendimento e Fechamento recebe fechamento comercial (`preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente`, `bloqueado_guardiao`). Use `--closer-agent-id` para sobrescrever o agente closer em teste. O dedupe fica em `whatsapp_worker_wakes`, sem enviar mensagem e sem chamar bridge.
 

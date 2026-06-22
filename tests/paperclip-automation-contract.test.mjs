@@ -65,7 +65,14 @@ const expectedAgentDisplayNames = new Map([
   ["agent-whatsapp-guardiao.json", "Guardiao de Envio WhatsApp"],
 ]);
 const browserRuntimeAgentConfigNames = new Set(["agent-coo-freelancer.json", "agent-prospeccao.json"]);
+const companyId = "50a2756c-2942-40c1-90f8-b16807a62ef3";
+const paperclipInstanceRoot = "/Users/luiz_fbm/.paperclip/instances/default";
 const repoRoot = "/Users/luiz_fbm/Developer/freela";
+const sqliteWritableRoot = "/Users/luiz_fbm/Library/Application Support/freela-paperclip";
+
+function expectedAgentCodexHome(agentId) {
+  return `${paperclipInstanceRoot}/companies/${companyId}/agents/${agentId}/codex-home`;
+}
 
 function walkFiles(dir) {
   if (!existsSync(dir)) {
@@ -463,11 +470,8 @@ test("Paperclip orienta agentes a usar deploy automatico, nao cPanel manual", ()
 test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
   const readme = paperclipReadme();
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
   const wahaGuide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
-  const oldSpec = read("docs/superpowers/specs/2026-06-19-whatsapp-local-automation-design.md");
-  const controlledSpec = read("docs/superpowers/specs/2026-06-21-whatsapp-controlled-automation-design.md");
-  const controlledDocs = `${controlledSpec}\n${guide}\n${wahaGuide}\n${readme}`;
+  const controlledDocs = `${wahaGuide}\n${readme}`;
   const scriptSendCallers = walkFiles(join(rootDir, "scripts"))
     .filter((path) => readFileSync(path, "utf8").includes("/api/send"))
     .map((path) => relative(rootDir, path))
@@ -478,18 +482,15 @@ test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
     .sort();
 
   assert.match(gateway, /import-jsonl/i);
-  assert.match(gateway, /import-mcp-sqlite/i);
   assert.match(gateway, /import-waha-event/i);
-  assert.match(gateway, /watch-mcp-sqlite/i);
+  assert.match(gateway, /serve-waha-webhook/i);
   assert.match(gateway, /dispatch-approved-outbox/i);
   assert.match(gateway, /\/api\/send/i);
   assert.match(gateway, /\/api\/sendText/i);
   assert.deepEqual(scriptSendCallers, ["scripts/whatsapp-local-gateway.mjs"]);
   assert.deepEqual(wahaSendTextCallers, ["scripts/whatsapp-local-gateway.mjs"]);
   assert.doesNotMatch(gateway, /send_message|send_file|send_audio_message/i);
-  assert.match(oldSpec, /Outbox WhatsApp/i);
-  assert.match(controlledSpec, /humanizer_pass = true/i);
-  assert.match(controlledSpec, /scripts\/whatsapp-local-gateway\.mjs/i);
+  assert.doesNotMatch(gateway, /whatsapp-mcp|import-mcp-sqlite|watch-mcp-sqlite|WHATSAPP_MCP/i);
   for (const term of [/Humanizer/i, /Outbox/i, /Guardiao|Guardião/i, /Gateway/i]) {
     assert.match(controlledDocs, term);
   }
@@ -522,6 +523,100 @@ test("WAHA local fica em laboratorio ate ACK forte confirmar entrega", () => {
   assert.match(crm, /delivered_at/i);
 });
 
+test("WAHA local usa Docker Compose com sessao persistente e webhook inbound seguro", () => {
+  const compose = read("docker-compose.waha.yml");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
+
+  assert.match(compose, /container_name:\s*freela-waha/i);
+  assert.match(compose, /image:\s*devlikeapro\/waha:latest/i);
+  assert.match(compose, /platform:\s*linux\/amd64/i);
+  assert.match(compose, /127\.0\.0\.1:3000:3000/i);
+  assert.match(compose, /\.\/\.scratch\/waha\/\.sessions:\/app\/\.sessions/i);
+  assert.match(compose, /restart:\s*unless-stopped/i);
+  assert.match(compose, /WHATSAPP_HOOK_URL=http:\/\/host\.docker\.internal:3105\/waha\/webhook/i);
+  assert.match(compose, /WHATSAPP_HOOK_EVENTS=message,message\.ack,message\.waiting/i);
+  assert.match(compose, /WHATSAPP_HOOK_CUSTOM_HEADERS=X-Webhook-Secret:\$\{WHATSAPP_WAHA_WEBHOOK_SECRET(?::\?[^}]*)?\}/i);
+  assert.match(compose, /WAHA_API_KEY=\$\{WAHA_API_KEY(?::\?[^}]*)?\}/i);
+  assert.match(compose, /WAHA_DASHBOARD_USERNAME=\$\{WAHA_DASHBOARD_USERNAME:-admin\}/i);
+  assert.match(compose, /WAHA_DASHBOARD_PASSWORD=\$\{WAHA_DASHBOARD_PASSWORD(?::\?[^}]*)?\}/i);
+  assert.match(compose, /WHATSAPP_SWAGGER_USERNAME=\$\{WHATSAPP_SWAGGER_USERNAME:-admin\}/i);
+  assert.match(compose, /WHATSAPP_SWAGGER_PASSWORD=\$\{WHATSAPP_SWAGGER_PASSWORD(?::\?[^}]*)?\}/i);
+  assert.doesNotMatch(compose, /0\.0\.0\.0:3000/i);
+  assert.doesNotMatch(compose, /^\s*-\s*["']?3000:3000["']?\s*$/im);
+
+  assert.match(guide, /docker compose -f docker-compose\.waha\.yml up -d/i);
+  assert.match(guide, /host\.docker\.internal:3105\/waha\/webhook/i);
+  assert.match(guide, /127\.0\.0\.1:3000/i);
+  assert.match(guide, /\/app\/\.sessions/i);
+  assert.match(guide, /WAHA_API_KEY/i);
+  assert.match(guide, /WAHA_DASHBOARD_PASSWORD/i);
+  assert.match(guide, /127\.0\.0\.1:3105/i);
+  assert.match(guide, /--host\s+0\.0\.0\.0/i);
+  assert.match(guide, /WHATSAPP_WAHA_WEBHOOK_SECRET/i);
+});
+
+test("WAHA pleno usa Outbox-first para respostas seguras e preserva manual para excecoes", () => {
+  const dataContract = read("docs/freelancer/data-contract.md");
+  const readme = paperclipReadme();
+  const waha = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
+
+  for (const [name, doc] of [
+    ["data-contract", dataContract],
+    ["paperclip README", readme],
+    ["WAHA local", waha],
+  ]) {
+    assert.match(doc, /Outbox-first|Outbox first|outbox-first/i, `${name} deve nomear o modo alvo`);
+    assert.match(
+      doc,
+      /pos-consentimento|p[oó]s-consentimento|depois do "Pode/i,
+      `${name} deve limitar a respostas apos consentimento`,
+    );
+    assert.match(
+      doc,
+      /primeira abordagem fria.*manual|manual.*primeira abordagem fria/is,
+      `${name} deve manter primeira abordagem manual`,
+    );
+    assert.match(doc, /preco|preço|fechamento|proposta/i, `${name} deve preservar excecoes comerciais`);
+    assert.match(doc, /ACK forte|DEVICE|READ|PLAYED/i, `${name} deve exigir ACK forte para entrega`);
+    assert.match(doc, /dispatch_ambiguous/i, `${name} deve tratar ambiguidade como excecao operacional`);
+    assert.doesNotMatch(
+      doc,
+      /\/api\/sendText.*permitido|permitido.*\/api\/sendText/i,
+      `${name} nao pode liberar envio cru`,
+    );
+  }
+});
+
+test("Workers conhecem modo Outbox-first WAHA pleno", () => {
+  const docs = [
+    ["COO", read("docs/freelancer/prompt-thread-coo-freelancer.md")],
+    ["Atendimento WhatsApp", read("docs/freelancer/prompt-thread-whatsapp-atendimento.md")],
+    ["Jhon", read("docs/freelancer/prompt-thread-atendimento-clientes.md")],
+    ["Guardiao", read("docs/freelancer/prompt-thread-whatsapp-guardiao.md")],
+    ["Follow-up", read("docs/freelancer/prompt-thread-followup-crm.md")],
+  ];
+
+  for (const [name, doc] of docs) {
+    assert.match(doc, /Outbox-first|Outbox first|outbox-first/i, `${name} deve conhecer modo Outbox-first`);
+    assert.match(
+      doc,
+      /primeira abordagem fria.*manual|manual.*primeira abordagem fria/is,
+      `${name} deve preservar primeira abordagem manual`,
+    );
+    assert.match(doc, /preco|preço|fechamento|proposta/i, `${name} deve preservar excecoes comerciais`);
+    assert.match(
+      doc,
+      /dispatch-approved-outbox[\s\S]*--outbox-id|--outbox-id[\s\S]*dispatch-approved-outbox/i,
+      `${name} deve exigir outbox id`,
+    );
+    assert.doesNotMatch(
+      doc,
+      /\/api\/sendText.*diretamente permitido/i,
+      `${name} nao pode liberar envio cru`,
+    );
+  }
+});
+
 test("README documenta fronteira atual de automacao WhatsApp", () => {
   const readme = paperclipReadme();
 
@@ -536,7 +631,7 @@ test("README documenta fronteira atual de automacao WhatsApp", () => {
 test("WhatsApp workers exigem Humanizer antes de qualquer Outbox automatica", () => {
   const atendimentoWa = read("docs/freelancer/prompt-thread-whatsapp-atendimento.md");
   const guardiaoWa = read("docs/freelancer/prompt-thread-whatsapp-guardiao.md");
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
 
   assert.match(atendimentoWa, /humanizer/i);
   assert.match(atendimentoWa, /humanizer_pass\s*=\s*true/i);
@@ -545,28 +640,28 @@ test("WhatsApp workers exigem Humanizer antes de qualquer Outbox automatica", ()
   assert.match(guardiaoWa, /humanizer_pass\s*=\s*true/i);
   assert.match(guardiaoWa, /5 respostas automaticas|5 respostas automáticas/i);
   assert.match(guide, /dispatch-approved-outbox/i);
-  assert.match(guide, /--dispatch-approved/i);
+  assert.match(guide, /serve-waha-webhook/i);
 });
 
-test("WhatsApp MCP local fica atras do gateway e nao vira tool direta dos workers", () => {
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+test("WhatsApp MCP foi removido da superficie operacional ativa", () => {
+  const mcpGuidePath = join(rootDir, "docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const activeFiles = [
+    ...walkFiles(join(rootDir, "docs/freelancer"))
+      .filter((path) => !path.includes("/docs/freelancer/paperclip/whatsapp-mcp-local.md"))
+      .filter((path) => !path.includes("/docs/freelancer/superpowers/")),
+    join(rootDir, "scripts/whatsapp-local-gateway.mjs"),
+  ];
 
-  assert.match(guide, /lharries\/whatsapp-mcp/i);
-  assert.match(guide, /go run .*main\.go/i);
-  assert.match(guide, /QR/i);
-  assert.match(guide, /store\/messages\.db/i);
-  assert.match(guide, /whatsapp-local-gateway\.mjs --root .* import-mcp-sqlite/i);
-  assert.match(guide, /watch-mcp-sqlite/i);
-  assert.match(guide, /dispatch-approved-outbox/i);
-  assert.match(guide, /message_id/i);
-  assert.match(guide, /dispatch_ambiguous/i);
-  assert.match(guide, /nao expor|não expor/i);
-  assert.match(guide, /send_message|send_file|send_audio_message/i);
-  assert.match(guide, /automacao controlada|automação controlada/i);
+  assert.equal(existsSync(mcpGuidePath), false);
+  for (const path of activeFiles) {
+    const text = readFileSync(path, "utf8");
+    assert.doesNotMatch(text, /lharries\/whatsapp-mcp|whatsapp-mcp|import-mcp-sqlite|watch-mcp-sqlite|WHATSAPP_MCP/i);
+    assert.doesNotMatch(text, /send_message|send_file|send_audio_message/i);
+  }
 });
 
 test("WhatsApp Identity e auto-wake ficam documentados no contrato operacional", () => {
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
   const contract = read("docs/freelancer/data-contract.md");
   const readme = paperclipReadme();
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
@@ -578,6 +673,8 @@ test("WhatsApp Identity e auto-wake ficam documentados no contrato operacional",
     assert.match(doc, /whatsapp unmatched reconcile/i);
     assert.match(doc, /Sem identidade/i);
     assert.match(doc, /--auto-wake/i);
+    assert.match(doc, /--host\s+0\.0\.0\.0/i);
+    assert.match(doc, /WHATSAPP_WAHA_WEBHOOK_SECRET/i);
     assert.match(doc, /whatsapp_worker_wakes/i);
   }
 
@@ -589,7 +686,7 @@ test("WhatsApp Identity e auto-wake ficam documentados no contrato operacional",
 });
 
 test("WhatsApp auto-wake roteia fechamento para Jhon Snow", () => {
-  const guide = read("docs/freelancer/paperclip/whatsapp-mcp-local.md");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
   const contract = read("docs/freelancer/data-contract.md");
   const readme = paperclipReadme();
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
@@ -642,6 +739,68 @@ test("Workers WhatsApp separam atendimento de guardiao e nao enviam direto", () 
   assert.match(guardiaoAgent.capabilities, /outbox/i);
 });
 
+test("Guardiao WhatsApp despacha somente via Gateway com outbox id explicito", () => {
+  const guardiaoWa = read("docs/freelancer/prompt-thread-whatsapp-guardiao.md");
+  const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
+  const readme = paperclipReadme();
+  const guardiaoAgent = agentConfig("agent-whatsapp-guardiao.json");
+
+  for (const doc of [guardiaoWa, guide, readme]) {
+    assert.match(doc, /whatsapp outbox status/i);
+    assert.match(doc, /dispatch-approved-outbox/i);
+    assert.match(doc, /--outbox-id/i);
+    assert.match(doc, /delivery_pending/i);
+    assert.match(doc, /message\.ack/i);
+  }
+
+  assert.match(guardiaoWa, /nao chamar.*\/api\/sendText|não chamar.*\/api\/sendText/is);
+  assert.match(guardiaoWa, /Unauthorized/i);
+  assert.match(guardiaoWa, /check-exists/i);
+  assert.match(guardiaoWa, /falha de credencial|falha de transporte/i);
+  assert.match(guardiaoWa, /nao .*bloqueio de conteudo|não .*bloqueio de conteúdo/is);
+  assert.match(guardiaoWa, /dispatch_ambiguous/i);
+  assert.match(guardiaoWa, /nova Outbox|liberacao explicita auditada|liberação explícita auditada/i);
+  assert.match(guardiaoAgent.capabilities, /Gateway/i);
+  assert.match(guardiaoAgent.capabilities, /outbox-id/i);
+  assert.match(guardiaoAgent.capabilities, /transporte|credencial/i);
+});
+
+test("Workers WhatsApp compartilham contexto de falha WAHA operacional", () => {
+  const transportFailureDocs = [
+    ["COO Freelancer", read("docs/freelancer/prompt-thread-coo-freelancer.md")],
+    ["Atendimento WhatsApp", read("docs/freelancer/prompt-thread-whatsapp-atendimento.md")],
+    ["Atendimento e Fechamento", read("docs/freelancer/prompt-thread-atendimento-clientes.md")],
+    ["Follow-up CRM", read("docs/freelancer/prompt-thread-followup-crm.md")],
+    ["Redator de Primeira Mensagem", read("docs/freelancer/prompt-thread-redator-primeira-mensagem.md")],
+    ["QA de Mensagens", read("docs/freelancer/prompt-thread-qa-mensagens.md")],
+    ["Guardiao de Envio WhatsApp", read("docs/freelancer/prompt-thread-whatsapp-guardiao.md")],
+  ];
+
+  for (const [name, doc] of transportFailureDocs) {
+    assert.match(doc, /Unauthorized/i, `${name} deve reconhecer Unauthorized WAHA`);
+    assert.match(doc, /check-exists/i, `${name} deve reconhecer falha no check-exists`);
+    assert.match(doc, /dispatch_ambiguous/i, `${name} deve reconhecer outbox ambigua`);
+    assert.match(doc, /falha de credencial|falha de transporte|transporte\/credencial/i, `${name} deve classificar como transporte/credencial`);
+    assert.match(doc, /nao .*bloqueio de conteudo|não .*bloqueio de conteúdo/is, `${name} nao deve chamar transporte de bloqueio de conteudo`);
+    assert.match(doc, /nova Outbox|liberacao explicita auditada|liberação explícita auditada/i, `${name} deve exigir novo teste auditado`);
+    assert.doesNotMatch(doc, /chame\s+\/api\/sendText|chamar\s+\/api\/sendText diretamente/i, `${name} nao deve orientar envio cru`);
+  }
+
+  const contextAwareAgents = [
+    agentConfig("agent-coo-freelancer.json"),
+    agentConfig("agent-whatsapp-atendimento.json"),
+    agentConfig("agent-whatsapp-guardiao.json"),
+    agentConfig("agent-atendimento.json"),
+    agentConfig("agent-followup-crm.json"),
+    agentConfig("agent-redator-primeira-mensagem.json"),
+    agentConfig("agent-qa-mensagens.json"),
+  ];
+
+  for (const agent of contextAwareAgents) {
+    assert.match(agent.capabilities, /transporte|credencial|dispatch_ambiguous|WAHA/i, `${agent.name} deve expor contexto WAHA nas capabilities`);
+  }
+});
+
 test("Pedido de exemplo no WhatsApp passa por demo completa e QA antes do envio", () => {
   const followup = followupCrm();
   const criador = criacao72h();
@@ -656,6 +815,56 @@ test("Pedido de exemplo no WhatsApp passa por demo completa e QA antes do envio"
   assert.match(atendimentoWa, /nao enviar link direto|não enviar link direto/i);
   assert.match(guardiaoWa, /exemplo_aprovado_para_envio/i);
   assert.doesNotMatch(atendimentoWa, /copy-whatsapp\.md/i);
+});
+
+test("Demo aprovada pedida no WhatsApp vira nova Outbox, nao fluxo manual", () => {
+  const atendimentoComercial = atendimento();
+  const atendimentoWa = read("docs/freelancer/prompt-thread-whatsapp-atendimento.md");
+  const readme = paperclipReadme();
+  const jhonAgent = agentConfig("agent-atendimento.json");
+  const atendimentoWaAgent = agentConfig("agent-whatsapp-atendimento.json");
+
+  for (const [name, doc] of [
+    ["Atendimento e Fechamento", atendimentoComercial],
+    ["Atendimento WhatsApp", atendimentoWa],
+    ["Paperclip README", readme],
+  ]) {
+    assert.match(
+      doc,
+      /demo ja aprovada|demo já aprovada|exemplo aprovado|exemplo_aprovado_para_envio/i,
+      `${name} deve reconhecer demo ja aprovada`,
+    );
+    assert.match(
+      doc,
+      /whatsapp outbox propose/i,
+      `${name} deve criar nova Outbox para link aprovado`,
+    );
+    assert.match(
+      doc,
+      /Guardiao|Guardião/i,
+      `${name} deve passar pelo Guardiao`,
+    );
+    assert.match(
+      doc,
+      /dispatch-approved-outbox[\s\S]*--outbox-id|--outbox-id[\s\S]*dispatch-approved-outbox/i,
+      `${name} deve despachar pelo Gateway com outbox id explicito`,
+    );
+    assert.match(
+      doc,
+      /nao usar lead-cards|não usar lead-cards|nao cair em lead-cards|não cair em lead-cards/i,
+      `${name} nao deve voltar para lead-cards quando a demo ja esta aprovada`,
+    );
+    assert.match(
+      doc,
+      /manual[\s\S]*(Guardiao|Guardião)[\s\S]*bloque|manual[\s\S]*WAHA[\s\S]*falh|manual[\s\S]*(preco|preço|fechamento)/i,
+      `${name} deve limitar fallback manual a bloqueio, falha WAHA ou fechamento/preco`,
+    );
+  }
+
+  assert.match(jhonAgent.capabilities, /demo.*aprovad|exemplo_aprovado_para_envio/i);
+  assert.match(jhonAgent.capabilities, /Outbox|Gateway/i);
+  assert.match(atendimentoWaAgent.capabilities, /demo.*aprovad|exemplo_aprovado_para_envio/i);
+  assert.match(atendimentoWaAgent.capabilities, /Outbox|Gateway/i);
 });
 
 test("Follow-up CRM usa matriz inteligente por etapa do lead", () => {
@@ -2380,12 +2589,16 @@ test("Agentes Paperclip declaram repo como raiz de trabalho e escrita", () => {
   for (const name of agentConfigNames) {
     const agent = agentConfig(name);
     const args = agent.adapterConfig.extraArgs;
+    const addDirs = args.flatMap((arg, index) => (arg === "--add-dir" ? [args[index + 1]] : []));
+    const env = agent.adapterConfig.env ?? {};
 
     assert.equal(agent.adapterConfig.cwd, repoRoot, `${name} cwd`);
     assert.ok(args.includes("-C"), `${name} deve passar -C`);
     assert.equal(args[args.indexOf("-C") + 1], repoRoot, `${name} -C`);
-    assert.ok(args.includes("--add-dir"), `${name} deve passar --add-dir`);
-    assert.equal(args[args.indexOf("--add-dir") + 1], repoRoot, `${name} --add-dir`);
+    assert.ok(addDirs.includes(repoRoot), `${name} deve permitir escrita no repo`);
+    assert.ok(addDirs.includes(sqliteWritableRoot), `${name} deve permitir escrita no DB oficial`);
+    assert.equal(env.CODEX_HOME, expectedAgentCodexHome(agent.id), `${name} CODEX_HOME isolado`);
+    assert.notEqual(env.CODEX_HOME, "/Users/luiz_fbm/.codex", `${name} nao deve usar CODEX_HOME pessoal`);
     assert.ok(args.includes("--sandbox"), `${name} deve manter sandbox`);
     assert.equal(
       args[args.indexOf("--sandbox") + 1],
@@ -2396,6 +2609,9 @@ test("Agentes Paperclip declaram repo como raiz de trabalho e escrita", () => {
 
   assert.match(readme, /-C \/Users\/luiz_fbm\/Developer\/freela/i);
   assert.match(readme, /--add-dir \/Users\/luiz_fbm\/Developer\/freela/i);
+  assert.match(readme, /--add-dir \/Users\/luiz_fbm\/Library\/Application Support\/freela-paperclip/i);
+  assert.match(readme, /CODEX_HOME=.*companies\/.*\/agents\/.*\/codex-home/i);
+  assert.doesNotMatch(readme, /CODEX_HOME=\/Users\/luiz_fbm\/\.codex/i);
   assert.match(readme, /COO Freelancer.*Scout.*danger-full-access|Scout.*COO Freelancer.*danger-full-access/i);
   assert.match(readme, /dangerouslyBypassApprovalsAndSandbox=false/i);
 });
@@ -2442,7 +2658,8 @@ test("Sync de agentes Paperclip em dry-run calcula somente allowlist sem fazer P
       extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
       model: "gpt-5.5",
       env: {
-        SECRET_TOKEN: "nao-sincronizar",
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
       },
     },
     permissions: {
@@ -2472,7 +2689,18 @@ test("Sync de agentes Paperclip em dry-run calcula somente allowlist sem fazer P
         extraArgs: ["--skip-git-repo-check", "-C", "/old", "--add-dir", "/old"],
         model: "gpt-4.1",
         env: {
-          LIVE_SECRET: "preservar",
+          PATH: {
+            type: "plain",
+            value: "/old/bin:/usr/bin",
+          },
+          CODEX_HOME: {
+            type: "plain",
+            value: "/old/codex-home",
+          },
+          OPENAI_API_KEY: {
+            type: "plain",
+            value: "",
+          },
         },
       },
       permissions: {
@@ -2516,6 +2744,10 @@ test("Sync de agentes Paperclip em dry-run calcula somente allowlist sem fazer P
     assert.deepEqual(change.adapterConfigPatch, {
       cwd: "/repo",
       extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
+      env: {
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
+      },
       instructionsRootPath: "/repo/docs",
     });
     assert.deepEqual(change.instructionsPath, { path: "/repo/docs/agent.md" });
@@ -2601,6 +2833,58 @@ test("Sync de agentes Paperclip rejeita run-id manual que nao seja UUID", async 
   );
 });
 
+test("Sync de agentes Paperclip rejeita env perigoso em configs versionadas", async () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "paperclip-agent-sync-dangerous-env-"));
+  writeTempAgentConfig(tempRoot, {
+    id: "agent-1",
+    name: "Worker Local",
+    role: "qa",
+    capabilities: "Capacidade local",
+    adapterConfig: {
+      cwd: "/repo",
+      extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
+      instructionsRootPath: "/repo/docs",
+      env: {
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
+        SECRET_TOKEN: "nao-sincronizar",
+      },
+    },
+  });
+
+  const liveAgents = [
+    {
+      id: "agent-1",
+      name: "Worker Antigo",
+      role: "qa",
+      capabilities: "Capacidade antiga",
+      adapterConfig: {
+        cwd: "/old",
+        extraArgs: ["--skip-git-repo-check", "-C", "/old", "--add-dir", "/old"],
+        instructionsRootPath: "/old/docs",
+      },
+    },
+  ];
+
+  await withAgentApiServer(liveAgents, async (apiBase) => {
+    await assert.rejects(
+      execFileText(process.execPath, [
+        join(rootDir, "scripts/paperclip-sync-agents.mjs"),
+        "--root",
+        tempRoot,
+        "--company-id",
+        "company-1",
+        "--api-base",
+        apiBase,
+      ]),
+      (error) => {
+        assert.match(error.stderr, /adapterConfig\.env\.SECRET_TOKEN/i);
+        return true;
+      },
+    );
+  });
+});
+
 test("Sync de agentes Paperclip em apply usa rota dedicada de instructions e bloqueia campos perigosos", async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), "paperclip-agent-sync-apply-"));
   writeTempAgentConfig(tempRoot, {
@@ -2618,7 +2902,8 @@ test("Sync de agentes Paperclip em apply usa rota dedicada de instructions e blo
       extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
       model: "gpt-5.5",
       env: {
-        SECRET_TOKEN: "nao-sincronizar",
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
       },
     },
     desiredSkills: ["nao-sincronizar"],
@@ -2697,12 +2982,16 @@ test("Sync de agentes Paperclip em apply usa rota dedicada de instructions e blo
     assert.deepEqual(genericPatch.body.adapterConfig, {
       cwd: "/repo",
       extraArgs: ["--skip-git-repo-check", "-C", "/repo", "--add-dir", "/repo"],
+      env: {
+        PATH: "/safe/bin:/usr/bin",
+        CODEX_HOME: "/paperclip/companies/company-1/agents/agent-1/codex-home",
+      },
       instructionsRootPath: "/repo/docs",
     });
     assert.deepEqual(instructionsPatch.body, { path: "/repo/docs/agent.md" });
 
     const genericBody = JSON.stringify(genericPatch.body);
-    assert.doesNotMatch(genericBody, /model|env|SECRET_TOKEN|permissions|desiredSkills|runtimeConfig/i);
+    assert.doesNotMatch(genericBody, /model|SECRET_TOKEN|permissions|desiredSkills|runtimeConfig/i);
     assert.doesNotMatch(stdout, /SECRET_TOKEN|trustPreset|desiredSkills|runtimeConfig/i);
   });
 });

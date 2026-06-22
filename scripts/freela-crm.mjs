@@ -8,12 +8,14 @@ import {
   readFileSync,
   readSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const VALID_STATUSES = new Set([
   "novo",
@@ -161,8 +163,9 @@ async function dispatch({ root, dbPath, command, args }) {
     return;
   }
 
+  const readOnlyDatabase = isDatabaseReadOnlyCommand(command);
   ensureOperationalWritesAllowed(root, command);
-  const database = openDatabase(root, dbPath);
+  const database = openDatabase(root, dbPath, { readOnly: readOnlyDatabase });
 
   if (command[0] === "lead" && command[1] === "upsert") {
     const flags = parseFlags(args);
@@ -367,6 +370,18 @@ async function dispatch({ root, dbPath, command, args }) {
     return;
   }
 
+  if (command[0] === "whatsapp" && command[1] === "unmatched" && command[2] === "mark-no-match") {
+    const flags = parseFlags(args);
+    requireFlag(flags, "reason");
+    const result = markNoMatchUnmatchedWhatsAppInbound(database, {
+      ids: flags.id ? parseListFlag(flags.id).map((id) => parsePositiveInt(id, "id")) : [],
+      chatId: clean(flags["chat-id"]),
+      reason: flags.reason,
+    });
+    console.log(`Eventos sem match registrados: ${result.marked}`);
+    return;
+  }
+
   if (command[0] === "whatsapp" && command[1] === "state" && command[2] === "set") {
     const flags = parseFlags(args);
     requireFlag(flags, "name");
@@ -396,6 +411,19 @@ async function dispatch({ root, dbPath, command, args }) {
       humanizerNotes: flags["humanizer-notes"] ?? "",
     });
     console.log(`Outbox pendente de guardiao: ${outbox.id}`);
+    return;
+  }
+
+  if (command[0] === "whatsapp" && command[1] === "outbox" && command[2] === "status") {
+    const flags = parseFlags(args);
+    requireFlag(flags, "outbox-id");
+    const report = whatsappOutboxStatus(database, parsePositiveInt(flags["outbox-id"], "outbox-id"), root);
+    console.log(formatWhatsAppOutboxStatus(report));
+    return;
+  }
+
+  if (command[0] === "whatsapp" && command[1] === "outbox" && command[2] === "list-dispatchable") {
+    listDispatchableWhatsAppOutboxes(database, root);
     return;
   }
 
@@ -512,7 +540,7 @@ function parseCommand(argv) {
     const value = args.shift();
     if (!value) throw usageError(`Valor obrigatorio para --${key}`);
     if (key === "root") root = resolve(value);
-    else if (key === "db") dbPath = resolve(value);
+    else if (key === "db") dbPath = parseDatabasePath(value);
     else throw usageError(`Opcao global desconhecida: --${key}`);
   }
 
@@ -592,6 +620,18 @@ function databasePath(root, explicitPath) {
   return explicitPath ?? join(root, ".scratch/db/freela.sqlite");
 }
 
+function parseDatabasePath(value) {
+  const raw = clean(value);
+  if (/^file:/i.test(raw)) {
+    try {
+      return fileURLToPath(new URL(raw));
+    } catch (error) {
+      throw usageError(`URI SQLite invalida em --db: ${error.message}`);
+    }
+  }
+  return resolve(raw);
+}
+
 function healthcheckDatabase(root, explicitPath) {
   const path = databasePath(root, explicitPath);
   if (!existsSync(path)) {
@@ -601,7 +641,7 @@ function healthcheckDatabase(root, explicitPath) {
   const validation = ensureUsableDatabaseFile(root, path);
   let database = null;
   try {
-    database = new DatabaseSync(path, { readOnly: true });
+    database = new DatabaseSync(sqliteFileUri(path, "ro"), { readOnly: true });
     database.exec("PRAGMA busy_timeout = 10000;");
     const result = database.prepare("pragma integrity_check").get().integrity_check;
     if (result !== "ok") {
@@ -622,8 +662,20 @@ function healthcheckDatabase(root, explicitPath) {
   }
 }
 
-function openDatabase(root, explicitPath) {
+function openDatabase(root, explicitPath, options = {}) {
   const path = databasePath(root, explicitPath);
+
+  if (options.readOnly) {
+    if (!existsSync(path)) {
+      throw usageError(`SQLite nao encontrado: ${path}. Rode init antes de operar.`);
+    }
+    ensureUsableDatabaseFile(root, path);
+    const database = new DatabaseSync(sqliteFileUri(path, "ro"), { readOnly: true });
+    database.exec("PRAGMA busy_timeout = 10000;");
+    database.exec("PRAGMA foreign_keys = ON;");
+    return database;
+  }
+
   mkdirSync(dirname(path), { recursive: true });
   mkdirSync(join(root, ".scratch/leads"), { recursive: true });
   mkdirSync(join(root, ".scratch/crm"), { recursive: true });
@@ -674,10 +726,23 @@ function requiresOperationalWriteGuard(command) {
     "export all",
     "export paperclip-cards",
     "export operator-status",
+    "whatsapp outbox status",
     "profile-evidence export",
   ]);
   if (command[0] === "init") return false;
   return !readOnly.has(joined);
+}
+
+function isDatabaseReadOnlyCommand(command) {
+  const joined = command.join(" ");
+  return new Set([
+    "lead status",
+    "commercial status",
+    "commercial enrichment-plan",
+    "commercial duplicate-audit",
+    "whatsapp outbox status",
+    "profile-evidence export",
+  ]).has(joined);
 }
 
 function ensureUsableDatabaseFile(root, path) {
@@ -761,7 +826,63 @@ function materializeDatalessCandidate(path) {
 }
 
 function createRotatingDatabaseBackup(root, path) {
-  const backupDir = join(dirname(path), "backups");
+  const backupDir = databaseBackupDir(root, path);
+  try {
+    return createDatabaseBackupInDir(path, backupDir);
+  } catch (error) {
+    removePartialBackup(error.backupPath);
+    if (isSqliteBusy(error)) throw error;
+    if (!canRetryBackupInPrivateOpsDir(error)) {
+      const snapshot = snapshotInvalidDatabase(root, path, `backup falhou: ${error.message}`);
+      throw usageError(`Backup SQLite falhou antes de operar: ${error.message}. Snapshot forense: ${snapshot}`);
+    }
+  }
+
+  const fallbackBackupDir = join(root, ".scratch/ops/sqlite-backups");
+  try {
+    return createDatabaseBackupInDir(path, fallbackBackupDir);
+  } catch (fallbackError) {
+    removePartialBackup(fallbackError.backupPath);
+    if (isSqliteBusy(fallbackError)) throw fallbackError;
+    const snapshot = snapshotInvalidDatabase(root, path, `backup falhou: ${fallbackError.message}`);
+    throw usageError(
+      `Backup SQLite falhou antes de operar: ${fallbackError.message}. Snapshot forense: ${snapshot}`,
+    );
+  }
+}
+
+function databaseBackupDir(root, path) {
+  if (isPathInsideRoot(root, path)) return join(dirname(path), "backups");
+  return join(root, ".scratch/db-backups");
+}
+
+function isPathInsideRoot(root, path) {
+  const rootPath = realExistingPath(root);
+  const targetPath = realExistingPath(path);
+  const distance = relative(rootPath, targetPath);
+  return distance === "" || (!distance.startsWith("..") && !isAbsolute(distance));
+}
+
+function realExistingPath(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    const parent = dirname(path);
+    try {
+      return join(realpathSync(parent), basename(path));
+    } catch {
+      return resolve(path);
+    }
+  }
+}
+
+function sqliteFileUri(path, mode) {
+  const url = pathToFileURL(path);
+  url.searchParams.set("mode", mode);
+  return url.href;
+}
+
+function createDatabaseBackupInDir(path, backupDir) {
   mkdirSync(backupDir, { recursive: true });
   const base = sanitizeBackupName(basename(path, extname(path)) || "sqlite");
   const backupPath = join(backupDir, `${base}-${timestampForFile()}.sqlite`);
@@ -772,16 +893,24 @@ function createRotatingDatabaseBackup(root, path) {
     database.exec("PRAGMA busy_timeout = 10000;");
     database.exec(`VACUUM INTO ${sqlStringLiteral(backupPath)};`);
   } catch (error) {
-    rmSync(backupPath, { force: true });
-    if (isSqliteBusy(error)) throw error;
-    const snapshot = snapshotInvalidDatabase(root, path, `backup falhou: ${error.message}`);
-    throw usageError(`Backup SQLite falhou antes de operar: ${error.message}. Snapshot forense: ${snapshot}`);
+    error.backupPath = backupPath;
+    throw error;
   } finally {
     if (database) database.close();
   }
 
   pruneDatabaseBackups(backupDir, base, backupRetentionLimit());
   return backupPath;
+}
+
+function removePartialBackup(path) {
+  if (path) rmSync(path, { force: true });
+}
+
+function canRetryBackupInPrivateOpsDir(error) {
+  return /unable to open database|operation not permitted|permission denied|readonly|not authorized/i.test(
+    String(error?.message ?? error),
+  );
 }
 
 function backupRetentionLimit() {
@@ -2615,7 +2744,8 @@ function identifyLeadForConversation(database, conversation) {
 
 function ingestWhatsAppInbound(database, event, rawFile, options = {}) {
   if (event.is_group) throw usageError("Eventos de grupo nao entram na automacao WhatsApp");
-  if (event.message_type && event.message_type !== "text") {
+  const messageType = normalizeWhatsAppInboundMessageType(event.message_type);
+  if (messageType !== "text") {
     throw usageError(`Tipo de mensagem nao suportado para automacao: ${event.message_type}`);
   }
   if (!clean(event.body)) throw usageError("Mensagem inbound sem texto");
@@ -2663,7 +2793,7 @@ function ingestWhatsAppInbound(database, event, rawFile, options = {}) {
       clean(event.sender_name),
       clean(event.sender_phone),
       event.is_group ? 1 : 0,
-      clean(event.message_type) || "text",
+      messageType,
       event.body,
       receivedAt,
       lead.id,
@@ -2783,6 +2913,7 @@ function linkWhatsAppIdentity(database, lead, { identity, source, notes }) {
 
 function recordUnmatchedWhatsAppInbound(database, event, { rawFile, classification, receivedAt, reason }) {
   const bridgeMessageId = clean(event.bridge_message_id);
+  const messageType = normalizeWhatsAppInboundMessageType(event.message_type);
   const timestamp = now();
   database
     .prepare(
@@ -2807,7 +2938,7 @@ function recordUnmatchedWhatsAppInbound(database, event, { rawFile, classificati
       clean(event.sender_name),
       clean(event.sender_phone),
       event.is_group ? 1 : 0,
-      clean(event.message_type) || "text",
+      messageType,
       event.body,
       receivedAt,
       classification,
@@ -2826,6 +2957,12 @@ function recordUnmatchedWhatsAppInbound(database, event, { rawFile, classificati
   return database
     .prepare("select * from whatsapp_unmatched_inbound_events order by id desc limit 1")
     .get();
+}
+
+function normalizeWhatsAppInboundMessageType(messageType) {
+  const normalized = clean(messageType).toLowerCase();
+  if (!normalized || normalized === "text" || normalized === "chat") return "text";
+  return normalized;
 }
 
 function reconcileUnmatchedWhatsAppInbound(database, { limit }) {
@@ -2852,6 +2989,65 @@ function reconcileUnmatchedWhatsAppInbound(database, { limit }) {
   }
 
   return { reconciled, pending };
+}
+
+function markNoMatchUnmatchedWhatsAppInbound(database, { ids, chatId, reason }) {
+  const normalizedReason = clean(reason);
+  if (!normalizedReason) throw usageError("--reason obrigatorio");
+  if ((ids.length ? 1 : 0) + (chatId ? 1 : 0) !== 1) {
+    throw usageError("Informe exatamente um filtro: --id ou --chat-id");
+  }
+
+  let rows;
+  if (ids.length) {
+    const placeholders = ids.map(() => "?").join(", ");
+    rows = database
+      .prepare(
+        `select *
+         from whatsapp_unmatched_inbound_events
+         where status = 'unmatched'
+           and id in (${placeholders})
+         order by received_at asc, id asc`,
+      )
+      .all(...ids);
+  } else {
+    rows = database
+      .prepare(
+        `select *
+         from whatsapp_unmatched_inbound_events
+         where status = 'unmatched'
+           and chat_id = ?
+         order by received_at asc, id asc`,
+      )
+      .all(chatId);
+  }
+
+  const timestamp = now();
+  database.exec("BEGIN");
+  try {
+    for (const row of rows) {
+      database
+        .prepare(
+          `update whatsapp_unmatched_inbound_events
+           set status = 'no_match',
+               match_reason = ?,
+               updated_at = ?
+           where id = ?`,
+        )
+        .run(normalizedReason, timestamp, row.id);
+      audit(database, "whatsapp_unmatched_inbound_event", row.id, "mark-no-match", {
+        reason: normalizedReason,
+        chat_id: row.chat_id,
+        classification: row.classification,
+      });
+    }
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+
+  return { marked: rows.length };
 }
 
 function markUnmatchedReconciled(database, unmatchedId, leadId, inboundId, reason) {
@@ -2994,6 +3190,108 @@ function whatsappSendPhoneFromValue(value) {
   if (raw.includes("+") && digits.length >= 8 && digits.length <= 15) return digits;
   if (digits.length === 10 || digits.length === 11) return `55${digits}`;
   return "";
+}
+
+function whatsappOutboxStatus(database, outboxId, root) {
+  const row = database
+    .prepare(
+      `select
+        o.*,
+        l.canonical_name as lead_name,
+        s.whatsapp_state,
+        s.handoff_reason
+      from whatsapp_outbox o
+      join leads l on l.id = o.lead_id
+      left join lead_conversation_state s on s.lead_id = o.lead_id
+      where o.id = ?`,
+    )
+    .get(outboxId);
+  if (!row) throw usageError(`Outbox nao encontrada: ${outboxId}`);
+
+  const dispatchCheck = whatsappOutboxDispatchCheck(row);
+  return {
+    ...row,
+    can_dispatch: dispatchCheck.canDispatch,
+    dispatch_blockers: dispatchCheck.blockers,
+    gateway_command:
+      `node scripts/whatsapp-local-gateway.mjs --root ${root} dispatch-approved-outbox ` +
+      `--provider waha --outbox-id ${row.id}`,
+  };
+}
+
+function listDispatchableWhatsAppOutboxes(database, root) {
+  const rows = database
+    .prepare(
+      `select
+        o.*,
+        l.canonical_name as lead_name,
+        s.whatsapp_state
+       from whatsapp_outbox o
+       join leads l on l.id = o.lead_id
+       left join lead_conversation_state s on s.lead_id = o.lead_id
+       where o.status = 'approved'
+         and o.guardian_decision = 'enviar'
+         and o.humanizer_pass = 1
+         and o.used_last_inbound = 1
+         and o.contextual_reply = 1
+       order by o.id asc`,
+    )
+    .all()
+    .filter((row) => whatsappOutboxDispatchCheck(row).canDispatch);
+
+  if (!rows.length) {
+    console.log("Nenhuma Outbox aprovada e despachavel.");
+    return;
+  }
+
+  for (const row of rows) {
+    console.log(`Outbox ${row.id}: ${row.lead_name}`);
+    console.log(
+      `  node scripts/whatsapp-local-gateway.mjs --root ${root} dispatch-approved-outbox --provider waha --outbox-id ${row.id}`,
+    );
+  }
+}
+
+function whatsappOutboxDispatchCheck(outbox) {
+  const blockers = [];
+  if (!["approved", "failed"].includes(outbox.status)) blockers.push(`status ${outbox.status}`);
+  if (outbox.guardian_decision !== "enviar") blockers.push("guardiao nao aprovou envio");
+  if (!outbox.humanizer_pass) blockers.push("humanizer_pass ausente");
+  if (!outbox.used_last_inbound) blockers.push("used_last_inbound ausente");
+  if (!outbox.contextual_reply) blockers.push("contextual_reply ausente");
+  if (outbox.sent_at) blockers.push("ja possui sent_at");
+  if (outbox.attempts >= 2) blockers.push("limite de tentativas atingido");
+  if (["handoff_luiz", "bloqueado_guardiao", "encerrado"].includes(clean(outbox.whatsapp_state))) {
+    blockers.push(`estado ${outbox.whatsapp_state}`);
+  }
+  if (isWhatsAppLid(outbox.target_chat_id)) blockers.push("destino direto @lid");
+  return { canDispatch: blockers.length === 0, blockers };
+}
+
+function formatWhatsAppOutboxStatus(report) {
+  const lines = [
+    `Outbox: ${report.id}`,
+    `Lead: ${report.lead_name}`,
+    `Inbound: ${report.inbound_event_id ?? "-"}`,
+    `Status: ${report.status}`,
+    `Destino: ${report.target_chat_id}`,
+    `Guardiao: ${report.guardian_decision || "-"}`,
+    `Motivo guardiao: ${report.guardian_reason || "-"}`,
+    `WhatsApp state: ${report.whatsapp_state || "-"}`,
+    `Humanizer: ${report.humanizer_pass ? "sim" : "nao"}`,
+    `Usou ultimo inbound: ${report.used_last_inbound ? "sim" : "nao"}`,
+    `Resposta contextual: ${report.contextual_reply ? "sim" : "nao"}`,
+    `Provider: ${report.dispatch_provider || "-"}`,
+    `Provider message id: ${report.provider_message_id || "-"}`,
+    `ACK: ${report.delivery_ack_name || report.delivery_ack || "-"}`,
+    `Sent at: ${report.sent_at || "-"}`,
+    `Pode despachar: ${report.can_dispatch ? "sim" : "nao"}`,
+  ];
+  if (!report.can_dispatch) {
+    lines.push(`Bloqueios: ${report.dispatch_blockers.join("; ")}`);
+  }
+  lines.push(`Gateway: ${report.gateway_command}`);
+  return lines.join("\n");
 }
 
 const WHATSAPP_AUTO_REPLY_LIMIT_REASON = "limite de 5 respostas automaticas atingido";
@@ -4144,14 +4442,7 @@ function exportPipeline(database, root) {
 
 function exportTodayQueue(database, root, queueDate) {
   mkdirSync(join(root, ".scratch/crm"), { recursive: true });
-  const rows = database
-    .prepare(
-      `select *
-       from commercial_ready_lead_cards
-       where has_ready_message = 1
-       order by canonical_name`,
-    )
-    .all();
+  const rows = manualReadyLeadCardRows(database, "c.canonical_name");
 
   const chunks = [
     `# Hoje enviar - ${queueDate}`,
@@ -4178,16 +4469,10 @@ function exportTodayQueue(database, root, queueDate) {
 
 function exportPaperclipLeadCards(database, root, queueDate) {
   mkdirSync(join(root, ".scratch/crm"), { recursive: true });
-  const rows = database
-    .prepare(
-      `select *
-       from commercial_ready_lead_cards
-       where has_ready_message = 1
-       order by
-         case status when 'interessado' then 0 when 'respondeu' then 1 else 2 end,
-         canonical_name`,
-    )
-    .all();
+  const rows = manualReadyLeadCardRows(
+    database,
+    "case c.status when 'interessado' then 0 when 'respondeu' then 1 else 2 end, c.canonical_name",
+  );
 
   const chunks = [
     `# Leads para copiar e enviar - ${queueDate}`,
@@ -4241,6 +4526,52 @@ function exportPaperclipLeadCards(database, root, queueDate) {
   );
 }
 
+function manualReadyLeadCardRows(database, orderBy) {
+  const rows = database
+    .prepare(
+      `select c.*, s.whatsapp_state
+       from commercial_ready_lead_cards c
+       left join lead_conversation_state s on s.lead_id = c.lead_id
+       where c.has_ready_message = 1
+       order by ${orderBy}`,
+    )
+    .all();
+  return rows.filter((row) => shouldKeepManualLeadCard(database, row));
+}
+
+function shouldKeepManualLeadCard(database, lead) {
+  if (isManualWhatsAppException(lead)) return true;
+  return !leadHasActiveSafeOutbox(database, lead.lead_id);
+}
+
+function isManualWhatsAppException(lead) {
+  return [
+    "preco_pedido",
+    "lead_quente",
+    "objecao_comercial",
+    "handoff_luiz",
+    "bloqueado_guardiao",
+    "qualificacao_preco_pendente",
+  ].includes(clean(lead?.whatsapp_state));
+}
+
+function leadHasActiveSafeOutbox(database, leadId) {
+  const row = database
+    .prepare(
+      `select id
+       from whatsapp_outbox
+       where lead_id = ?
+         and status in ('pending_guardian', 'approved', 'delivery_pending', 'sent')
+         and humanizer_pass = 1
+         and used_last_inbound = 1
+         and contextual_reply = 1
+       order by id desc
+       limit 1`,
+    )
+    .get(leadId);
+  return Boolean(row);
+}
+
 function formatReadyMessage(row) {
   const message = clean(row.message);
   if (message && !message.startsWith("Preparar envio manual para ")) return message;
@@ -4271,12 +4602,7 @@ function formatMarkdownLink(value) {
 
 function exportOperatorStatus(database, root, queueDate) {
   mkdirSync(join(root, ".scratch/ops"), { recursive: true });
-  const manualActions = countRows(
-    database,
-    `select count(*) as count
-     from commercial_ready_lead_cards
-     where has_ready_message = 1`,
-  );
+  const manualActions = manualReadyLeadCardRows(database, "c.canonical_name").length;
   const awaitingQa = countRows(
     database,
     `select count(*) as count
@@ -4356,6 +4682,7 @@ function exportCommercialSurfaces(database, root, queueDate) {
 }
 
 function commercialStatusReport(database, queueDate) {
+  const whatsappDelivery = whatsappDeliveryReport(database);
   const report = {
     queueDate,
     pendingValidation: countRows(database, "select count(*) as count from commercial_pending_validation"),
@@ -4365,19 +4692,49 @@ function commercialStatusReport(database, queueDate) {
       "select count(*) as count from commercial_pending_qa where queue_date = ?",
       [queueDate],
     ),
-    readyLeadCards: countRows(
-      database,
-      "select count(*) as count from commercial_ready_lead_cards",
-    ),
+    readyLeadCards: manualReadyLeadCardRows(database, "c.canonical_name").length,
     followupsToday: countRows(database, "select count(*) as count from commercial_followups_today"),
     staleLeads: countRows(database, "select count(*) as count from commercial_stale_leads"),
     openHandoffs: countRows(
       database,
       "select count(*) as count from worker_handoffs where status not in ('completed', 'cancelled')",
     ),
+    whatsappApproved: whatsappDelivery.approved,
+    whatsappDeliveryPending: whatsappDelivery.deliveryPending,
+    whatsappDispatchAmbiguous: whatsappDelivery.dispatchAmbiguous,
+    whatsappSentStrongAck: whatsappDelivery.sentStrongAck,
   };
   report.nextStep = nextCommercialStep(report);
   return report;
+}
+
+function whatsappDeliveryReport(database) {
+  const row = database
+    .prepare(
+      `select
+        sum(case when status = 'approved' then 1 else 0 end) as approved,
+        sum(case when status = 'delivery_pending' then 1 else 0 end) as delivery_pending,
+        sum(case when status = 'dispatch_ambiguous' then 1 else 0 end) as dispatch_ambiguous,
+        sum(
+          case
+            when status = 'sent'
+             and (
+               delivery_ack_name in ('DEVICE', 'READ', 'PLAYED')
+               or coalesce(delivery_ack, 0) >= 2
+             )
+            then 1
+            else 0
+          end
+        ) as sent_strong_ack
+       from whatsapp_outbox`,
+    )
+    .get();
+  return {
+    approved: row.approved ?? 0,
+    deliveryPending: row.delivery_pending ?? 0,
+    dispatchAmbiguous: row.dispatch_ambiguous ?? 0,
+    sentStrongAck: row.sent_strong_ack ?? 0,
+  };
 }
 
 function formatCommercialStatus(report) {
@@ -4388,6 +4745,10 @@ function formatCommercialStatus(report) {
     `Aguardando QA de Mensagens: ${report.pendingQa}`,
     `Lead-cards prontos: ${report.readyLeadCards}`,
     `Follow-ups ativos: ${report.followupsToday}`,
+    `WAHA aprovadas para envio: ${report.whatsappApproved}`,
+    `WAHA pendentes de ACK: ${report.whatsappDeliveryPending}`,
+    `WAHA ambiguas/handoff: ${report.whatsappDispatchAmbiguous}`,
+    `WAHA entregues com ACK forte: ${report.whatsappSentStrongAck}`,
     `Leads parados: ${report.staleLeads}`,
     `Handoffs abertos: ${report.openHandoffs}`,
     `Proximo melhor passo: ${report.nextStep}`,
@@ -4409,6 +4770,10 @@ function exportCommercialStatus(root, report) {
     `- Aguardando QA de Mensagens: ${report.pendingQa}`,
     `- Lead-cards prontos: ${report.readyLeadCards}`,
     `- Follow-ups ativos: ${report.followupsToday}`,
+    `- WAHA aprovadas para envio: ${report.whatsappApproved}`,
+    `- WAHA pendentes de ACK: ${report.whatsappDeliveryPending}`,
+    `- WAHA ambiguas/handoff: ${report.whatsappDispatchAmbiguous}`,
+    `- WAHA entregues com ACK forte: ${report.whatsappSentStrongAck}`,
     `- Leads parados: ${report.staleLeads}`,
     `- Handoffs abertos: ${report.openHandoffs}`,
     "",
@@ -4439,7 +4804,7 @@ function exportCommercialFunnel(database, root, queueDate, report) {
     },
     {
       title: "Lead-cards prontos",
-      rows: database.prepare("select * from commercial_ready_lead_cards order by canonical_name").all(),
+      rows: manualReadyLeadCardRows(database, "c.canonical_name"),
     },
     {
       title: "Follow-ups ativos",
@@ -4463,6 +4828,10 @@ function exportCommercialFunnel(database, root, queueDate, report) {
     `- Aguardando QA de Mensagens: ${report.pendingQa}`,
     `- Lead-cards prontos: ${report.readyLeadCards}`,
     `- Follow-ups ativos: ${report.followupsToday}`,
+    `- WAHA aprovadas para envio: ${report.whatsappApproved}`,
+    `- WAHA pendentes de ACK: ${report.whatsappDeliveryPending}`,
+    `- WAHA ambiguas/handoff: ${report.whatsappDispatchAmbiguous}`,
+    `- WAHA entregues com ACK forte: ${report.whatsappSentStrongAck}`,
     `- Leads parados: ${report.staleLeads}`,
     `- Handoffs abertos: ${report.openHandoffs}`,
     "",
@@ -4749,6 +5118,13 @@ function classifyResponse(message) {
     return "resposta_sem_interesse";
   }
   if (
+    /\bexemplo\b|\bmodelo\b|\blink\b|\bsite\b|\bdemo\b|\bdemonstracao\b|\bcomo ficaria\b|\bficaria visualmente\b|\bvisualmente\b|\bver na pratica\b/.test(
+      normalized,
+    )
+  ) {
+    return "resposta_pediu_exemplo";
+  }
+  if (
     !/\bnao\b/.test(normalized) &&
     /\bgostei\b|\bquero fazer\b|\bquero fechar\b|\bbora\b|\bfechar\b|\bcontratar\b|\bcontrato\b|\bcomecar\b|\bcomeçar\b|\bvamos fazer\b|\bvou querer\b/.test(
       normalized,
@@ -4764,9 +5140,6 @@ function classifyResponse(message) {
     return "resposta_objecao";
   }
   if (/\bpode\b|\bclaro\b|\bsim\b/.test(normalized)) return "resposta_permissao";
-  if (/\bexemplo\b|\bmodelo\b|\blink\b|\bsite\b|\bcomo ficaria\b|\bficaria visualmente\b|\bvisualmente\b|\bver na pratica\b/.test(normalized)) {
-    return "resposta_pediu_exemplo";
-  }
   if (/\bnao\b|\bsem interesse\b/.test(normalized)) return "resposta_sem_interesse";
   return "resposta_recebida";
 }
