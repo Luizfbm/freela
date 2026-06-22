@@ -1353,7 +1353,7 @@ function serveWahaWebhook(root, flags) {
   const host = clean(flags.host || process.env.WHATSAPP_WAHA_WEBHOOK_HOST || "127.0.0.1");
   const port = parsePositiveInt(flags.port || process.env.WHATSAPP_WAHA_WEBHOOK_PORT || "3105", "--port");
   const secret = clean(flags["webhook-secret"] || process.env.WHATSAPP_WAHA_WEBHOOK_SECRET || "");
-  assertSafeWebhookHost(host, { hasSecret: Boolean(secret) });
+  assertSafeWebhookHost(host);
 
   const server = createServer(async (request, response) => {
     response.setHeader("Content-Type", "application/json");
@@ -1388,17 +1388,13 @@ function serveWahaWebhook(root, flags) {
   });
 }
 
-function assertSafeWebhookHost(host, { hasSecret }) {
+function assertSafeWebhookHost(host) {
   const value = clean(host).toLowerCase();
   if (value === "localhost" || value === "::1" || value === "[::1]" || /^127(?:\.\d{1,3}){3}$/.test(value)) {
     return;
   }
-  if (hasSecret && (value === "0.0.0.0" || value === "::" || value === "[::]")) {
-    return;
-  }
   throw new Error(
-    `--host deve usar loopback local (127.0.0.1, localhost ou ::1), ` +
-      `ou webhook secret para bind Docker; recebido: ${host || "-"}`,
+    `--host deve usar loopback local (127.0.0.1, localhost ou ::1); recebido: ${host || "-"}`,
   );
 }
 

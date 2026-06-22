@@ -551,7 +551,8 @@ test("WAHA local usa Docker Compose com sessao persistente e webhook inbound seg
   assert.match(guide, /WAHA_API_KEY/i);
   assert.match(guide, /WAHA_DASHBOARD_PASSWORD/i);
   assert.match(guide, /127\.0\.0\.1:3105/i);
-  assert.match(guide, /--host\s+0\.0\.0\.0/i);
+  assert.match(guide, /--host\s+127\.0\.0\.1/i);
+  assert.doesNotMatch(guide, /--host\s+0\.0\.0\.0/i);
   assert.match(guide, /WHATSAPP_WAHA_WEBHOOK_SECRET/i);
 });
 
@@ -673,7 +674,8 @@ test("WhatsApp Identity e auto-wake ficam documentados no contrato operacional",
     assert.match(doc, /whatsapp unmatched reconcile/i);
     assert.match(doc, /Sem identidade/i);
     assert.match(doc, /--auto-wake/i);
-    assert.match(doc, /--host\s+0\.0\.0\.0/i);
+    assert.match(doc, /--host\s+127\.0\.0\.1/i);
+    assert.doesNotMatch(doc, /--host\s+0\.0\.0\.0/i);
     assert.match(doc, /WHATSAPP_WAHA_WEBHOOK_SECRET/i);
     assert.match(doc, /whatsapp_worker_wakes/i);
   }

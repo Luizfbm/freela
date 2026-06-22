@@ -14,7 +14,7 @@ Atualizado em 2026-06-21 21:25 -03.
 - Sessao `default`: validada como `WORKING`.
 - Gateway webhook local: porta `3105`.
 - Webhook do container: `http://host.docker.internal:3105/waha/webhook`.
-- O Gateway pode ouvir em `0.0.0.0` somente para o container Docker alcancar o host, e somente com `WHATSAPP_WAHA_WEBHOOK_SECRET` carregado do `.env` local privado.
+- O Gateway deve ouvir somente em loopback (`127.0.0.1`). Se webhook vindo do container precisar alcancar o host, abrir decisao separada para proxy/tunel local aprovado; nao usar bind wildcard.
 - `scripts/whatsapp-local-gateway.mjs` carrega automaticamente o `.env` local a partir de `--root` e nao sobrescreve variaveis ja existentes.
 - Envio real controlado comprovado: Outbox 6 da Lidiane foi enviada via provider `waha`, recebeu ACK forte `DEVICE` e o CRM marcou `sent`/`delivered_at`.
 - Incidente posterior: Outbox 8 ficou `dispatch_ambiguous` por `WAHA check-exists falhou: Unauthorized`; diagnostico operacional e falha de credencial/processo de dispatch, nao bloqueio de conteudo.
@@ -182,7 +182,7 @@ docker compose -f docker-compose.waha.yml up -d
 
 O Compose monta `./.scratch/waha/.sessions` em `/app/.sessions`, prende a API em `http://127.0.0.1:3000`, exige `WAHA_API_KEY`/`WAHA_DASHBOARD_PASSWORD` do `.env` local e aponta o webhook interno do container para `http://host.docker.internal:3105/waha/webhook`.
 
-Para chamadas locais, o Gateway deve ficar em loopback. Para receber webhook vindo do container Docker Desktop, ele precisa ouvir em `0.0.0.0`, mas somente com `WHATSAPP_WAHA_WEBHOOK_SECRET` carregado do `.env`; sem segredo o script bloqueia esse bind.
+O Gateway deve ficar em loopback. O contrato local nao permite bind wildcard; se webhook vindo do container Docker Desktop precisar alcancar o host, use decisao separada para proxy/tunel local aprovado.
 
 O Gateway carrega `.env` automaticamente a partir de `--root`, sem sobrescrever variaveis ja presentes no processo. O `set -a` abaixo continua aceitavel para operacao assistida, mas nao e requisito para `dispatch-approved-outbox`.
 
@@ -193,7 +193,7 @@ set +a
 node scripts/whatsapp-local-gateway.mjs \
   --root /Users/luiz_fbm/Developer/freela \
   serve-waha-webhook \
-  --host 0.0.0.0 \
+  --host 127.0.0.1 \
   --port 3105 \
   --auto-wake
 ```

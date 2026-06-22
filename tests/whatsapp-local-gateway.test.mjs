@@ -1524,10 +1524,11 @@ test("WAHA webhook monitor rejects non-loopback hosts", async () => {
   assert.match(result.stderr, /--host deve usar loopback/i);
 });
 
-test("WAHA webhook monitor allows Docker-facing host only with webhook secret", async () => {
+test("WAHA webhook monitor rejects Docker-facing host even with webhook secret", async () => {
   const root = makeRoot();
   const port = await getFreePort();
-  const server = await startNodeUntilStdout(
+
+  const result = await runNodeUntilOutput(
     [
       gateway,
       "--root",
@@ -1540,24 +1541,11 @@ test("WAHA webhook monitor allows Docker-facing host only with webhook secret", 
       "--webhook-secret",
       "local-secret",
     ],
-    /Observando WAHA webhook/i,
+    /--host deve usar loopback/i,
   );
 
-  try {
-    const unauthorized = await postJson(`http://127.0.0.1:${port}/waha/webhook`, { event: "session.status" });
-    assert.equal(unauthorized.status, 401);
-
-    const accepted = await postJson(
-      `http://127.0.0.1:${port}/waha/webhook`,
-      { event: "session.status" },
-      { "X-Webhook-Secret": "local-secret" },
-    );
-    assert.equal(accepted.status, 200);
-    assert.equal(accepted.body.ok, true);
-    assert.equal(accepted.body.result.skipped, 1);
-  } finally {
-    await stopChild(server.child);
-  }
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--host deve usar loopback/i);
 });
 
 test("gateway rejects unknown dispatch flags without mutating outbox", () => {
