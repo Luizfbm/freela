@@ -89,7 +89,7 @@ test("cockpit summary and kanban read official SQLite views", () => {
   }
 });
 
-test("waha summary treats delivery pending and ambiguous dispatch separately", () => {
+test("waha summary treats delivery pending, ambiguous dispatch, and strong ACK separately", () => {
   const root = makeRoot();
   assert.equal(runCrm(root, ["init"]).status, 0);
   seedLead(root, {
@@ -106,6 +106,8 @@ test("waha summary treats delivery pending and ambiguous dispatch separately", (
     select id, phone_normalized, 'Mensagem pendente', 'test', 'delivery_pending', 1, 1, 1, datetime('now') from leads;
     insert into whatsapp_outbox (lead_id, target_chat_id, body, source, status, humanizer_pass, used_last_inbound, contextual_reply, created_at)
     select id, phone_normalized, 'Mensagem ambigua', 'test', 'dispatch_ambiguous', 1, 1, 1, datetime('now') from leads;
+    insert into whatsapp_outbox (lead_id, target_chat_id, body, source, status, delivery_ack_name, humanizer_pass, used_last_inbound, contextual_reply, created_at)
+    select id, phone_normalized, 'Mensagem entregue', 'test', 'sent', 'DEVICE', 1, 1, 1, datetime('now') from leads;
   `);
   database.close();
 
@@ -115,7 +117,7 @@ test("waha summary treats delivery pending and ambiguous dispatch separately", (
     assert.equal(waha.approved, 1);
     assert.equal(waha.deliveryPending, 1);
     assert.equal(waha.dispatchAmbiguous, 1);
-    assert.equal(waha.sentStrongAck, 0);
+    assert.equal(waha.sentStrongAck, 1);
   } finally {
     readOnly.close();
   }
