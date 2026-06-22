@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -98,6 +98,11 @@ function setWhatsAppState(root, name, state) {
     )
     .run(state, name);
   database.close();
+}
+
+async function closeServer(server) {
+  if (!server.listening) return;
+  await new Promise((resolve) => server.close(resolve));
 }
 
 test("cockpit summary and kanban read official SQLite views", () => {
@@ -1058,6 +1063,145 @@ test("cockpit server command preview does not mutate state", async () => {
       database.close();
     }
   } finally {
-    await new Promise((resolve) => server.close(resolve));
+    await closeServer(server);
+  }
+});
+
+test("cockpit server refuses listen host that widens loopback binding", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+
+  const server = createCockpitServer({ root, host: "127.0.0.1", port: 0 });
+  let blocked = false;
+  try {
+    server.listen(0, "0.0.0.0");
+  } catch (error) {
+    blocked = true;
+    assert.match(error.message, /loopback/i);
+  }
+
+  if (!blocked) {
+    await once(server, "listening");
+    const address = server.address();
+    await closeServer(server);
+    assert.fail(`server bound to ${JSON.stringify(address)} instead of rejecting non-loopback listen host`);
+  }
+
+  assert.equal(server.listening, false);
+});
+
+test("cockpit server refresh fails closed when operational sync script is missing", async () => {
+  const root = makeRoot();
+  const server = createCockpitServer({
+    root,
+    host: "127.0.0.1",
+    port: 0,
+    operationalSurfacesScript: join(root, "missing-sync.mjs"),
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/refresh-paperclip`, { method: "POST" });
+    assert.equal(response.status, 500);
+    const body = await response.json();
+    assert.equal(body.ok, false);
+    assert.equal(body.result.status, 1);
+    assert.match(body.result.stderr, /nao encontrado/i);
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("cockpit server rejects browser action posts before mutation", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  approveManualLeadCard(root, "Aghata Massoterapia", "Oi, posso te mandar 3 sugestoes rapidas?");
+
+  const server = createCockpitServer({ root, host: "127.0.0.1", port: 0 });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address();
+
+  try {
+    const crossSite = await fetch(`http://127.0.0.1:${port}/api/actions/enviado`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://example.test",
+      },
+      body: JSON.stringify({ leadId: 1, expectedStage: "ready_lead_card" }),
+    });
+    assert.equal(crossSite.status, 403);
+    assert.equal((await crossSite.json()).code, "ORIGIN_FORBIDDEN");
+
+    const wrongType = await fetch(`http://127.0.0.1:${port}/api/actions/enviado`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ leadId: 1, expectedStage: "ready_lead_card" }),
+    });
+    assert.equal(wrongType.status, 415);
+    assert.equal((await wrongType.json()).code, "UNSUPPORTED_MEDIA_TYPE");
+
+    const database = openCockpitDatabase({ root, readOnly: true });
+    try {
+      const detail = readLeadDetail(database, 1);
+      assert.equal(detail.status, "novo");
+      assert.equal(detail.commercialStage, "ready_lead_card");
+    } finally {
+      database.close();
+    }
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("cockpit server rejects invalid encoded API path params with 400", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+
+  const server = createCockpitServer({ root, host: "127.0.0.1", port: 0 });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/leads/%E0%A4%A`);
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "INVALID_PATH_PARAM");
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("cockpit server refuses static traversal and symlink escapes", async () => {
+  const root = makeRoot();
+  const publicDir = join(root, "dev/freela-cockpit");
+  mkdirSync(publicDir, { recursive: true });
+  writeFileSync(join(root, "secret.txt"), "secret");
+  writeFileSync(join(publicDir, "index.html"), "<!doctype html>");
+  symlinkSync(join(root, "secret.txt"), join(publicDir, "linked-secret.txt"));
+
+  const server = createCockpitServer({ root, host: "127.0.0.1", port: 0 });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address();
+
+  try {
+    const traversal = await fetch(`http://127.0.0.1:${port}/%2e%2e/secret.txt`);
+    assert.equal(traversal.status, 404);
+
+    const symlink = await fetch(`http://127.0.0.1:${port}/linked-secret.txt`);
+    assert.equal(symlink.status, 404);
+  } finally {
+    await closeServer(server);
   }
 });

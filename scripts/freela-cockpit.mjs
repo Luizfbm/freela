@@ -38,16 +38,30 @@ const MIME = new Map([
   [".webp", "image/webp"],
 ]);
 
-export function createCockpitServer({ root = process.cwd(), host = DEFAULT_HOST, port = DEFAULT_PORT, dbPath = null } = {}) {
+export function createCockpitServer({
+  root = process.cwd(),
+  host = DEFAULT_HOST,
+  port = DEFAULT_PORT,
+  dbPath = null,
+  operationalSurfacesScript = OPERATIONAL_SURFACES_SCRIPT,
+} = {}) {
   assertLoopbackHost(host);
   const resolvedRoot = resolve(root);
   const publicDir = resolve(resolvedRoot, "dev/freela-cockpit");
+  const resolvedOperationalSurfacesScript = resolve(operationalSurfacesScript ?? OPERATIONAL_SURFACES_SCRIPT);
 
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", "http://localhost");
       if (url.pathname.startsWith("/api/")) {
-        await handleApi({ request, response, url, root: resolvedRoot, dbPath });
+        await handleApi({
+          request,
+          response,
+          url,
+          root: resolvedRoot,
+          dbPath,
+          operationalSurfacesScript: resolvedOperationalSurfacesScript,
+        });
         return;
       }
 
@@ -60,9 +74,17 @@ export function createCockpitServer({ root = process.cwd(), host = DEFAULT_HOST,
       });
     }
   });
+
+  return enforceLoopbackListen(server, host);
 }
 
-async function handleApi({ request, response, url, root, dbPath }) {
+async function handleApi({ request, response, url, root, dbPath, operationalSurfacesScript }) {
+  const postBlocker = validatePostRequest({ request });
+  if (postBlocker) {
+    sendJson(response, postBlocker.status, postBlocker.payload);
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/summary") {
     return withReadDb({ root, dbPath }, (database) =>
       sendJson(response, 200, { ok: true, summary: readCockpitSummary(database) }),
@@ -92,7 +114,7 @@ async function handleApi({ request, response, url, root, dbPath }) {
 
   const leadDetailMatch = url.pathname.match(/^\/api\/leads\/([^/]+)$/);
   if (request.method === "GET" && leadDetailMatch) {
-    const leadId = Number.parseInt(decodeURIComponent(leadDetailMatch[1]), 10);
+    const leadId = Number.parseInt(decodePathParam(leadDetailMatch[1]), 10);
     if (!Number.isInteger(leadId) || leadId <= 0) {
       throw httpError(400, "Lead id invalido", { code: "INVALID_LEAD_ID" });
     }
@@ -120,18 +142,18 @@ async function handleApi({ request, response, url, root, dbPath }) {
     const result = await executeCockpitAction({
       root,
       dbPath,
-      action: decodeURIComponent(actionMatch[1]),
+      action: decodePathParam(actionMatch[1]),
       leadId: body.leadId,
       expectedStage: body.expectedStage ?? null,
       payload: body.payload ?? {},
       runCommand: (args) => runCrmCommand({ root, dbPath, args }),
-      syncPaperclip: () => syncOperationalSurfaces({ root }),
+      syncPaperclip: () => syncOperationalSurfaces({ root, operationalSurfacesScript }),
     });
     return sendJson(response, result.ok ? 200 : 409, { ok: result.ok, result });
   }
 
   if (request.method === "POST" && url.pathname === "/api/refresh-paperclip") {
-    const result = await syncOperationalSurfaces({ root });
+    const result = await syncOperationalSurfaces({ root, operationalSurfacesScript });
     if (runnerFailed(result)) {
       sendJson(response, 500, { ok: false, result: serializeRunnerResult(result) });
       return;
@@ -141,6 +163,35 @@ async function handleApi({ request, response, url, root, dbPath }) {
   }
 
   sendJson(response, 404, { ok: false, error: "Rota nao encontrada", code: "NOT_FOUND" });
+}
+
+function enforceLoopbackListen(server, configuredHost) {
+  const originalListen = server.listen.bind(server);
+  server.listen = (...args) => originalListen(...normalizeListenArgs(args, configuredHost));
+  return server;
+}
+
+function normalizeListenArgs(args, configuredHost) {
+  if (args.length === 0) return [{ host: configuredHost }];
+
+  const [first, second, ...rest] = args;
+
+  if (typeof first === "number") {
+    if (typeof second === "string") {
+      assertLoopbackHost(second);
+      return args;
+    }
+    return [first, configuredHost, second, ...rest].filter((value) => value !== undefined);
+  }
+
+  if (first && typeof first === "object" && !("fd" in first)) {
+    const options = { ...first };
+    if ("path" in options) throw new Error("Freela Cockpit deve escutar apenas em TCP loopback");
+    if (options.host) assertLoopbackHost(options.host);
+    return [{ ...options, host: options.host ?? configuredHost }, second, ...rest].filter((value) => value !== undefined);
+  }
+
+  throw new Error("Freela Cockpit deve escutar apenas em loopback");
 }
 
 function assertLoopbackHost(host) {
@@ -156,6 +207,72 @@ function withReadDb({ root, dbPath }, fn) {
   } finally {
     database.close();
   }
+}
+
+function validatePostRequest({ request }) {
+  if (request.method !== "POST") return null;
+
+  const fetchSite = String(request.headers["sec-fetch-site"] ?? "").toLowerCase();
+  if (fetchSite === "cross-site") {
+    return forbiddenPost("SEC_FETCH_SITE_FORBIDDEN", "Requisicao cross-site bloqueada");
+  }
+
+  if (!originAllowed(request)) {
+    return forbiddenPost("ORIGIN_FORBIDDEN", "Origin nao permitido");
+  }
+
+  if (requestHasBody(request) && !hasJsonContentType(request)) {
+    return {
+      status: 415,
+      payload: {
+        ok: false,
+        error: "Content-Type JSON obrigatorio",
+        code: "UNSUPPORTED_MEDIA_TYPE",
+      },
+    };
+  }
+
+  return null;
+}
+
+function forbiddenPost(code, error) {
+  return {
+    status: 403,
+    payload: { ok: false, error, code },
+  };
+}
+
+function originAllowed(request) {
+  const origin = request.headers.origin;
+  if (!origin) return true;
+
+  try {
+    const originUrl = new URL(origin);
+    const requestUrl = new URL(`http://${request.headers.host ?? ""}`);
+    return (
+      originUrl.protocol === "http:" &&
+      LOOPBACK_HOSTS.has(originUrl.hostname) &&
+      LOOPBACK_HOSTS.has(requestUrl.hostname) &&
+      originUrl.port === requestUrl.port
+    );
+  } catch {
+    return false;
+  }
+}
+
+function requestHasBody(request) {
+  const contentLength = request.headers["content-length"];
+  if (contentLength && contentLength !== "0") return true;
+  return Boolean(request.headers["transfer-encoding"]);
+}
+
+function hasJsonContentType(request) {
+  const contentType = String(request.headers["content-type"] ?? "")
+    .split(";")
+    .at(0)
+    .trim()
+    .toLowerCase();
+  return contentType === "application/json" || contentType.endsWith("+json");
 }
 
 async function readJsonBody(request) {
@@ -185,8 +302,22 @@ function serveStatic({ response, publicDir, pathname }) {
     return;
   }
 
-  response.writeHead(200, { "Content-Type": MIME.get(extname(file)) ?? "application/octet-stream" });
-  createReadStream(file).pipe(response);
+  const stream = createReadStream(file);
+  stream.once("error", (error) => {
+    if (!response.headersSent) {
+      sendJson(response, 500, {
+        ok: false,
+        error: error.message,
+        code: "STATIC_READ_ERROR",
+      });
+      return;
+    }
+    response.destroy(error);
+  });
+  stream.once("open", () => {
+    response.writeHead(200, { "Content-Type": MIME.get(extname(file)) ?? "application/octet-stream" });
+    stream.pipe(response);
+  });
 }
 
 function resolveStaticPath({ publicDir, pathname }) {
@@ -231,18 +362,17 @@ function runCrmCommand({ root, dbPath, args }) {
   });
 }
 
-function syncOperationalSurfaces({ root }) {
-  if (!existsSync(OPERATIONAL_SURFACES_SCRIPT)) {
+function syncOperationalSurfaces({ root, operationalSurfacesScript = OPERATIONAL_SURFACES_SCRIPT }) {
+  if (!existsSync(operationalSurfacesScript)) {
     return Promise.resolve({
-      status: 0,
+      status: 1,
       stdout: "",
-      stderr: "paperclip-sync-operational-surfaces.mjs nao encontrado; sync ignorado.\n",
-      skipped: true,
+      stderr: `paperclip-sync-operational-surfaces.mjs nao encontrado: ${operationalSurfacesScript}\n`,
     });
   }
 
   return runNode({
-    args: [OPERATIONAL_SURFACES_SCRIPT, "--root", root],
+    args: [operationalSurfacesScript, "--root", root],
     cwd: PROJECT_ROOT,
   });
 }
@@ -309,6 +439,14 @@ function serializeRunnerResult(result) {
 
 function httpError(status, message, extra = {}) {
   return Object.assign(new Error(message), { status, ...extra });
+}
+
+function decodePathParam(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw httpError(400, "Parametro de rota invalido", { code: "INVALID_PATH_PARAM" });
+  }
 }
 
 function isInside(child, parent) {
