@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Freela Cockpit</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand-block">
+      <p class="eyebrow">Freela Cockpit</p>
+      <h1>Operacao de leads</h1>
+    </div>
+    <div class="header-actions" aria-label="Estado da operacao">
+      <span id="db-health" class="status-pill neutral">SQLite</span>
+      <span id="last-refresh" class="last-refresh">Sem atualizacao</span>
+      <button id="refresh-button" class="button secondary" type="button">Atualizar</button>
+    </div>
+  </header>
+
+  <main id="app" class="cockpit-layout" aria-busy="false">
+    <section class="workbench" aria-label="Cockpit operacional">
+      <section id="scorebar" class="scorebar" aria-label="Indicadores" aria-live="polite">
+        <p class="empty-state">Carregando indicadores.</p>
+      </section>
+
+      <section class="search-panel" aria-label="Busca global">
+        <div class="panel-heading">
+          <label for="lead-search">Buscar lead</label>
+          <span id="search-state" class="subtle">Todos os status</span>
+        </div>
+        <input id="lead-search" type="search" name="q" placeholder="Nome, contato, cidade, status" autocomplete="off">
+        <div id="search-results" class="search-results" aria-live="polite"></div>
+      </section>
+
+      <section id="kanban" class="kanban" aria-label="Kanban operacional">
+        <p class="empty-state">Carregando kanban.</p>
+      </section>
+
+      <section class="command-panel" aria-label="Console de comando">
+        <div class="panel-heading">
+          <label for="command-input">Console</label>
+          <span class="subtle">Preview sem mutacao</span>
+        </div>
+        <div class="command-row">
+          <input id="command-input" type="text" placeholder="enviado Nome do Lead" autocomplete="off">
+          <button id="preview-command" class="button secondary" type="button">Preview</button>
+        </div>
+        <div id="command-preview" class="command-preview" aria-live="polite"></div>
+      </section>
+    </section>
+
+    <aside class="waha-panel" aria-label="Painel WAHA">
+      <div class="panel-heading">
+        <h2>WAHA</h2>
+        <span class="subtle">Outbox</span>
+      </div>
+      <div id="waha-summary" class="waha-summary" aria-live="polite">
+        <p class="empty-state">Carregando WAHA.</p>
+      </div>
+    </aside>
+  </main>
+
+  <div id="lead-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="lead-modal-title">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <p id="lead-modal-kind" class="eyebrow">Lead</p>
+          <h2 id="lead-modal-title">Lead</h2>
+        </div>
+        <button id="modal-close" class="icon-button" type="button" aria-label="Fechar">x</button>
+      </div>
+      <div id="lead-detail" class="lead-detail"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <div id="error-box" class="error-box hidden" role="alert"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
