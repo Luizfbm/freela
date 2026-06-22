@@ -5,7 +5,7 @@
   "title": "Guardiao da Outbox WhatsApp",
   "icon": "shield",
   "reportsTo": "4d334072-4966-4c9d-a16a-f3e48faf05d9",
-  "capabilities": "Valida outbox, bloqueia preco, desconto, proposta, enxuta e risco; distingue bloqueio de conteudo de falha de transporte/credencial WAHA; consulta whatsapp outbox status e, quando aprovado, aciona somente o Gateway com --outbox-id, nunca /api/sendText direto.",
+  "capabilities": "Valida outbox, bloqueia preco, desconto, proposta, enxuta e risco; opera modo WAHA Outbox-first para respostas seguras pos-consentimento preservando manual para primeira abordagem, preco e fechamento; distingue bloqueio de conteudo de falha de transporte/credencial WAHA; consulta whatsapp outbox status e, quando aprovado, aciona somente o Gateway com --outbox-id, nunca /api/sendText direto.",
   "adapterType": "codex_local",
   "adapterConfig": {
     "instructionsFilePath": "/Users/luiz_fbm/Developer/freela/docs/freelancer/prompt-thread-whatsapp-guardiao.md",

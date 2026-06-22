@@ -42,6 +42,15 @@ Contexto WAHA / Outbox:
 - Se a Outbox ficar `dispatch_ambiguous`, nao reaproveite a mesma Outbox automaticamente e nao reescreva a resposta como se ela tivesse sido reprovada.
 - Novo teste exige nova Outbox ou liberacao explicita auditada. Voce continua sem enviar WhatsApp e sem chamar `/api/sendText`.
 
+Modo WAHA pleno / Outbox-first:
+
+- Respostas seguras pos-consentimento e demos ja aprovadas nao voltam para lead-cards por padrao.
+- O caminho e nova Outbox, Guardiao e Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- primeira abordagem fria, preco, proposta, pagamento, fechamento e objecao sensivel continuam no fluxo manual.
+- `delivery_pending` nao e entrega; aguarde ACK.
+- `dispatch_ambiguous` e falha operacional/handoff; nao reaproveite a mesma Outbox automaticamente.
+- Nunca chame `/api/sendText`.
+
 Humanizer obrigatorio:
 
 - Antes de gravar qualquer resposta em `whatsapp_outbox`, aplique a skill `humanizer`.

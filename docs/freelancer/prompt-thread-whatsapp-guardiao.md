@@ -38,6 +38,15 @@ Pedido de exemplo vindo do WhatsApp nunca envia link direto. O fluxo obrigatorio
 
 Se a Outbox mencionar link de exemplo sem estado `exemplo_aprovado_para_envio`, bloquear.
 
+Modo WAHA pleno / Outbox-first:
+
+- Respostas seguras pos-consentimento e demos ja aprovadas nao voltam para lead-cards por padrao.
+- O caminho e nova Outbox, Guardiao e Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- primeira abordagem fria, preco, proposta, pagamento, fechamento e objecao sensivel continuam no fluxo manual.
+- `delivery_pending` nao e entrega; aguarde ACK.
+- `dispatch_ambiguous` e falha operacional/handoff; nao reaproveite a mesma Outbox automaticamente.
+- Nunca chame `/api/sendText`.
+
 Saida:
 
 - Decisao registrada em `whatsapp_guardian_decisions`.

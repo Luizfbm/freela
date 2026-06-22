@@ -587,6 +587,36 @@ test("WAHA pleno usa Outbox-first para respostas seguras e preserva manual para 
   }
 });
 
+test("Workers conhecem modo Outbox-first WAHA pleno", () => {
+  const docs = [
+    ["COO", read("docs/freelancer/prompt-thread-coo-freelancer.md")],
+    ["Atendimento WhatsApp", read("docs/freelancer/prompt-thread-whatsapp-atendimento.md")],
+    ["Jhon", read("docs/freelancer/prompt-thread-atendimento-clientes.md")],
+    ["Guardiao", read("docs/freelancer/prompt-thread-whatsapp-guardiao.md")],
+    ["Follow-up", read("docs/freelancer/prompt-thread-followup-crm.md")],
+  ];
+
+  for (const [name, doc] of docs) {
+    assert.match(doc, /Outbox-first|Outbox first|outbox-first/i, `${name} deve conhecer modo Outbox-first`);
+    assert.match(
+      doc,
+      /primeira abordagem fria.*manual|manual.*primeira abordagem fria/is,
+      `${name} deve preservar primeira abordagem manual`,
+    );
+    assert.match(doc, /preco|preço|fechamento|proposta/i, `${name} deve preservar excecoes comerciais`);
+    assert.match(
+      doc,
+      /dispatch-approved-outbox[\s\S]*--outbox-id|--outbox-id[\s\S]*dispatch-approved-outbox/i,
+      `${name} deve exigir outbox id`,
+    );
+    assert.doesNotMatch(
+      doc,
+      /\/api\/sendText.*diretamente permitido/i,
+      `${name} nao pode liberar envio cru`,
+    );
+  }
+});
+
 test("README documenta fronteira atual de automacao WhatsApp", () => {
   const readme = paperclipReadme();
 

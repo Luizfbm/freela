@@ -119,6 +119,15 @@ Falhas WAHA e Outbox:
 - Nao reaproveite a mesma Outbox automaticamente. Novo teste exige nova Outbox ou liberacao explicita auditada.
 - Se isso aparecer em triagem, mantenha o lead em handoff operacional e acione COO/Jhon Snow/Guardiao conforme o caso. Nunca chame `/api/sendText`.
 
+Modo WAHA pleno / Outbox-first:
+
+- Respostas seguras pos-consentimento e demos ja aprovadas nao voltam para lead-cards por padrao.
+- O caminho e nova Outbox, Guardiao e Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- primeira abordagem fria, preco, proposta, pagamento, fechamento e objecao sensivel continuam no fluxo manual.
+- `delivery_pending` nao e entrega; aguarde ACK.
+- `dispatch_ambiguous` e falha operacional/handoff; nao reaproveite a mesma Outbox automaticamente.
+- Nunca chame `/api/sendText`.
+
 Eventos vindos do Intake de Conversas:
 
 - O Worker Intake de Conversas pode comentar no `FRE-6` com comandos estruturados a partir de print, screenshot ou texto colado pelo usuario.

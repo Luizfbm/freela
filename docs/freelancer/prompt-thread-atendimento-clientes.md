@@ -82,6 +82,15 @@ Falhas WAHA e Outbox:
 - Nao reaproveite a mesma Outbox automaticamente. Para novo teste, crie nova Outbox ou exija liberacao explicita auditada pelo Guardiao/COO.
 - Nunca chame `/api/sendText`.
 
+Modo WAHA pleno / Outbox-first:
+
+- Respostas seguras pos-consentimento e demos ja aprovadas nao voltam para lead-cards por padrao.
+- O caminho e nova Outbox, Guardiao e Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+- primeira abordagem fria, preco, proposta, pagamento, fechamento e objecao sensivel continuam no fluxo manual.
+- `delivery_pending` nao e entrega; aguarde ACK.
+- `dispatch_ambiguous` e falha operacional/handoff; nao reaproveite a mesma Outbox automaticamente.
+- Nunca chame `/api/sendText`.
+
 Perfil de cliente que estou priorizando:
 
 - profissionais-donos-operadores;
