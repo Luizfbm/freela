@@ -8,8 +8,11 @@ import { DatabaseSync } from "node:sqlite";
 
 import {
   openCockpitDatabase,
+  previewCommand,
+  readLeadDetail,
   readCockpitSummary,
   readKanban,
+  searchLeads,
   readWahaSummary,
 } from "../scripts/freela-cockpit-core.mjs";
 
@@ -350,5 +353,72 @@ test("waha summary treats delivery pending, ambiguous dispatch, and strong ACK s
     assert.equal(waha.sentStrongAck, 1);
   } finally {
     readOnly.close();
+  }
+});
+
+test("cockpit search includes closed leads and resolves by lead id", () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Clara Pilates",
+    city: "Vila Velha",
+    category: "pilates",
+    phone_or_contact: "+55 27 90000-0001",
+    status: "perdido",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const database = openCockpitDatabase({ root, readOnly: true });
+  try {
+    const results = searchLeads(database, { q: "Clara" });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].canonicalName, "Clara Pilates");
+    assert.equal(results[0].status, "perdido");
+
+    const detail = readLeadDetail(database, results[0].leadId);
+    assert.equal(detail.canonicalName, "Clara Pilates");
+    assert.equal(detail.availableActions.includes("enviado"), false);
+  } finally {
+    database.close();
+  }
+});
+
+test("command preview refuses ambiguous lead names", () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, { canonical_name: "Clara Pilates", recommended_offer: "Presenca Local em 72h" });
+  seedLead(root, { canonical_name: "Clara Fisio", recommended_offer: "Presenca Local em 72h" });
+
+  const database = openCockpitDatabase({ root, readOnly: true });
+  try {
+    const preview = previewCommand(database, "enviado Clara");
+    assert.equal(preview.ok, false);
+    assert.equal(preview.reason, "ambiguous_lead");
+    assert.equal(preview.matches.length, 2);
+  } finally {
+    database.close();
+  }
+});
+
+test("command preview resolves resposta command with required message", () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const database = openCockpitDatabase({ root, readOnly: true });
+  try {
+    const preview = previewCommand(database, "respondeu Aghata Massoterapia: Pode sim");
+    assert.equal(preview.ok, true);
+    assert.equal(preview.action, "respondeu");
+    assert.equal(preview.requiresStrongConfirmation, true);
+    assert.equal(preview.payload.message, "Pode sim");
+    assert.equal(preview.crmEffect, "record_response");
+    assert.equal(preview.paperclipEffect, "route_worker_or_triage");
+  } finally {
+    database.close();
   }
 });

@@ -75,6 +75,151 @@ export function readKanban(database, options = {}) {
   };
 }
 
+export function searchLeads(database, { q = "", limit = 50 } = {}) {
+  const query = clean(q).toLowerCase();
+  const term = `%${query}%`;
+  const rows = database
+    .prepare(
+      `select *
+       from commercial_lead_context
+       where lower(coalesce(canonical_name, '')) like ?
+          or lower(coalesce(phone_or_contact, '')) like ?
+          or lower(coalesce(contact_path, '')) like ?
+          or lower(coalesce(instagram, '')) like ?
+          or lower(coalesce(city, '')) like ?
+          or lower(coalesce(area, '')) like ?
+          or lower(coalesce(category, '')) like ?
+          or lower(coalesce(status, '')) like ?
+          or lower(coalesce(commercial_stage, '')) like ?
+       order by
+         case
+           when lower(coalesce(canonical_name, '')) = ? then 0
+           when lower(coalesce(canonical_name, '')) like ? then 1
+           else 2
+         end,
+         datetime(updated_at) desc,
+         canonical_name
+       limit ?`,
+    )
+    .all(term, term, term, term, term, term, term, term, term, query, term, normalizeLimit(limit));
+  return rows.map(mapLeadContextRow);
+}
+
+export function readLeadDetail(database, leadId) {
+  const row = database.prepare("select * from commercial_lead_context where lead_id = ?").get(leadId);
+  if (!row) {
+    throw Object.assign(new Error(`Lead nao encontrado: ${leadId}`), {
+      code: "LEAD_NOT_FOUND",
+      status: 404,
+    });
+  }
+
+  const outbox = database
+    .prepare(
+      `select
+         id,
+         status,
+         source,
+         target_chat_id,
+         body,
+         delivery_ack,
+         delivery_ack_name,
+         provider_message_id,
+         dispatch_error,
+         dispatch_locked_at,
+         dispatch_provider,
+         delivered_at,
+         delivery_checked_at,
+         guardian_decision,
+         guardian_reason,
+         attempts,
+         bridge_message_id,
+         created_at,
+         approved_at,
+         sent_at,
+         failed_at
+       from whatsapp_outbox
+       where lead_id = ?
+       order by datetime(coalesce(delivery_checked_at, delivered_at, sent_at, failed_at, approved_at, created_at)) desc, id desc
+       limit 5`,
+    )
+    .all(leadId)
+    .map(mapOutboxRow);
+
+  return {
+    ...mapLeadContextRow(row),
+    outbox,
+    availableActions: availableActionsForLead(row),
+  };
+}
+
+export function previewCommand(database, rawCommand) {
+  const parsed = parseOperatorCommand(rawCommand);
+  if (!parsed.ok) return parsed;
+
+  if (parsed.action === "status" && !parsed.name) {
+    return {
+      ok: true,
+      action: "status",
+      crmEffect: "read_summary",
+      paperclipEffect: "none",
+      agentMayWake: false,
+      requiresStrongConfirmation: false,
+      payload: {},
+    };
+  }
+
+  const matches = resolveLeadMatches(database, parsed.name);
+  if (matches.length === 0) return { ok: false, reason: "lead_not_found", matches: [] };
+  if (matches.length > 1) return { ok: false, reason: "ambiguous_lead", matches };
+
+  const action = parsed.action;
+  const lead = readLeadDetail(database, matches[0].leadId);
+  return {
+    ok: true,
+    action,
+    lead,
+    leadId: lead.leadId,
+    crmEffect: crmEffectForAction(action),
+    paperclipEffect: paperclipEffectForAction(action),
+    agentMayWake: agentMayWakeForAction(action),
+    requiresStrongConfirmation: requiresStrongConfirmationForAction(action),
+    payload: parsed.payload ?? {},
+  };
+}
+
+export function parseOperatorCommand(rawCommand) {
+  const command = clean(rawCommand);
+  const lowerCommand = command.toLowerCase();
+  if (!command) return { ok: false, reason: "empty_command" };
+  if (lowerCommand === "status") return { ok: true, action: "status", name: "", payload: {} };
+  if (lowerCommand.startsWith("status ")) {
+    return parseNamedAction(command, "status ", "status_lead");
+  }
+  if (lowerCommand.startsWith("followup enviado ") || lowerCommand === "followup enviado") {
+    return parseNamedAction(command, "followup enviado ", "followup_enviado");
+  }
+  if (lowerCommand.startsWith("enviado ") || lowerCommand === "enviado") {
+    return parseNamedAction(command, "enviado ", "enviado");
+  }
+  if (lowerCommand.startsWith("respondeu ") || lowerCommand === "respondeu") {
+    return parseResponseCommand(command);
+  }
+  if (lowerCommand.startsWith("pediu exemplo ") || lowerCommand === "pediu exemplo") {
+    return parseNamedAction(command, "pediu exemplo ", "pediu_exemplo");
+  }
+  if (lowerCommand.startsWith("pediu preco ") || lowerCommand === "pediu preco") {
+    return parseNamedAction(command, "pediu preco ", "pediu_preco");
+  }
+  if (lowerCommand.startsWith("perdido ") || lowerCommand === "perdido") {
+    return parseNamedAction(command, "perdido ", "perdido");
+  }
+  if (lowerCommand.startsWith("descartar ") || lowerCommand === "descartar") {
+    return parseNamedAction(command, "descartar ", "descartar");
+  }
+  return { ok: false, reason: "unknown_command" };
+}
+
 export function readWahaSummary(database) {
   const row = database
     .prepare(
@@ -224,6 +369,124 @@ function readWahaBlockers(database) {
     .map(mapWahaBlockerRow);
 }
 
+function parseNamedAction(command, prefix, action) {
+  const name = clean(command.slice(prefix.length));
+  if (!name) return { ok: false, reason: "lead_name_required", action };
+  return { ok: true, action, name, payload: {} };
+}
+
+function parseResponseCommand(command) {
+  const body = command.slice("respondeu ".length);
+  const separator = body.indexOf(":");
+  if (separator === -1) return { ok: false, reason: "response_message_required" };
+
+  const name = clean(body.slice(0, separator));
+  if (!name) return { ok: false, reason: "lead_name_required", action: "respondeu" };
+
+  const message = clean(body.slice(separator + 1));
+  if (!message) return { ok: false, reason: "response_message_required" };
+
+  return { ok: true, action: "respondeu", name, payload: { message } };
+}
+
+function resolveLeadMatches(database, name) {
+  const query = clean(name).toLowerCase();
+  if (!query) return [];
+
+  const exactRows = database
+    .prepare(
+      `select *
+       from commercial_lead_context
+       where lower(trim(coalesce(canonical_name, ''))) = ?
+       order by canonical_name
+       limit 10`,
+    )
+    .all(query);
+  if (exactRows.length > 0) return exactRows.map(mapLeadContextRow);
+
+  const term = `%${query}%`;
+  return database
+    .prepare(
+      `select *
+       from commercial_lead_context
+       where lower(coalesce(canonical_name, '')) like ?
+       order by canonical_name
+       limit 10`,
+    )
+    .all(term)
+    .map(mapLeadContextRow);
+}
+
+function availableActionsForLead(row) {
+  const status = clean(row.status).toLowerCase();
+  const commercialStage = clean(row.commercial_stage).toLowerCase();
+  if (["fechado", "perdido", "descartado", "duplicado"].includes(status)) return [];
+
+  const actions = [];
+  if (commercialStage === "ready_lead_card") actions.push("enviado");
+  if (commercialStage === "followup" || ["abordado", "respondeu", "interessado", "tem_demo"].includes(status)) {
+    actions.push("followup_enviado", "respondeu", "pediu_exemplo", "pediu_preco");
+  }
+  actions.push("perdido", "descartar");
+  return [...new Set(actions)];
+}
+
+function crmEffectForAction(action) {
+  return (
+    {
+      status: "read_summary",
+      status_lead: "read_lead",
+      enviado: "mark_contacted",
+      followup_enviado: "mark_followup_sent",
+      respondeu: "record_response",
+      pediu_exemplo: "record_demo_request",
+      pediu_preco: "record_price_request",
+      perdido: "mark_lost",
+      descartar: "mark_discarded",
+    }[action] ?? "unknown"
+  );
+}
+
+function paperclipEffectForAction(action) {
+  if (["respondeu", "pediu_exemplo", "pediu_preco"].includes(action)) return "route_worker_or_triage";
+  if (["enviado", "followup_enviado", "perdido", "descartar"].includes(action)) return "refresh_surfaces";
+  return "none";
+}
+
+function agentMayWakeForAction(action) {
+  return ["respondeu", "pediu_exemplo", "pediu_preco"].includes(action);
+}
+
+function requiresStrongConfirmationForAction(action) {
+  return ["respondeu", "pediu_exemplo", "pediu_preco", "perdido", "descartar"].includes(action);
+}
+
+function mapOutboxRow(row) {
+  return {
+    id: row.id,
+    status: row.status,
+    source: row.source,
+    targetChatId: row.target_chat_id,
+    body: row.body,
+    deliveryAck: row.delivery_ack,
+    deliveryAckName: row.delivery_ack_name,
+    providerMessageId: row.provider_message_id,
+    dispatchError: row.dispatch_error,
+    dispatchLockedAt: row.dispatch_locked_at,
+    dispatchProvider: row.dispatch_provider,
+    deliveredAt: row.delivered_at,
+    deliveryCheckedAt: row.delivery_checked_at,
+    guardianDecision: row.guardian_decision,
+    guardianReason: row.guardian_reason,
+    attempts: row.attempts,
+    bridgeMessageId: row.bridge_message_id,
+    createdAt: row.created_at,
+    approvedAt: row.approved_at,
+    sentAt: row.sent_at,
+    failedAt: row.failed_at,
+  };
+}
+
 function mapWorkerHandoffRow(row) {
   return {
     cardKind: "worker_handoff",
@@ -335,6 +598,12 @@ function nextCommercialStep(report) {
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+function normalizeLimit(limit) {
+  const parsed = Number(limit);
+  if (!Number.isFinite(parsed)) return 50;
+  return Math.max(0, Math.trunc(parsed));
 }
 
 function firstFilled(...values) {
