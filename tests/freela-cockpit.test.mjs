@@ -1228,6 +1228,9 @@ test("cockpit frontend exposes Paperclip retry only through local API", async ()
   assert.match(app, /CRM atualizado/);
   assert.match(app, /Publicacao Paperclip pendente/);
   assert.match(app, /\/api\/refresh-paperclip/);
+  assert.match(app, /paperclipRecoveryOnly/);
+  assert.match(app, /enterPaperclipRecoveryMode/);
+  assert.match(app, /clearActionSurface/);
   assert.doesNotMatch(app, /\/api\/sendText|whatsapp-local-gateway/i);
 });
 
@@ -1238,4 +1241,12 @@ test("cockpit frontend warns and blocks stale modal actions", async () => {
   assert.match(app, /hasLeadMaterialChange/);
   assert.match(app, /reloadOpenLead/);
   assert.match(app, /state\.modalStale/);
+});
+
+test("cockpit frontend badges cards changed between refreshes", async () => {
+  const app = await readServedCockpitApp();
+
+  assert.match(app, /boardSnapshots/);
+  assert.match(app, /annotateChangedCards/);
+  assert.match(app, /Mudou agora/);
 });

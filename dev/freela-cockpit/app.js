@@ -2,10 +2,14 @@ const state = {
   requestCount: 0,
   modalOpen: false,
   modalStale: false,
+  paperclipRecoveryOnly: false,
+  paperclipRecoveryResult: null,
   currentLead: null,
   modalSnapshot: null,
   selectedAction: null,
   refreshTimer: null,
+  boardSnapshots: new Map(),
+  boardSnapshotsPrimed: false,
   leadWatchTimer: null,
   leadWatchController: null,
   leadWatchBusy: false,
@@ -149,7 +153,7 @@ async function refresh({ manual = false, force = false } = {}) {
     ]);
 
     renderSummary(summaryBody.summary);
-    renderKanban(leadsBody.kanban);
+    renderKanban(annotateChangedCards(leadsBody.kanban));
     renderWaha(wahaBody.waha);
     setHealth("green", "SQLite OK");
     elements.lastRefresh.textContent = `Atualizado ${new Date().toLocaleTimeString("pt-BR")}`;
@@ -226,6 +230,7 @@ function renderCard(card = {}) {
           <span class="badge ${escapeAttr(statusTone)}">${escapeHtml(labelForKind(kind))}</span>
           <span class="badge neutral">${escapeHtml(card.status || "-")}</span>
           ${card.commercialStage ? `<span class="badge blue">${escapeHtml(card.commercialStage)}</span>` : ""}
+          ${card.externallyChanged ? '<span class="badge amber">Mudou agora</span>' : ""}
         </div>
         ${location ? `<div class="muted card-note">${escapeHtml(location)}</div>` : ""}
         ${contact ? `<div class="muted card-note">${escapeHtml(contact)}</div>` : ""}
@@ -318,6 +323,8 @@ async function openLead(leadId) {
     state.currentLead = body.lead;
     state.modalSnapshot = leadSnapshot(body.lead);
     state.modalStale = false;
+    state.paperclipRecoveryOnly = false;
+    state.paperclipRecoveryResult = null;
     state.selectedAction = null;
     state.modalOpen = true;
     renderLeadModal(body.lead);
@@ -365,7 +372,7 @@ function renderLeadModal(lead = {}) {
     </section>
     <section class="detail-band">
       <h3>Acoes</h3>
-      ${actionButtons}
+      <div id="action-list-slot">${actionButtons}</div>
       <div id="modal-stale-warning"></div>
       <div id="action-form-slot"></div>
       <div id="paperclip-recovery-slot"></div>
@@ -426,6 +433,10 @@ function renderOutboxRow(row = {}) {
 }
 
 function selectAction(action) {
+  if (state.paperclipRecoveryOnly) {
+    showError("Publicacao Paperclip pendente.");
+    return;
+  }
   if (!state.currentLead) return;
   state.selectedAction = action;
   const slot = document.getElementById("action-form-slot");
@@ -495,10 +506,16 @@ function updateActionSubmitState() {
   const confirmed = document.getElementById("action-confirm")?.checked ?? true;
   const validMessage = !requiredMessageActions.has(action) || Boolean(message);
   const validReason = !requiredReasonActions.has(action) || Boolean(reason);
-  submit.disabled = isBusy() || state.modalStale || !confirmed || !validMessage || !validReason;
+  submit.disabled =
+    isBusy() || state.modalStale || state.paperclipRecoveryOnly || !confirmed || !validMessage || !validReason;
 }
 
 async function submitSelectedAction() {
+  if (state.paperclipRecoveryOnly) {
+    showError("Publicacao Paperclip pendente.");
+    return;
+  }
+
   const lead = state.currentLead;
   const action = state.selectedAction;
   if (!lead || !action) return;
@@ -533,7 +550,7 @@ async function submitSelectedAction() {
 
     const result = body.result ?? {};
     if (isPaperclipPartialFailure(result)) {
-      showPaperclipRecovery(result);
+      enterPaperclipRecoveryMode(result);
       showError("CRM atualizado. Publicacao Paperclip pendente.");
       return;
     }
@@ -562,7 +579,7 @@ async function retryPaperclipRefresh() {
   try {
     const body = await fetchJson("/api/refresh-paperclip", { method: "POST" });
     if (!body.ok) {
-      showPaperclipRecovery({ reason: "paperclip_sync_failed", errors: [runnerMessage(body.result)] });
+      enterPaperclipRecoveryMode({ reason: "paperclip_sync_failed", errors: [runnerMessage(body.result)] });
       showError(runnerMessage(body.result) || "Publicacao Paperclip pendente.");
       return;
     }
@@ -571,7 +588,7 @@ async function retryPaperclipRefresh() {
     closeModal();
     await refresh({ manual: true, force: true });
   } catch (error) {
-    showPaperclipRecovery({ reason: "paperclip_sync_failed", errors: [error.message] });
+    enterPaperclipRecoveryMode({ reason: "paperclip_sync_failed", errors: [error.message] });
     showError(error.message);
   } finally {
     endRequest();
@@ -662,6 +679,8 @@ function closeModal() {
   stopLeadWatch();
   state.modalOpen = false;
   state.modalStale = false;
+  state.paperclipRecoveryOnly = false;
+  state.paperclipRecoveryResult = null;
   state.currentLead = null;
   state.modalSnapshot = null;
   state.selectedAction = null;
@@ -693,7 +712,7 @@ function syncBusyState() {
     button.disabled = busy;
   }
   for (const button of document.querySelectorAll("[data-action-control]")) {
-    button.disabled = busy || state.modalStale;
+    button.disabled = busy || state.modalStale || state.paperclipRecoveryOnly;
   }
   updateActionSubmitState();
 }
@@ -710,6 +729,28 @@ function showActionError(result = {}) {
     ...(Array.isArray(result.errors) ? result.errors : []),
   ].filter(Boolean);
   showError(messages.join("\n") || "Acao incompleta.");
+}
+
+function enterPaperclipRecoveryMode(result = {}) {
+  state.paperclipRecoveryOnly = true;
+  state.paperclipRecoveryResult = result;
+  state.selectedAction = null;
+  clearActionSurface();
+  showPaperclipRecovery(result);
+}
+
+function clearActionSurface() {
+  const actionList = document.getElementById("action-list-slot");
+  const actionForm = document.getElementById("action-form-slot");
+  if (actionList) {
+    actionList.innerHTML = '<p class="empty-state">CRM atualizado. Resolva Paperclip antes de continuar.</p>';
+  }
+  if (actionForm) {
+    actionForm.innerHTML = "";
+  }
+  for (const button of document.querySelectorAll("[data-action-control]")) {
+    button.disabled = true;
+  }
 }
 
 function showPaperclipRecovery(result = {}) {
@@ -742,12 +783,17 @@ async function reloadOpenLead() {
 
   startRequest();
   try {
+    const keepRecoveryOnly = state.paperclipRecoveryOnly;
+    const recoveryResult = state.paperclipRecoveryResult;
     const body = await fetchJson(`/api/leads/${encodeURIComponent(leadId)}`);
     state.currentLead = body.lead;
     state.modalSnapshot = leadSnapshot(body.lead);
     state.modalStale = false;
     state.selectedAction = null;
     renderLeadModal(body.lead);
+    if (keepRecoveryOnly) {
+      enterPaperclipRecoveryMode(recoveryResult);
+    }
     startLeadWatch();
     showToast("Lead atualizado.");
   } catch (error) {
@@ -831,6 +877,53 @@ function leadSnapshot(lead = {}) {
     updatedAt: String(lead.updatedAt ?? ""),
     availableActions: Array.isArray(lead.availableActions) ? [...lead.availableActions].sort().join("|") : "",
   };
+}
+
+function annotateChangedCards(kanban = {}) {
+  const nextSnapshots = new Map();
+  const annotated = {};
+  for (const [columnKey, cards] of Object.entries(kanban)) {
+    annotated[columnKey] = Array.isArray(cards)
+      ? cards.map((card) => annotateChangedCard(card, nextSnapshots))
+      : [];
+  }
+  state.boardSnapshots = nextSnapshots;
+  state.boardSnapshotsPrimed = true;
+  return annotated;
+}
+
+function annotateChangedCard(card = {}, nextSnapshots) {
+  const snapshot = boardCardSnapshot(card);
+  if (!snapshot) return card;
+
+  nextSnapshots.set(snapshot.key, snapshot);
+  const previous = state.boardSnapshots.get(snapshot.key);
+  const externallyChanged = state.boardSnapshotsPrimed && previous ? boardCardChanged(previous, snapshot) : false;
+  return externallyChanged ? { ...card, externallyChanged: true } : card;
+}
+
+function boardCardSnapshot(card = {}) {
+  const leadId = numberOrNull(card.leadId);
+  if (!leadId) return null;
+
+  return {
+    key: String(leadId),
+    status: String(card.status ?? ""),
+    commercialStage: String(card.commercialStage ?? ""),
+    updatedAt: String(card.updatedAt ?? ""),
+    availableActions: Array.isArray(card.availableActions) ? [...card.availableActions].sort().join("|") : "",
+    cardKind: String(card.cardKind ?? "lead"),
+  };
+}
+
+function boardCardChanged(previous, next) {
+  return (
+    previous.status !== next.status ||
+    previous.commercialStage !== next.commercialStage ||
+    previous.updatedAt !== next.updatedAt ||
+    previous.availableActions !== next.availableActions ||
+    previous.cardKind !== next.cardKind
+  );
 }
 
 function isPaperclipPartialFailure(result = {}) {
