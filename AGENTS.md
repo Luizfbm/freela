@@ -631,6 +631,7 @@ Health/medical content:
 - Do not use destructive git commands (`git reset --hard`, `git checkout --`, `git clean`) unless explicitly requested.
 - The worktree may already be dirty. Preserve unrelated changes.
 - Before finalizing code changes, run focused tests and `node --check` for touched scripts.
+- After any patch, bugfix, feature, or operational contract change made by an agent, commit the scoped changes and push to `origin/main` unless Luiz explicitly says not to.
 
 Common verification:
 
