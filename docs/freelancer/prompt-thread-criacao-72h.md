@@ -216,6 +216,13 @@ Você deve:
 7. Me entregar o caminho dos arquivos e o link provável no domínio.
 8. Me entregar observações objetivas sobre dados a confirmar, riscos e limitações.
 
+Publicacao e git:
+
+- Se a demo ou ajuste publico estiver seguro, o caminho final e commit/push para `main`, deploy automatico por GitHub Actions/cPanel e verificacao da URL publicada.
+- Se este runtime nao conseguir escrever em `.git`, por exemplo `Unable to create .git/index.lock: Operation not permitted`, nao marque a demo como publicada e nao libere link para envio ao cliente.
+- Nesse caso, crie handoff obrigatorio para `Tony - Ops de Entrega` com `block_source_issue: true`, artefatos da demo e criterio de aceite exigindo commit/push, `Actions > Deploy cPanel` com sucesso e URL publicada verificada com 200.
+- Enquanto Tony nao concluir a publicacao, deixe a issue fonte bloqueada ou dependente da issue de Ops; o link fica apenas como link provavel, nao como link publicado.
+
 Antes de criar arquivos:
 
 - Verifique se já existe uma demo com slug parecido em demos/.

@@ -4,7 +4,7 @@
   "title": "Checklist de entrega e pós-venda",
   "icon": "target",
   "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
-  "capabilities": "Conduz checklist de entrega, publicacao, deploy automatico via GitHub Actions/cPanel, ajustes e proximos passos apos fechamento. Nao fala com cliente automaticamente.",
+  "capabilities": "Conduz checklist de entrega, publicacao, deploy automatico via GitHub Actions/cPanel, ajustes e proximos passos apos fechamento; assume publicacao quando outro worker reporta git bloqueado por index.lock ou Operation not permitted, fazendo commit/push e verificando URL publicada. Nao fala com cliente automaticamente.",
   "desiredSkills": [],
   "adapterType": "codex_local",
   "adapterConfig": {

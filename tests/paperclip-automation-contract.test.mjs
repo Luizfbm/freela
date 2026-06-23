@@ -581,6 +581,34 @@ test("Paperclip orienta agentes a usar deploy automatico, nao cPanel manual", ()
   assert.match(ops.capabilities, /deploy automatico|deploy automático/i);
 });
 
+test("Git bloqueado em demo publica vira handoff obrigatorio para Ops de Entrega", () => {
+  const criador = criacao72h();
+  const qa = qaDemos();
+  const delivery = checklistEntrega();
+  const criadorAgent = agentConfig("agent-presenca72h.json");
+  const qaAgent = agentConfig("agent-qa-demos.json");
+  const opsAgent = agentConfig("agent-entregas.json");
+
+  for (const [name, doc] of [
+    ["Criador Presenca 72h", criador],
+    ["QA de Demos", qa],
+  ]) {
+    assert.match(doc, /index\.lock|Operation not permitted/i, name);
+    assert.match(doc, /Tony - Ops de Entrega|Ops de Entrega/i, name);
+    assert.match(doc, /block_source_issue/i, name);
+    assert.match(doc, /nao .*liber|não .*liber/i, name);
+    assert.match(doc, /URL publicada|link publicado/i, name);
+  }
+
+  assert.match(delivery, /index\.lock|Operation not permitted/i);
+  assert.match(delivery, /URL publicada|link publicado/i);
+  assert.match(delivery, /GitHub Actions|Deploy cPanel/i);
+
+  assert.match(criadorAgent.capabilities, /git bloqueado|index\.lock|Ops de Entrega/i);
+  assert.match(qaAgent.capabilities, /git bloqueado|index\.lock|Ops de Entrega/i);
+  assert.match(opsAgent.capabilities, /git bloqueado|index\.lock|deploy automatico|deploy automático/i);
+});
+
 test("WhatsApp Gateway e o unico ponto autorizado a chamar bridge send", () => {
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
   const readme = paperclipReadme();
@@ -2617,6 +2645,33 @@ test("Workers de demos e atendimento usam o kit visual reutilizavel", () => {
   assert.match(presencaAgent.capabilities, /demo-visual-kit|kit visual/i);
   assert.match(qaAgent.capabilities, /demo-visual-kit|kit visual/i);
   assert.match(atendimentoAgent.capabilities, /demo aprovada|kit visual|cartao virtual|cartão virtual/i);
+});
+
+test("Workers com copy comercial declaram a skill copywriting atribuida", () => {
+  const copywritingSkill = "local/4349a0148d/copywriting";
+  const agents = {
+    ozzy: agentConfig("agent-presenca72h.json"),
+    johan: agentConfig("agent-qa-demos.json"),
+    jhon: agentConfig("agent-atendimento.json"),
+    levi: agentConfig("agent-redator-primeira-mensagem.json"),
+  };
+  const whatsappAtendimentoAgent = agentConfig("agent-whatsapp-atendimento.json");
+  const guardiaoAgent = agentConfig("agent-whatsapp-guardiao.json");
+
+  for (const [name, agent] of Object.entries(agents)) {
+    assert.ok(agent.desiredSkills.includes(copywritingSkill), `${name} deve ter copywriting atribuida`);
+    assert.match(agent.capabilities, /copywriting|copy comercial|CTA|hero/i, name);
+  }
+
+  assert.match(criacao72h(), /skill copywriting/i);
+  assert.match(qaDemos(), /skill copywriting/i);
+  assert.match(atendimento(), /skill copywriting/i);
+  assert.match(redatorPrimeiraMensagem(), /skill copywriting/i);
+  assert.match(read("AGENTS.md"), /local\/4349a0148d\/copywriting/i);
+  assert.match(read("AGENTS.md"), /OZZY, Johan, Jhon Snow, and Levi/i);
+
+  assert.doesNotMatch(JSON.stringify(whatsappAtendimentoAgent.desiredSkills ?? []), /copywriting/i);
+  assert.doesNotMatch(JSON.stringify(guardiaoAgent.desiredSkills ?? []), /copywriting/i);
 });
 
 test("COO Freelancer orquestra a operacao sem executar trabalho dos especialistas", () => {

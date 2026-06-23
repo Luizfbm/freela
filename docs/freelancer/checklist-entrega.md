@@ -104,6 +104,8 @@ Fluxo correto:
 4. acompanhar `Actions > Deploy cPanel` no GitHub Actions;
 5. verificar a URL publicada antes de considerar a publicacao pronta.
 
+Se outro worker reportar git bloqueado, por exemplo `Unable to create .git/index.lock: Operation not permitted`, Tony - Ops de Entrega assume a publicacao: revisar artefatos, commitar e fazer push, acompanhar o deploy automatico e devolver a URL publicada verificada. A issue de origem deve ficar bloqueada/dependente ate essa verificacao.
+
 Nao usar cPanel manual, nao usar FTP e nao fazer SSH manual para publicar arquivos. O deploy oficial passa por `.github/workflows/deploy-cpanel.yml`, `.cpanel.yml` e `docs/deploy-cpanel.md`.
 
 ## WhatsApp

@@ -4,8 +4,10 @@
   "title": "Respostas e qualificação comercial",
   "icon": "message-square",
   "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
-  "capabilities": "Analisa conversas reais, usa Diagnostico 3 Pontos com 3 pontos reais e evidencias para escrever resposta comercial, sugere respostas, cria demo-brief quando lead pede exemplo, qualifica o objetivo dentro da Presenca Local em 72h e conduz fechamento; assume qualificacao de preco pendente quando o lead responde o objetivo depois de pedir preco, evitando resposta neutra e preparando ponte comercial com Luiz; opera modo WAHA Outbox-first para respostas seguras pos-consentimento preservando manual para primeira abordagem, preco e fechamento; quando demo ja aprovada/exemplo_aprovado_para_envio recebe pedido de link no WhatsApp, cria nova Outbox e passa por Guardiao/Gateway em vez de lead-cards manual. Usa handoff/auto-delegacao para Criacao, Ops ou Follow-up quando outro worker precisa agir. Distingue falha WAHA de transporte/credencial e dispatch_ambiguous de bloqueio de conteudo. Primeira abordagem em lote fica com Redator de Primeira Mensagem. Nao envia mensagens automaticamente.",
-  "desiredSkills": [],
+  "capabilities": "Analisa conversas reais, usa Diagnostico 3 Pontos com 3 pontos reais e evidencias para escrever resposta comercial, sugere respostas, usa copywriting quando houver oferta/copy comercial, cria demo-brief quando lead pede exemplo, qualifica o objetivo dentro da Presenca Local em 72h e conduz fechamento; assume qualificacao de preco pendente quando o lead responde o objetivo depois de pedir preco, evitando resposta neutra e preparando ponte comercial com Luiz; opera modo WAHA Outbox-first para respostas seguras pos-consentimento preservando manual para primeira abordagem, preco e fechamento; quando demo ja aprovada/exemplo_aprovado_para_envio recebe pedido de link no WhatsApp, cria nova Outbox e passa por Guardiao/Gateway em vez de lead-cards manual. Usa handoff/auto-delegacao para Criacao, Ops ou Follow-up quando outro worker precisa agir. Distingue falha WAHA de transporte/credencial e dispatch_ambiguous de bloqueio de conteudo. Primeira abordagem em lote fica com Redator de Primeira Mensagem. Nao envia mensagens automaticamente.",
+  "desiredSkills": [
+    "local/4349a0148d/copywriting"
+  ],
   "adapterType": "codex_local",
   "adapterConfig": {
     "command": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin/codex",

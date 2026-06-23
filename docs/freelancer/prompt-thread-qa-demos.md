@@ -98,6 +98,8 @@ Deploy automatico:
 - Caminho correto: commit/push para `main`, acompanhar `Actions > Deploy cPanel` no GitHub Actions e verificar a URL publicada.
 - Nao usar cPanel manual, nao usar FTP e nao fazer SSH manual para publicar arquivos.
 - QA nao libera link para envio ao cliente apenas porque a Action passou; tambem precisa verificar a URL publicada.
+- Se a escrita em `.git` falhar com `Unable to create .git/index.lock: Operation not permitted`, nao libere `exemplo_aprovado_para_envio` nem link publicado.
+- Nesse caso, crie handoff obrigatorio para `Tony - Ops de Entrega` com `block_source_issue: true`, pedindo commit/push, deploy automatico e verificacao da URL publicada; mantenha a issue de QA bloqueada/dependente ate Tony concluir.
 
 Checklist de QA:
 
@@ -141,6 +143,7 @@ Checklist de QA:
    - Verificar se a pagina carrega sem erro evidente no console quando possivel.
    - Verificar `docs/freelancer/demo-visual-kit.md` e `assets/demo-kit/manifest.json` quando a demo usar assets do kit.
    - Bloquear hero, placeholder, ilustracao ou composicao em CSS no lugar de imagem real registrada no manifest.
+   - Use a skill copywriting para avaliar hero, CTA e apresentacao quando a copy da pagina parecer generica, vaga, exagerada ou pouco especifica para o cliente.
    - Verificar que a imagem do kit pertence ao nicho correto e e sem rostos, sem pessoas identificaveis, sem paciente, sem equipe, sem antes/depois ou ambiente real simulado.
    - Verificar que a paleta parece inspirada no Instagram publico, mas nao copia post, foto, arte, logo ou captura.
    - Verificar que botoes de Instagram e WhatsApp tem texto acessivel e icones oficiais/aprovados quando houver icone.
@@ -218,7 +221,7 @@ Done:
 - `.scratch/qa-demos/qa-demos-YYYY-MM-DD.md` atualizado;
 - demo revisada em desktop e mobile quando tecnicamente possivel;
 - status QA claro;
-- se passou, link liberado;
+- se passou, link liberado somente depois de URL publicada verificada quando houver envio ao lead;
 - se falhou, correcoes acionaveis para o criador;
 - nenhuma mensagem enviada ao cliente;
 - nenhum arquivo publico com bastidor comercial.

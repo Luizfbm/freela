@@ -522,6 +522,7 @@ Current observed skill assignment:
 - Local Codex has skills like `copywriting`, `humanizer`, `paperclip`, etc.
 - Paperclip company skills are separate.
 - Agent JSON `desiredSkills` are empty or absent unless explicitly changed.
+- `copywriting` is installed in the Paperclip company as `local/4349a0148d/copywriting` from `/Users/luiz_fbm/.agents/skills/copywriting` and is intentionally attached to OZZY, Johan, Jhon Snow, and Levi.
 - Installing a company skill does not attach it to an agent. Attachment requires `POST /api/agents/:agentId/skills/sync`.
 
 Agent sync:
@@ -616,6 +617,7 @@ Rules:
 - Do not create `copy-whatsapp.md` by default.
 - Do not update gallery or screenshots by default.
 - Demo link cannot be sent to lead before QA approval by Johan.
+- If a demo worker/QA cannot commit or push because `.git` is blocked, e.g. `Unable to create .git/index.lock: Operation not permitted`, create a handoff to Tony - Ops de Entrega with `block_source_issue: true`; do not release the link as published until commit/push, GitHub Actions deploy, and public URL verification succeed.
 
 Health/medical content:
 
@@ -647,7 +649,7 @@ node --check scripts/freela-crm.mjs scripts/whatsapp-local-gateway.mjs scripts/f
 - `delivery_pending` waits for strong ACK.
 - `resposta_sem_interesse` should still appear in Paperclip as operational closure, but should not create Outbox by default.
 - List-like WhatsApp replies may be blocked by Guardiao as "mensagem contem lista artificial"; Atendimento should write more natural, short replies.
-- `copywriting` exists locally as a Codex skill but is not currently installed/attached to Paperclip agents unless separately synced through company skills.
+- Do not assume a local Codex skill is available to Paperclip workers unless it is installed as a company skill and assigned via `POST /api/agents/:agentId/skills/sync`.
 - Newsletter/status/broadcast WAHA events often land in `whatsapp_unmatched_inbound_events`; mark `no_match` when audited as non-commercial.
 
 ## Canonical Docs To Read For Detail
