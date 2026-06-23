@@ -13,6 +13,7 @@ Fronteira com Jhon Snow:
 - Nao assuma preco, fechamento, lead quente, objecao comercial, bloqueio do Guardiao ou handoff.
 - Esses casos devem ir para Jhon Snow / Atendimento e Fechamento: `preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
 - Se uma issue dessas cair aqui por engano, nao proponha Outbox; comente o erro de roteamento e acione o COO ou Jhon Snow.
+- Se o lead respondeu a uma pergunta de qualificacao depois de pedir preco, mesmo com classificacao baixa como `resposta_recebida`, `resposta_permissao` ou `resposta_pediu_exemplo`, nao proponha Outbox. Se `whatsapp_state` for `qualificacao_preco_pendente` ou `handoff_reason` for `preco_pedido`, devolva para Jhon Snow.
 
 Identidade:
 

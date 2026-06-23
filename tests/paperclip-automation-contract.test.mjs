@@ -743,6 +743,11 @@ test("WhatsApp auto-wake roteia fechamento para Jhon Snow", () => {
   const readme = paperclipReadme();
   const gateway = read("scripts/whatsapp-local-gateway.mjs");
   const crm = read("scripts/freela-crm.mjs");
+  const atendimentoDoc = atendimento();
+  const atendimentoWa = whatsappAtendimento();
+  const scripts = read("docs/freelancer/scripts-whatsapp.md");
+  const jhonAgent = agentConfig("agent-atendimento.json");
+  const whatsappAgent = agentConfig("agent-whatsapp-atendimento.json");
 
   for (const doc of [guide, contract, readme]) {
     assert.match(doc, /Atendimento WhatsApp.*conversa normal|conversa normal.*Atendimento WhatsApp/is);
@@ -759,6 +764,15 @@ test("WhatsApp auto-wake roteia fechamento para Jhon Snow", () => {
   assert.match(gateway, /resposta_objecao/);
   assert.match(crm, /resposta_lead_quente/);
   assert.match(crm, /objecao_comercial/);
+  assert.match(crm, /WHATSAPP_MANUAL_ROUTING_STATES/);
+  assert.match(crm, /WHATSAPP_LOW_SIGNAL_CLASSIFICATIONS/);
+  assert.match(atendimentoDoc, /objetivo.*depois.*pre[cç]o|pre[cç]o.*objetivo/i);
+  assert.match(atendimentoDoc, /nao.*resposta neutra|não.*resposta neutra|sem resposta neutra/i);
+  assert.match(atendimentoWa, /qualificacao_preco_pendente/i);
+  assert.match(atendimentoWa, /nao proponha Outbox|não proponha Outbox/i);
+  assert.match(scripts, /depois.*pre[cç]o/i);
+  assert.match(jhonAgent.capabilities, /qualificacao.*preco|preco.*qualificacao/i);
+  assert.match(whatsappAgent.capabilities, /qualificacao_preco_pendente|preco.*fechamento/i);
 });
 
 test("WhatsApp handoff notifica Luiz sem enviar mensagem", () => {

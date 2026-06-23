@@ -146,6 +146,7 @@ Roteamento com `--auto-wake`:
 
 - Atendimento WhatsApp recebe conversa normal: `resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`.
 - Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
+- Se o lead respondeu a pergunta de objetivo depois de pedir preco, preserve `qualificacao_preco_pendente`/`preco_pedido` e mantenha com Jhon Snow. Nao encaminhar para Atendimento WhatsApp nem gerar resposta neutra.
 - Use `--closer-agent-id` apenas em teste para sobrescrever o agente closer.
 
 Demo ja aprovada pedida no WhatsApp nao deve cair em lead-cards. Se o lead pediu demo/exemplo/link e ha link seguro aprovado por QA, garanta `exemplo_aprovado_para_envio`, crie nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source [fonte] --humanizer-pass true --used-last-inbound true --contextual-reply true`, passe pelo Guardiao e despache pelo Gateway com `dispatch-approved-outbox --provider waha --outbox-id [id]`. Manual so se o Guardiao bloquear, WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a conversa envolver preco/fechamento real.

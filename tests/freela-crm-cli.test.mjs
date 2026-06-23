@@ -2535,6 +2535,7 @@ test("whatsapp inbound classifies custo and investimento as price requests", () 
   const cases = [
     ["wa-price-synonym-002", "Qual o custo?"],
     ["wa-price-synonym-003", "Qual o investimento?"],
+    ["wa-price-synonym-004", "Quais sao os custos? Isso seria um site correto?"],
   ];
 
   for (const [bridgeMessageId, message] of cases) {
@@ -3558,6 +3559,58 @@ test("whatsapp guardian approves neutral price qualification and marks pending h
   assert.equal(state.handoff_reason, "preco_pedido");
   assert.equal(state.auto_replies_since_human, 1);
   assert.equal(state.last_outbox_id, outbox.id);
+});
+
+test("whatsapp inbound preserves price qualification when lead answers objective", () => {
+  const root = makeWhatsAppLeadRoot("wa-price-objective-001", "Qual o valor?");
+  const review = proposeAndReviewSafeWhatsApp(root, "Aghata Massoterapia", neutralPriceQualificationReply);
+  assert.match(review.stdout, /aprovado/i);
+
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-price-objective-002",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Seria para organizar o caminho",
+    received_at: "2026-06-21T10:05:00-03:00",
+  });
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const inbound = database.prepare("select * from whatsapp_inbound_events order by id desc limit 1").get();
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+
+  assert.equal(inbound.classification, "resposta_recebida");
+  assert.equal(state.whatsapp_state, "qualificacao_preco_pendente");
+  assert.equal(state.handoff_reason, "preco_pedido");
+});
+
+test("whatsapp inbound recovers price handoff reason after accidental autonomous state", () => {
+  const root = makeWhatsAppLeadRoot("wa-price-objective-recover-001", "Qual o valor?");
+  const review = proposeAndReviewSafeWhatsApp(root, "Aghata Massoterapia", neutralPriceQualificationReply);
+  assert.match(review.stdout, /aprovado/i);
+
+  const before = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  before
+    .prepare("update lead_conversation_state set whatsapp_state = ?, handoff_reason = ?")
+    .run("atendimento_autonomo", "preco_pedido");
+  before.close();
+
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-price-objective-recover-002",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Seria para organizar o caminho",
+    received_at: "2026-06-21T10:06:00-03:00",
+  });
+
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const state = database.prepare("select * from lead_conversation_state").get();
+  database.close();
+
+  assert.equal(state.whatsapp_state, "qualificacao_preco_pendente");
+  assert.equal(state.handoff_reason, "preco_pedido");
 });
 
 test("whatsapp guardian review is idempotent for approved neutral price qualification", () => {

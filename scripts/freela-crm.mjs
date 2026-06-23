@@ -2846,9 +2846,17 @@ function ingestWhatsAppInbound(database, event, rawFile, options = {}) {
     markUnmatchedReconciled(database, options.unmatchedId, lead.id, inbound.id, "identity_alias");
   }
 
+  const existingConversationState = database
+    .prepare("select * from lead_conversation_state where lead_id = ?")
+    .get(lead.id);
+
   upsertLeadConversationState(database, lead, {
     inboundEventId: inbound.id,
-    whatsappState: stateForWhatsAppClassification(classification),
+    whatsappState: stateForWhatsAppClassification(
+      classification,
+      existingConversationState?.whatsapp_state,
+      existingConversationState?.handoff_reason,
+    ),
     handoffReason: null,
     resetAutoReplies: true,
   });
@@ -3121,7 +3129,33 @@ function markUnmatchedReconciled(database, unmatchedId, leadId, inboundId, reaso
     .run(leadId, inboundId, reason, now(), unmatchedId);
 }
 
-function stateForWhatsAppClassification(classification) {
+const WHATSAPP_MANUAL_ROUTING_STATES = new Set([
+  "preco_pedido",
+  "lead_quente",
+  "objecao_comercial",
+  "qualificacao_preco_pendente",
+  "handoff_luiz",
+  "bloqueado_guardiao",
+]);
+const WHATSAPP_LOW_SIGNAL_CLASSIFICATIONS = new Set([
+  "resposta_permissao",
+  "resposta_pediu_exemplo",
+  "resposta_recebida",
+]);
+
+function stateForWhatsAppClassification(classification, currentState = "", currentHandoffReason = "") {
+  if (
+    WHATSAPP_MANUAL_ROUTING_STATES.has(clean(currentState)) &&
+    WHATSAPP_LOW_SIGNAL_CLASSIFICATIONS.has(classification)
+  ) {
+    return clean(currentState);
+  }
+  if (
+    clean(currentHandoffReason) === "preco_pedido" &&
+    WHATSAPP_LOW_SIGNAL_CLASSIFICATIONS.has(classification)
+  ) {
+    return "qualificacao_preco_pendente";
+  }
   if (classification === "resposta_permissao") return "respondeu_pode";
   if (classification === "resposta_pediu_preco") return "preco_pedido";
   if (classification === "resposta_lead_quente") return "lead_quente";
@@ -3848,7 +3882,7 @@ function guardianRules({ outbox, state }) {
 
 function containsCommercialValue(body, rawBody) {
   return (
-    /\bpreco\b|\bvalor\b|\borcamento\b|\bpagamento\b|\bdesconto\b|\bproposta\b|\bfechado\b|\bcontrato\b|\binvestimento\b|\breais\b/.test(
+    /\bprecos?\b|\bvalor(?:es)?\b|\borcamentos?\b|\bpagamentos?\b|\bdescontos?\b|\bpropostas?\b|\bfechado\b|\bcontratos?\b|\binvestimentos?\b|\bcustos?\b|\breais\b/.test(
       body,
     ) ||
     /r\s*\$\s*\d+/i.test(clean(rawBody)) ||
@@ -5538,7 +5572,7 @@ function buildMergeKey(lead) {
 function classifyResponse(message) {
   const normalized = normalizeName(message);
   if (
-    /\bpreco\b|\bvalor\b|\bquanto\b|\borcamento\b|\bcusto\b|\binvestimento\b|\bpagamento\b|\bdesconto\b|\bproposta\b/.test(
+    /\bprecos?\b|\bvalor(?:es)?\b|\bquanto\b|\borcamentos?\b|\bcustos?\b|\binvestimentos?\b|\bpagamentos?\b|\bdescontos?\b|\bpropostas?\b/.test(
       normalized,
     )
   ) {

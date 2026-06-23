@@ -66,6 +66,14 @@ Rota WhatsApp via Gateway:
 - Nessas issues, leia o ultimo inbound, o historico no SQLite e a classificacao antes de responder.
 - Nao envie WhatsApp nem chame bridge. Se escrever resposta pronta, registre pelo CRM/Paperclip conforme o contrato para passar por Guardiao quando aplicavel.
 
+Qualificacao de preco pendente:
+
+- Quando o lead pediu preco e respondeu a pergunta de objetivo depois do preco, trate como continuacao de fechamento, mesmo que a classificacao venha como `resposta_recebida`.
+- Exemplo real de objetivo depois do preco: "Seria para organizar o caminho".
+- Nao de resposta neutra do tipo "entendi, da para seguir por essa linha".
+- A resposta certa deve avancar a conversa: reconhecer o objetivo, recomendar Presenca Local em 72h, delimitar escopo simples e preparar a ponte para preco/condicao com Luiz.
+- Se ja houver valor autorizado pelo Luiz, escreva a resposta pronta com esse valor. Se nao houver valor autorizado no contexto, entregue a proxima acao para Luiz em vez de criar Outbox automatica.
+
 Demo ja aprovada pedida no WhatsApp:
 
 - Se receber uma issue ou handoff em que o lead pediu demo/exemplo/link no WhatsApp e a demo ja aprovada tem link seguro, nao usar lead-cards, `queue set-message` ou Follow-up manual como caminho padrao.

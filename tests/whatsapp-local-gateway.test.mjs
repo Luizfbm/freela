@@ -2355,3 +2355,118 @@ test("gateway auto-wake roteia preco e lead quente para Jhon Snow", async () => 
     await paperclip.close();
   }
 });
+
+test("gateway keeps objective answer after price qualification with Jhon Snow", async () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+  const leadFile = join(root, "lead.json");
+  writeFileSync(
+    leadFile,
+    JSON.stringify([
+      {
+        canonical_name: "Aghata Massoterapia",
+        phone_or_contact: "+55 27 99999-0000",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]),
+  );
+  assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
+
+  const priceFile = join(root, "price-inbound.json");
+  writeFileSync(
+    priceFile,
+    JSON.stringify({
+      bridge_message_id: "wa-price-objective-gateway-001",
+      chat_id: "5527999990000@s.whatsapp.net",
+      sender_name: "Aghata Massoterapia",
+      sender_phone: "+55 27 99999-0000",
+      body: "Quais sao os custos? Isso seria um site correto?",
+      received_at: "2026-06-21T09:35:27-03:00",
+    }),
+  );
+  assert.equal(
+    runNode([crm, "--root", root, "whatsapp", "inbound", "ingest", "--file", priceFile]).status,
+    0,
+  );
+  assert.equal(
+    runNode([
+      crm,
+      "--root",
+      root,
+      "whatsapp",
+      "outbox",
+      "propose",
+      "--name",
+      "Aghata Massoterapia",
+      "--body",
+      "Depende um pouco do que precisa aparecer na pagina e do objetivo principal.\n\nPara eu te direcionar melhor: voce quer usar essa pagina mais como apresentacao oficial do seu trabalho, ou mais para organizar o caminho de quem vem do Instagram/WhatsApp?",
+      "--source",
+      "jhon-preco-qualificacao",
+      "--humanizer-pass",
+      "true",
+      "--used-last-inbound",
+      "true",
+      "--contextual-reply",
+      "true",
+    ]).status,
+    0,
+  );
+  const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+  const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  database.close();
+  const review = runNode([crm, "--root", root, "whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+  assert.match(review.stdout, /aprovado/i);
+
+  const objectiveFile = join(root, "waha-objective.json");
+  writeFileSync(
+    objectiveFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_5527999990000@c.us_3EB0WAHAOBJECTIVE",
+        from: "5527999990000@c.us",
+        fromMe: false,
+        body: "Seria para organizar o caminho",
+        notifyName: "Aghata Massoterapia",
+        timestamp: "2026-06-21T09:36:27-03:00",
+      },
+    }),
+  );
+
+  const paperclip = await withPaperclipServer((_req, res, requests) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ id: `issue-test-${requests.length}`, identifier: `FRE-TEST-${requests.length}` }));
+  });
+
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "import-waha-event",
+      "--file",
+      objectiveFile,
+      "--auto-wake",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--atendimento-agent-id",
+      "agent-atendimento-test",
+      "--closer-agent-id",
+      "agent-jhon-test",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Importados: 1/i);
+    assert.match(result.stdout, /Auto-wakes: 1/i);
+
+    assert.equal(paperclip.requests.length, 1);
+    assert.equal(paperclip.requests[0].body.assigneeAgentId, "agent-jhon-test");
+    assert.match(paperclip.requests[0].body.description, /qualificacao_preco_pendente|preco_pedido/i);
+    assert.match(paperclip.requests[0].body.description, /Seria para organizar o caminho/i);
+  } finally {
+    await paperclip.close();
+  }
+});

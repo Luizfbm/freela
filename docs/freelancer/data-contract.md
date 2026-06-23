@@ -284,6 +284,7 @@ Identidade WhatsApp:
 - O webhook/import WAHA com `--auto-wake` cria issue no Paperclip por roteamento seletivo; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama endpoint de envio e nao cria Outbox.
 - Atendimento WhatsApp recebe conversa normal: `resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`.
 - Jhon Snow / Atendimento e Fechamento recebe fechamento comercial: `resposta_pediu_preco`/`preco_pedido`, `resposta_lead_quente`/`lead_quente`, `resposta_objecao`/`objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente` e `bloqueado_guardiao`.
+- Depois de uma qualificacao de preco, respostas de baixo sinal do lead como objetivo, permissao ou pedido de exemplo preservam `qualificacao_preco_pendente`/`preco_pedido` e continuam com Jhon Snow. Nao voltar para Atendimento WhatsApp com resposta neutra.
 - Em teste ou ambiente alternativo, `--closer-agent-id` sobrescreve o agente closer padrao.
 - O Guardiao deve revisar Outbox com `node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true --auto-dispatch true`. Se aprovar e a Outbox estiver despachavel, o CRM chama somente o Gateway com o mesmo `--outbox-id`. Se bloquear, `--auto-wake` cria o proximo trabalho: bloqueio reparavel cria `whatsapp_guardian_repair` para Jhon reparar uma vez e criar nova Outbox; segundo bloqueio reparavel do mesmo inbound cria `whatsapp_guardian_reanalysis` para Scout reanalisar bio, link da bio, cartao virtual/PDF e caminho ate WhatsApp. Esses wakes nao enviam WhatsApp e nao chamam Gateway.
 

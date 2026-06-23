@@ -120,6 +120,20 @@ Pelo que vi, eu faria isso dentro da Presença Local em 72h.
 Uma página clara com sua apresentação, serviços principais, região de atendimento e botão direto para WhatsApp já resolveria bem esse primeiro passo sem virar um projeto grande demais.
 ```
 
+## Se o lead indicar objetivo simples depois do preço
+
+Use quando a pessoa pediu preço/custo/valor, recebeu a pergunta de qualificação e respondeu que quer organizar o caminho.
+
+Não responder só "entendi, faz sentido" ou "dá para seguir por essa linha". Essa resposta é neutra demais e não avança.
+
+```text
+Entendi. Para organizar esse caminho, eu faria dentro da Presença Local em 72h mesmo.
+
+A entrega ficaria bem objetiva: apresentação do trabalho, tratamentos principais, região de atendimento e botão direto para WhatsApp, sem transformar isso em um site grande.
+
+Daí o próximo passo é fechar o escopo certinho e te passar a condição para começar.
+```
+
 ## Se o lead indicar site oficial
 
 Use quando a pessoa falar "site", "algo mais profissional", "domínio", "Google", "divulgar melhor", "colocar fotos", "mais informações" ou "presença oficial".
