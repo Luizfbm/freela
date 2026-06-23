@@ -163,6 +163,68 @@ test("cockpit summary and kanban read official SQLite views", () => {
   }
 });
 
+test("cockpit summary prioritizes open worker handoffs over opening duplicate worker work", () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Studio Pronto Redator",
+    category: "Pilates",
+    city: "Vitoria",
+    instagram: "@prontoredator",
+    status: "novo",
+    analysis_status: "steve_approved",
+    handoff_status: "writer_pending",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  const evidenceFile = writeJson(root, "profile-evidence.json", [
+    {
+      lead_name: "Studio Pronto Redator",
+      platform: "instagram",
+      bio_status: "ok",
+      bio_text: "Pilates em Jardim Camburi com agendamento pelo WhatsApp.",
+      bio_link_status: "nao_aplicavel",
+      contact_path: "Direct e WhatsApp",
+      commercial_hook: "Perfil mostra servico, mas nao tem pagina propria para explicar diferenciais.",
+      evidence_confidence: "alta",
+      browser_evidence_status: "ok",
+      browser_evidence_method: "chrome_operational_profile",
+      instagram_session_status: "logged_in",
+    },
+  ]);
+  assert.equal(runCrm(root, ["profile-evidence", "upsert", "--file", evidenceFile]).status, 0);
+
+  const writable = openScratchDatabase(root);
+  writable.exec(`
+    insert into worker_handoffs (
+      handoff_key, handoff_version, source_agent_id, source_agent_name,
+      source_issue_id, source_issue_identifier, target_agent_id, target_agent_name,
+      title, required_action, workflow_run_id, workflow_round_date, workflow_stage,
+      workflow_expected_count, workflow_next_owner, status, paperclip_issue_id,
+      paperclip_issue_identifier, artifacts_json, acceptance_criteria_json,
+      created_at, updated_at
+    ) values (
+      'handoff-redator-active', 1, 'coo', 'COO Freelancer',
+      'issue-1', 'FRE-7', 'redator', 'Redator de Primeira Mensagem',
+      'Preparar primeira abordagem', 'Escrever lote pronto para Redator',
+      'run-1', '2026-06-23', 'coo_to_redator_ready_for_writer', 15, 'redator',
+      'issue_created', 'pc-1', 'FRE-310', '[]', '["escrever"]',
+      datetime('now'), datetime('now')
+    );
+  `);
+  writable.close();
+
+  const readOnly = openCockpitDatabase({ root, readOnly: true });
+  try {
+    const summary = readCockpitSummary(readOnly, { queueDate: "2026-06-23" });
+
+    assert.equal(summary.readyForWriter, 1);
+    assert.equal(summary.openHandoffs, 1);
+    assert.equal(summary.nextStep, "verificar handoffs abertos e destravar workers.");
+  } finally {
+    readOnly.close();
+  }
+});
+
 test("safe WAHA outbox hides manual-ready cards unless state is a manual exception", () => {
   const root = makeRoot();
   assert.equal(runCrm(root, ["init"]).status, 0);

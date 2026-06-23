@@ -1200,11 +1200,11 @@ function countRows(database, sql, params = []) {
 
 function nextCommercialStep(report) {
   if (report.readyLeadCards > 0) return "abrir lead-cards no FRE-7 e enviar manualmente.";
+  if (report.openHandoffs > 0) return "verificar handoffs abertos e destravar workers.";
   if (report.pendingQa > 0) return "acionar QA de Mensagens para liberar ou devolver ajustes.";
   if (report.readyForWriter > 0) return "acionar Redator de Primeira Mensagem.";
   if (report.pendingValidation > 0) return "acionar Validador de Dados ou devolver lacunas para Scout.";
   if (report.followupsToday > 0) return "acionar Follow-up CRM para priorizar respostas e demos.";
-  if (report.openHandoffs > 0) return "verificar handoffs abertos e destravar workers.";
   if (report.staleLeads > 0) return "revisar leads parados antes de nova prospeccao.";
   return "rodar nova prospeccao qualificada.";
 }
