@@ -108,6 +108,12 @@ const HANDOFF_STATUSES = new Set([
   "completed",
   "cancelled",
 ]);
+const DEFAULT_PAPERCLIP_API_BASE = "http://127.0.0.1:3100";
+const DEFAULT_PAPERCLIP_COMPANY_ID = "50a2756c-2942-40c1-90f8-b16807a62ef3";
+const DEFAULT_CLOSER_AGENT_ID = "4d334072-4966-4c9d-a16a-f3e48faf05d9";
+const DEFAULT_SCOUT_AGENT_ID = "d846f1b7-f6ae-4005-9ef4-53a32b13635e";
+const WHATSAPP_GUARDIAN_REPAIR_WAKE_TYPE = "whatsapp_guardian_repair";
+const WHATSAPP_GUARDIAN_REANALYSIS_WAKE_TYPE = "whatsapp_guardian_reanalysis";
 const SQLITE_HEADER = Buffer.from("SQLite format 3\0", "ascii");
 const DEFAULT_DB_BACKUP_LIMIT = 20;
 
@@ -430,8 +436,13 @@ async function dispatch({ root, dbPath, command, args }) {
   if (command[0] === "whatsapp" && command[1] === "guardian" && command[2] === "review") {
     const flags = parseFlags(args);
     requireFlag(flags, "outbox-id");
-    const decision = reviewWhatsAppOutbox(database, Number.parseInt(flags["outbox-id"], 10));
+    const outboxId = parsePositiveInt(flags["outbox-id"], "outbox-id");
+    const decision = reviewWhatsAppOutbox(database, outboxId);
     console.log(`Guardiao: ${decision.decision} (${decision.reason})`);
+    if (parseBooleanFlag(flags["auto-wake"])) {
+      const wake = await autoWakeForGuardianReview(database, outboxId, buildGuardianAutoWakeOptions(flags));
+      console.log(`Wake Paperclip: ${wake.status}${wake.error ? ` (${wake.error})` : ""}`);
+    }
     return;
   }
 
@@ -3367,6 +3378,317 @@ function blockedWhatsAppHandoffForRules(rules, reason, state) {
     return { state: "handoff_luiz", reason: "preco_pedido" };
   }
   return { state: "bloqueado_guardiao", reason };
+}
+
+function buildGuardianAutoWakeOptions(flags) {
+  return {
+    apiBase:
+      flags["paperclip-api-base"] ||
+      process.env.PAPERCLIP_API_URL ||
+      DEFAULT_PAPERCLIP_API_BASE,
+    companyId:
+      flags["paperclip-company-id"] ||
+      process.env.PAPERCLIP_COMPANY_ID ||
+      DEFAULT_PAPERCLIP_COMPANY_ID,
+    apiKey: flags["paperclip-api-key"] || process.env.PAPERCLIP_API_KEY || "",
+    runId: flags["paperclip-run-id"] || process.env.PAPERCLIP_RUN_ID || "",
+    closerAgentId:
+      flags["closer-agent-id"] ||
+      process.env.WHATSAPP_CLOSER_AGENT_ID ||
+      DEFAULT_CLOSER_AGENT_ID,
+    scoutAgentId:
+      flags["scout-agent-id"] ||
+      process.env.WHATSAPP_SCOUT_AGENT_ID ||
+      DEFAULT_SCOUT_AGENT_ID,
+    timeoutMs: parsePositiveInt(flags["timeout-ms"] || "15000", "timeout-ms"),
+  };
+}
+
+async function autoWakeForGuardianReview(database, outboxId, options) {
+  const blocked = guardianBlockedOutboxContext(database, outboxId);
+  if (!blocked || blocked.status !== "blocked" || blocked.guardian_decision !== "bloquear") {
+    return { status: "skipped" };
+  }
+  if (!blocked.inbound_event_id) return { status: "skipped", error: "outbox sem inbound_event_id" };
+
+  const route = guardianWakeRoute(database, blocked, options);
+  if (!route) return { status: "skipped" };
+
+  const existing = database
+    .prepare(
+      `select *
+       from whatsapp_worker_wakes
+       where inbound_event_id = ?
+         and target_agent_id = ?
+         and wake_type = ?
+       order by id desc
+       limit 1`,
+    )
+    .get(blocked.inbound_event_id, route.targetAgentId, route.wakeType);
+
+  if (["created", "creating"].includes(existing?.status)) return { status: "existing" };
+
+  const timestamp = now();
+  if (existing) {
+    database
+      .prepare("update whatsapp_worker_wakes set status = 'creating', updated_at = ? where id = ?")
+      .run(timestamp, existing.id);
+  } else {
+    database
+      .prepare(
+        `insert into whatsapp_worker_wakes (
+          inbound_event_id, lead_id, target_agent_id, wake_type, status, created_at, updated_at
+        ) values (?, ?, ?, ?, 'creating', ?, ?)`,
+      )
+      .run(blocked.inbound_event_id, blocked.lead_id, route.targetAgentId, route.wakeType, timestamp, timestamp);
+  }
+
+  try {
+    const issue = await createPaperclipIssueFromCrm({
+      ...options,
+      payload: route.payload,
+    });
+    database
+      .prepare(
+        `update whatsapp_worker_wakes
+         set status = 'created',
+             paperclip_issue_id = ?,
+             paperclip_issue_identifier = ?,
+             updated_at = ?
+         where inbound_event_id = ?
+           and target_agent_id = ?
+           and wake_type = ?`,
+      )
+      .run(
+        clean(issue.id),
+        clean(issue.identifier),
+        now(),
+        blocked.inbound_event_id,
+        route.targetAgentId,
+        route.wakeType,
+      );
+    return { status: "created" };
+  } catch (error) {
+    database
+      .prepare(
+        `update whatsapp_worker_wakes
+         set status = 'failed', updated_at = ?
+         where inbound_event_id = ?
+           and target_agent_id = ?
+           and wake_type = ?`,
+      )
+      .run(now(), blocked.inbound_event_id, route.targetAgentId, route.wakeType);
+    return { status: "failed", error: error.message };
+  }
+}
+
+function guardianBlockedOutboxContext(database, outboxId) {
+  return database
+    .prepare(
+      `select
+        o.*,
+        l.canonical_name as lead_name,
+        e.chat_id,
+        e.body as inbound_body,
+        e.classification,
+        s.whatsapp_state,
+        s.handoff_reason
+       from whatsapp_outbox o
+       join leads l on l.id = o.lead_id
+       left join whatsapp_inbound_events e on e.id = o.inbound_event_id
+       left join lead_conversation_state s on s.lead_id = o.lead_id
+       where o.id = ?`,
+    )
+    .get(outboxId);
+}
+
+function guardianWakeRoute(database, blocked, options) {
+  const rules = guardianTriggeredRules(database, blocked);
+  const repairable = hasRepairableGuardianRule(rules);
+  const previousRepairBlock = repairable && hasPreviousRepairableGuardianBlock(database, blocked);
+  if (previousRepairBlock) {
+    return {
+      targetAgentId: options.scoutAgentId,
+      wakeType: WHATSAPP_GUARDIAN_REANALYSIS_WAKE_TYPE,
+      payload: buildGuardianReanalysisPayload(blocked, rules, options.scoutAgentId),
+    };
+  }
+  return {
+    targetAgentId: options.closerAgentId,
+    wakeType: WHATSAPP_GUARDIAN_REPAIR_WAKE_TYPE,
+    payload: buildGuardianRepairPayload(blocked, rules, options.closerAgentId),
+  };
+}
+
+function guardianTriggeredRules(database, blocked) {
+  const decision = database
+    .prepare(
+      `select triggered_rules
+       from whatsapp_guardian_decisions
+       where outbox_id = ?
+       order by id desc
+       limit 1`,
+    )
+    .get(blocked.id);
+  if (decision?.triggered_rules) {
+    try {
+      const parsed = JSON.parse(decision.triggered_rules);
+      if (Array.isArray(parsed)) return parsed.map((rule) => clean(rule)).filter(Boolean);
+    } catch {
+      // Fall back to guardian_reason below.
+    }
+  }
+  return clean(blocked.guardian_reason)
+    .split(";")
+    .map((rule) => clean(rule))
+    .filter(Boolean);
+}
+
+function hasRepairableGuardianRule(rules) {
+  return rules.some((rule) =>
+    [
+      "mensagem contem lista artificial",
+      "mensagem contem travessao ou marcador artificial",
+      "mensagem generica com cara de IA",
+      "mensagem longa demais",
+    ].includes(rule),
+  );
+}
+
+function hasPreviousRepairableGuardianBlock(database, blocked) {
+  const rows = database
+    .prepare(
+      `select o.id, o.guardian_reason, d.triggered_rules
+       from whatsapp_outbox o
+       left join whatsapp_guardian_decisions d on d.outbox_id = o.id
+       where o.lead_id = ?
+         and o.id != ?
+         and coalesce(o.inbound_event_id, -1) = coalesce(?, -1)
+         and o.status = 'blocked'
+       order by o.id`,
+    )
+    .all(blocked.lead_id, blocked.id, blocked.inbound_event_id ?? -1);
+  return rows.some((row) => hasRepairableGuardianRule(guardianRulesFromBlockedRow(row)));
+}
+
+function guardianRulesFromBlockedRow(row) {
+  if (row.triggered_rules) {
+    try {
+      const parsed = JSON.parse(row.triggered_rules);
+      if (Array.isArray(parsed)) return parsed.map((rule) => clean(rule)).filter(Boolean);
+    } catch {
+      // Fall back to guardian_reason below.
+    }
+  }
+  return clean(row.guardian_reason)
+    .split(";")
+    .map((rule) => clean(rule))
+    .filter(Boolean);
+}
+
+function buildGuardianRepairPayload(blocked, rules, closerAgentId) {
+  const reason = rules.join("; ") || blocked.guardian_reason || "bloqueio do Guardiao";
+  return {
+    title: `WhatsApp - ${blocked.lead_name}: reparar Outbox bloqueada pelo Guardiao`,
+    description: [
+      "## Reparo de Outbox WhatsApp",
+      "",
+      `Lead: ${blocked.lead_name}`,
+      `classification: ${blocked.classification || "-"}`,
+      `whatsapp_state: ${blocked.whatsapp_state || "nao_definido"}`,
+      `inbound_event_id: ${blocked.inbound_event_id}`,
+      `outbox_id bloqueada: ${blocked.id}`,
+      `motivo_guardiao: ${reason}`,
+      "",
+      "## Mensagem recebida",
+      "",
+      blocked.inbound_body || "-",
+      "",
+      "## Resposta bloqueada",
+      "",
+      blocked.body,
+      "",
+      "## Trabalho",
+      "",
+      "- Reescrever a resposta de forma curta, natural e contextual.",
+      "- Antes de propor a nova Outbox, liberar o estado com `node scripts/freela-crm.mjs whatsapp state set --name \"[lead]\" --state atendimento_autonomo --reason \"reparo de bloqueio do Guardiao\" --reset-auto-replies true`.",
+      "- Criar nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name \"[lead]\" --body \"[mensagem]\" --source jhon-guardiao-repair --humanizer-pass true --used-last-inbound true --contextual-reply true`.",
+      "- Nao envie WhatsApp. Nao chame Gateway. Nao chame bridge.",
+      "- Esta e uma tentativa de reparo. Se faltar contexto real ou se a nova Outbox bloquear de novo, acione Scout para reanalisar bio, link da bio, cartao virtual/PDF e caminho ate o WhatsApp.",
+    ].join("\n"),
+    assigneeAgentId: closerAgentId,
+    priority: "high",
+    status: "todo",
+  };
+}
+
+function buildGuardianReanalysisPayload(blocked, rules, scoutAgentId) {
+  const reason = rules.join("; ") || blocked.guardian_reason || "bloqueio repetido do Guardiao";
+  return {
+    title: `WhatsApp - ${blocked.lead_name}: reanalisar contexto apos bloqueio do Guardiao`,
+    description: [
+      "## Reanalise apos bloqueio do Guardiao",
+      "",
+      `Lead: ${blocked.lead_name}`,
+      `classification: ${blocked.classification || "-"}`,
+      `whatsapp_state: ${blocked.whatsapp_state || "nao_definido"}`,
+      `inbound_event_id: ${blocked.inbound_event_id}`,
+      `outbox_id bloqueada: ${blocked.id}`,
+      `motivo_guardiao: ${reason}`,
+      "",
+      "## Trabalho",
+      "",
+      "- Reanalisar o cliente antes de nova tentativa de resposta.",
+      "- Conferir Instagram, bio, link da bio, cartao virtual/PDF, servicos vistos, friccoes e caminho ate o WhatsApp.",
+      "- Registrar ou atualizar o Bio Evidence Pack no CRM com evidencia navegada quando aplicavel.",
+      "- Nao envie WhatsApp. Nao crie Outbox se o contexto continuar fraco.",
+      "- Depois da reanalise, devolver para Jhon/Atendimento com o gancho comercial real para nova Outbox.",
+    ].join("\n"),
+    assigneeAgentId: scoutAgentId,
+    priority: "high",
+    status: "todo",
+  };
+}
+
+async function createPaperclipIssueFromCrm({
+  apiBase,
+  companyId,
+  apiKey,
+  runId,
+  timeoutMs,
+  payload,
+}) {
+  const base = normalizePaperclipApiBase(apiBase);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${base}/api/companies/${encodeURIComponent(companyId)}/issues`, {
+      method: "POST",
+      headers: paperclipJsonHeaders({ apiKey, runId }),
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${text}`);
+    }
+    return text ? JSON.parse(text) : {};
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function normalizePaperclipApiBase(value) {
+  const base = clean(value).replace(/\/+$/, "");
+  if (!base) throw usageError("Paperclip API base vazia");
+  return base.endsWith("/api") ? base.slice(0, -4) : base;
+}
+
+function paperclipJsonHeaders({ apiKey, runId }) {
+  const headers = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  if (runId) headers["X-Paperclip-Run-Id"] = runId;
+  return headers;
 }
 
 function guardianRules({ outbox, state }) {

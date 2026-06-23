@@ -51,7 +51,18 @@ Saida:
 
 - Decisao registrada em `whatsapp_guardian_decisions`.
 - Outbox atualizada como `approved` ou `blocked`.
-- Quando bloquear, acionar Notificador Luiz se o motivo exigir operador.
+- Quando bloquear, rode a revisao com auto-wake para criar o proximo trabalho:
+
+```bash
+node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true
+```
+
+Loop seguro de bloqueio:
+
+- Bloqueio reparavel, como lista artificial, travessao, tom generico de IA ou mensagem longa: Jhon Snow / Atendimento e Fechamento recebe uma tentativa de reparo.
+- Jhon nao envia WhatsApp. Ele libera o estado, reescreve e cria nova Outbox com Humanizer/contexto para voltar ao Guardiao.
+- Se uma segunda Outbox do mesmo inbound bloquear por motivo reparavel, o CRM acorda Scout para reanalisar bio, link da bio, cartao virtual/PDF e caminho ate WhatsApp antes de nova tentativa.
+- Bloqueio comercial/sensivel continua exigindo criterio de closer/handoff; nao force texto para passar no Guardiao.
 
 Fluxo obrigatorio depois de `enviar`:
 

@@ -378,6 +378,14 @@ Identidade WhatsApp e parte do contrato operacional. Se a WAHA entregar um conta
 
 Com `--auto-wake`, o Gateway roteia seletivamente por classificacao/estado. Atendimento WhatsApp recebe conversa normal (`resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`). Jhon Snow / Atendimento e Fechamento recebe fechamento comercial (`preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente`, `bloqueado_guardiao`). Use `--closer-agent-id` para sobrescrever o agente closer em teste. O dedupe fica em `whatsapp_worker_wakes`, sem enviar mensagem e sem chamar bridge.
 
+O Guardiao tambem pode acordar workers ao bloquear uma Outbox:
+
+```bash
+node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true
+```
+
+Bloqueio reparavel (`mensagem contem lista artificial`, travessao/marcador artificial, tom generico de IA ou mensagem longa) cria uma issue para Jhon reparar uma vez e criar nova Outbox. Se outra Outbox do mesmo inbound bloquear de novo por motivo reparavel, o CRM cria issue para Scout reanalisar bio, link da bio, cartao virtual/PDF e caminho ate WhatsApp antes de nova tentativa. Nenhum desses wakes envia WhatsApp; todos voltam ao fluxo Outbox -> Guardiao -> Gateway.
+
 Primeira abordagem fria continua manual. Respostas depois do "Pode!" podem ser despachadas automaticamente somente via Gateway + Outbox aprovada + Humanizer + Guardiao.
 
 Notificador Luiz cria issue no Paperclip quando a conversa chega em `preco_pedido`, `lead_quente`, `handoff_luiz` ou `bloqueado_guardiao`. Ele nao envia WhatsApp; apenas entrega contexto e proxima acao para o operador.

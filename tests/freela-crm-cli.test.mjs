@@ -45,6 +45,32 @@ function runNode(args, options = {}) {
   });
 }
 
+function withPaperclipServer(handler) {
+  return new Promise((resolve, reject) => {
+    const requests = [];
+    const server = createServer((req, res) => {
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+      req.on("end", () => {
+        requests.push({ method: req.method, url: req.url, body: body ? JSON.parse(body) : {} });
+        handler(req, res, requests);
+      });
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      resolve({
+        baseUrl: `http://127.0.0.1:${port}`,
+        requests,
+        close: () => new Promise((done) => server.close(done)),
+      });
+    });
+    server.on("error", reject);
+  });
+}
+
 function runAsync(root, args) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [cli, "--root", root, ...args], {
@@ -2531,6 +2557,158 @@ test("whatsapp outbox propose cria resposta candidata sem enviar", () => {
   assert.equal(row.status, "pending_guardian");
   assert.equal(row.target_chat_id, "5527999990000@s.whatsapp.net");
   assert.equal(row.source, "atendimento-whatsapp");
+});
+
+test("guardian review auto-wakes Jhon once for repairable WhatsApp block", async () => {
+  const root = makeWhatsAppLeadRoot("wa-guardian-repair-wake-001");
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito.\n\n1. ponto simples para ajustar\n2. outro ponto simples",
+  );
+  const paperclip = await withPaperclipServer((req, res) => {
+    assert.equal(req.method, "POST");
+    assert.equal(req.url, "/api/companies/company-test/issues");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ id: "issue-jhon-1", identifier: "FRE-JHON-1" }));
+  });
+
+  try {
+    const review = await runAsync(root, [
+      "whatsapp",
+      "guardian",
+      "review",
+      "--outbox-id",
+      String(outbox.id),
+      "--auto-wake",
+      "true",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--closer-agent-id",
+      "agent-jhon-test",
+    ]);
+
+    assert.equal(review.status, 0, review.stderr);
+    assert.match(review.stdout, /Guardiao: bloqueado/i);
+    assert.match(review.stdout, /Wake Paperclip: created/i);
+    assert.equal(paperclip.requests.length, 1);
+    assert.equal(paperclip.requests[0].body.assigneeAgentId, "agent-jhon-test");
+    assert.match(paperclip.requests[0].body.title, /reparar Outbox bloqueada/i);
+    assert.match(paperclip.requests[0].body.description, /criar nova Outbox/i);
+    assert.match(paperclip.requests[0].body.description, /Nao envie WhatsApp/i);
+    assert.match(paperclip.requests[0].body.description, /uma tentativa/i);
+
+    const repeat = await runAsync(root, [
+      "whatsapp",
+      "guardian",
+      "review",
+      "--outbox-id",
+      String(outbox.id),
+      "--auto-wake",
+      "true",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--closer-agent-id",
+      "agent-jhon-test",
+    ]);
+
+    assert.equal(repeat.status, 0, repeat.stderr);
+    assert.equal(paperclip.requests.length, 1);
+
+    const database = db(root);
+    const wake = database.prepare("select * from whatsapp_worker_wakes").get();
+    database.close();
+    assert.equal(wake.target_agent_id, "agent-jhon-test");
+    assert.equal(wake.wake_type, "whatsapp_guardian_repair");
+    assert.equal(wake.status, "created");
+    assert.equal(wake.paperclip_issue_identifier, "FRE-JHON-1");
+  } finally {
+    await paperclip.close();
+  }
+});
+
+test("second repairable guardian block auto-wakes Scout for reanalysis", async () => {
+  const root = makeWhatsAppLeadRoot("wa-guardian-reanalysis-wake-001");
+  const firstOutbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito.\n\n1. ponto simples para ajustar\n2. outro ponto simples",
+  );
+  const paperclip = await withPaperclipServer((req, res, requests) => {
+    assert.equal(req.method, "POST");
+    assert.equal(req.url, "/api/companies/company-test/issues");
+    const suffix = requests.length;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ id: `issue-${suffix}`, identifier: `FRE-${suffix}` }));
+  });
+
+  try {
+    const firstReview = await runAsync(root, [
+      "whatsapp",
+      "guardian",
+      "review",
+      "--outbox-id",
+      String(firstOutbox.id),
+      "--auto-wake",
+      "true",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--closer-agent-id",
+      "agent-jhon-test",
+      "--scout-agent-id",
+      "agent-scout-test",
+    ]);
+    assert.equal(firstReview.status, 0, firstReview.stderr);
+
+    const secondOutbox = proposeSafeWhatsApp(
+      root,
+      "Aghata Massoterapia",
+      "Ok.\n\n1. ajustar o link da bio\n2. simplificar o contato",
+    );
+    const secondReview = await runAsync(root, [
+      "whatsapp",
+      "guardian",
+      "review",
+      "--outbox-id",
+      String(secondOutbox.id),
+      "--auto-wake",
+      "true",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--closer-agent-id",
+      "agent-jhon-test",
+      "--scout-agent-id",
+      "agent-scout-test",
+    ]);
+
+    assert.equal(secondReview.status, 0, secondReview.stderr);
+    assert.match(secondReview.stdout, /Wake Paperclip: created/i);
+    assert.equal(paperclip.requests.length, 2);
+    assert.equal(paperclip.requests[1].body.assigneeAgentId, "agent-scout-test");
+    assert.match(paperclip.requests[1].body.title, /reanalisar contexto/i);
+    assert.match(paperclip.requests[1].body.description, /Bio Evidence Pack/i);
+    assert.match(paperclip.requests[1].body.description, /link da bio/i);
+    assert.match(paperclip.requests[1].body.description, /cartao virtual/i);
+    assert.match(paperclip.requests[1].body.description, /Nao envie WhatsApp/i);
+
+    const database = db(root);
+    const wakes = database.prepare("select * from whatsapp_worker_wakes order by id").all();
+    database.close();
+    assert.equal(wakes.length, 2);
+    assert.equal(wakes[0].wake_type, "whatsapp_guardian_repair");
+    assert.equal(wakes[1].wake_type, "whatsapp_guardian_reanalysis");
+    assert.equal(wakes[1].target_agent_id, "agent-scout-test");
+  } finally {
+    await paperclip.close();
+  }
 });
 
 test("whatsapp outbox usa telefone real para envio quando inbound veio por LID", () => {

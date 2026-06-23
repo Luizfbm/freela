@@ -82,6 +82,14 @@ Falhas WAHA e Outbox:
 - Nao reaproveite a mesma Outbox automaticamente. Para novo teste, crie nova Outbox ou exija liberacao explicita auditada pelo Guardiao/COO.
 - Nunca chame `/api/sendText`.
 
+Bloqueio reparavel do Guardiao:
+
+- Se receber issue por `whatsapp_guardian_repair`, seu trabalho e recolocar a conversa no fluxo seguro, nao enviar WhatsApp direto.
+- Leia o motivo do Guardiao, o ultimo inbound e o contexto real do lead antes de escrever.
+- Para reparar, primeiro libere o estado com `node scripts/freela-crm.mjs whatsapp state set --name [nome] --state atendimento_autonomo --reason "reparo de bloqueio do Guardiao" --reset-auto-replies true`.
+- Depois crie nova Outbox curta e natural com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source jhon-guardiao-repair --humanizer-pass true --used-last-inbound true --contextual-reply true`.
+- Esta e uma tentativa de reparo. Se faltar contexto real ou se a nova Outbox bloquear de novo, acione Scout para reanalisar bio, link da bio, cartao virtual/PDF e caminho ate WhatsApp antes de tentar outra mensagem.
+
 Modo WAHA pleno / Outbox-first:
 
 - Respostas seguras pos-consentimento e demos ja aprovadas nao voltam para lead-cards por padrao.
