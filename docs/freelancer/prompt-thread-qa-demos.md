@@ -28,6 +28,7 @@ Documentos base:
 - docs/freelancer/checklist-entrega.md
 - docs/freelancer/prompt-thread-criacao-72h.md
 - docs/freelancer/data-contract.md
+- docs/freelancer/demo-visual-kit.md
 - docs/freelancer/paperclip/browser-automation.md
 - docs/freelancer/paperclip/worker-handoff-protocol.md
 - docs/deploy-cpanel.md
@@ -138,6 +139,10 @@ Checklist de QA:
    - Verificar links quebrados: WhatsApp, Instagram, mapa, agenda e assets.
    - Verificar meta robots `noindex, nofollow`.
    - Verificar se a pagina carrega sem erro evidente no console quando possivel.
+   - Verificar `docs/freelancer/demo-visual-kit.md` e `assets/demo-kit/manifest.json` quando a demo usar assets do kit.
+   - Verificar que a imagem do kit pertence ao nicho correto e e sem rostos, sem pessoas identificaveis, sem paciente, sem equipe, sem antes/depois ou ambiente real simulado.
+   - Verificar que a paleta parece inspirada no Instagram publico, mas nao copia post, foto, arte, logo ou captura.
+   - Verificar que botoes de Instagram e WhatsApp tem texto acessivel e icones oficiais/aprovados quando houver icone.
 
 6. Handoff comercial
    - Se aprovado, informar o link local e o link provavel para envio.

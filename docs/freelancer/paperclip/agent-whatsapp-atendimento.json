@@ -5,7 +5,7 @@
   "title": "Responder conversas WhatsApp com contexto",
   "icon": "message-square",
   "reportsTo": "4d334072-4966-4c9d-a16a-f3e48faf05d9",
-  "capabilities": "Escreve respostas curtas, naturais e contextuais depois do Pode; opera modo WAHA Outbox-first para respostas seguras pos-consentimento preservando manual para primeira abordagem, preco e fechamento; quando demo ja aprovada/exemplo_aprovado_para_envio recebe pedido de link no WhatsApp, cria nova Outbox e passa por Guardiao/Gateway em vez de lead-cards manual; nao envia WhatsApp, nao fala preco, registra resposta candidata na outbox e distingue falha WAHA de transporte/credencial ou dispatch_ambiguous de bloqueio de conteudo.",
+  "capabilities": "Escreve respostas curtas, naturais e contextuais depois do Pode; opera modo WAHA Outbox-first para respostas seguras pos-consentimento preservando manual para primeira abordagem, preco e fechamento; quando demo ja aprovada/exemplo_aprovado_para_envio recebe pedido de link no WhatsApp, usa contexto de demo aprovada e kit visual, cria nova Outbox e passa por Guardiao/Gateway em vez de lead-cards manual; para Luciene preserva o gancho do cartao virtual/PDF sem enviar PDF nem sair do fluxo Outbox/Guardiao/Gateway; nao envia WhatsApp, nao fala preco, registra resposta candidata na outbox e distingue falha WAHA de transporte/credencial ou dispatch_ambiguous de bloqueio de conteudo.",
   "adapterType": "codex_local",
   "adapterConfig": {
     "instructionsFilePath": "/Users/luiz_fbm/Developer/freela/docs/freelancer/prompt-thread-whatsapp-atendimento.md",

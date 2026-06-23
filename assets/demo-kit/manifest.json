@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-06-23",
+  "rules": {
+    "facesAllowed": false,
+    "identifiablePeopleAllowed": false,
+    "realClientEnvironmentAllowed": false,
+    "privateClientAssetsAllowed": false
+  },
+  "social": {
+    "instagram": {
+      "label": "Instagram",
+      "asset": "assets/demo-kit/social/instagram-glyph.svg",
+      "sourceUrl": "https://about.instagram.com/brand",
+      "usage": "asset oficial ou aprovado internamente; manter forma, proporcao e texto no botao"
+    },
+    "whatsapp": {
+      "label": "WhatsApp",
+      "asset": "assets/demo-kit/social/whatsapp-glyph.svg",
+      "sourceUrl": "https://www.whatsapp.com/legal",
+      "usage": "asset oficial ou aprovado internamente; manter forma, proporcao e texto no botao"
+    }
+  },
+  "niches": {
+    "estetica-beleza": {
+      "label": "Estetica e beleza",
+      "defaultImage": "assets/demo-kit/niches/estetica-beleza/estetica-bancada-hero.jpg",
+      "safety": {
+        "facesAllowed": false,
+        "identifiablePeopleAllowed": false,
+        "realClientEnvironmentAllowed": false
+      },
+      "images": [
+        {
+          "path": "assets/demo-kit/niches/estetica-beleza/estetica-bancada-hero.jpg",
+          "alt": "Imagem neutra de bancada de estetica e beleza, sem rosto, sem pessoas e sem ambiente real do cliente",
+          "source": "AI-generated neutral concept image"
+        }
+      ]
+    },
+    "pilates-fisioterapia": {
+      "label": "Pilates e fisioterapia",
+      "defaultImage": "assets/demo-kit/niches/pilates-fisioterapia/pilates-studio-hero.jpg",
+      "safety": {
+        "facesAllowed": false,
+        "identifiablePeopleAllowed": false,
+        "realClientEnvironmentAllowed": false
+      },
+      "images": [
+        {
+          "path": "assets/demo-kit/niches/pilates-fisioterapia/pilates-studio-hero.jpg",
+          "alt": "Imagem neutra de studio de pilates e fisioterapia, sem rosto, sem pessoas e sem paciente",
+          "source": "AI-generated neutral concept image"
+        }
+      ]
+    },
+    "odontologia": {
+      "label": "Odontologia",
+      "defaultImage": "assets/demo-kit/niches/odontologia/odontologia-consultorio-hero.jpg",
+      "safety": {
+        "facesAllowed": false,
+        "identifiablePeopleAllowed": false,
+        "realClientEnvironmentAllowed": false
+      },
+      "images": [
+        {
+          "path": "assets/demo-kit/niches/odontologia/odontologia-consultorio-hero.jpg",
+          "alt": "Imagem neutra de consultorio odontologico, sem rosto, sem pessoas e sem paciente",
+          "source": "AI-generated neutral concept image"
+        }
+      ]
+    },
+    "laboratorio-saude": {
+      "label": "Laboratorio e saude diagnostica",
+      "defaultImage": "assets/demo-kit/niches/laboratorio-saude/laboratorio-bancada-hero.jpg",
+      "safety": {
+        "facesAllowed": false,
+        "identifiablePeopleAllowed": false,
+        "realClientEnvironmentAllowed": false
+      },
+      "images": [
+        {
+          "path": "assets/demo-kit/niches/laboratorio-saude/laboratorio-bancada-hero.jpg",
+          "alt": "Imagem neutra de bancada de laboratorio e saude diagnostica, sem rosto, sem pessoas e sem paciente",
+          "source": "AI-generated neutral concept image"
+        }
+      ]
+    }
+  }
+}

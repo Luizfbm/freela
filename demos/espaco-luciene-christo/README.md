@@ -28,6 +28,8 @@ Demo one-page de Presenca Local em 72h para o Espaco Luciene Christo.
 
 - Conceito visual nao oficial.
 - Nao usa fotos do Instagram, Google, WhatsApp ou ambiente real.
+- A imagem do kit e gerada/neutra, sem rosto, sem paciente, sem equipe e sem representar o espaco real.
+- A paleta foi inspirada no clima publico do Instagram, sem copiar post, foto, arte ou logo.
 - Nao inclui preco, depoimentos, antes/depois ou promessa de resultado.
 - Nao contem link real de WhatsApp porque o numero publico precisa ser confirmado.
 - Nao atualiza galeria e nao cria copy de WhatsApp.
@@ -37,5 +39,5 @@ Demo one-page de Presenca Local em 72h para o Espaco Luciene Christo.
 - `index.html`
 - `styles.css`
 - `script.js`
-- `assets/presenca-local-conceito.jpg`
+- imagem segura do kit visual: `../../assets/demo-kit/niches/estetica-beleza/estetica-bancada-hero.jpg`
 - `README.md`

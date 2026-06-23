@@ -17,6 +17,9 @@ const criacao72h = () => read("docs/freelancer/prompt-thread-criacao-72h.md");
 const prospeccao = () => read("docs/freelancer/prompt-thread-prospeccao-leads.md");
 const intakeConversas = () => read("docs/freelancer/prompt-thread-intake-conversas.md");
 const qaDemos = () => read("docs/freelancer/prompt-thread-qa-demos.md");
+const whatsappAtendimento = () => read("docs/freelancer/prompt-thread-whatsapp-atendimento.md");
+const demoVisualKit = () => read("docs/freelancer/demo-visual-kit.md");
+const demoKitManifest = () => JSON.parse(read("assets/demo-kit/manifest.json"));
 const cooFreelancer = () => read("docs/freelancer/prompt-thread-coo-freelancer.md");
 const validadorDados = () => read("docs/freelancer/prompt-thread-validador-dados-leads.md");
 const redatorPrimeiraMensagem = () => read("docs/freelancer/prompt-thread-redator-primeira-mensagem.md");
@@ -358,7 +361,6 @@ test("Demos antigas preservam sites sem artefatos operacionais", () => {
     const fileName = path.split("/").at(-1);
     return (
       fileName === ".DS_Store" ||
-      fileName === "README.md" ||
       fileName === "copy-whatsapp.md" ||
       fileName === "whatsapp-links.js" ||
       /^screenshot-.*\.png$/.test(fileName) ||
@@ -368,6 +370,13 @@ test("Demos antigas preservam sites sem artefatos operacionais", () => {
   });
 
   assert.deepEqual(forbiddenArtifacts, []);
+
+  const publicReadmes = files.filter((path) => /^demos\/[^/]+\/README\.md$/.test(path));
+  for (const path of publicReadmes) {
+    const readme = read(path);
+    assert.doesNotMatch(readme, /lead quente|score|obje[cç][aã]o|pre[cç]o negociado|WhatsApp recebido|mensagem do WhatsApp/i, path);
+    assert.match(readme, /conceito visual|demo|demonstra[cç][aã]o/i, path);
+  }
 
   const demoSites = files.filter((path) => /^demos\/[^/]+\/index\.html$/.test(path));
   assert.ok(demoSites.length > 0, "ao menos um site demo deve permanecer");
@@ -379,6 +388,47 @@ test("Demos antigas preservam sites sem artefatos operacionais", () => {
   assert.doesNotMatch(panel, /README\.md|whatsapp-links\.js/i);
   assert.doesNotMatch(gallery, /copy-whatsapp\.md|screenshot-(desktop|mobile)\.png|demoWhatsappLinks|wa\.me|thumbnails/i);
   assert.match(cpanelDeploy, /rsync .*--delete .*demos\/.*\$DEPLOYPATH\/demos\//i);
+});
+
+test("Kit visual de demos declara assets seguros e reutilizaveis", () => {
+  const doc = demoVisualKit();
+  const manifest = demoKitManifest();
+
+  assert.equal(manifest.version, 1);
+  assert.deepEqual(Object.keys(manifest.niches).sort(), [
+    "estetica-beleza",
+    "laboratorio-saude",
+    "odontologia",
+    "pilates-fisioterapia",
+  ]);
+
+  assert.match(doc, /assets\/demo-kit\/manifest\.json/i);
+  assert.match(doc, /sem rostos|sem pessoas identificaveis/i);
+  assert.match(doc, /cartao virtual\/PDF|cartão virtual\/PDF/i);
+  assert.match(doc, /nao copiar.*Instagram|não copiar.*Instagram/i);
+  assert.match(doc, /Johan/i);
+  assert.match(doc, /OZZY/i);
+
+  for (const [name, social] of Object.entries(manifest.social)) {
+    assert.match(name, /^(instagram|whatsapp)$/);
+    assert.equal(existsSync(join(rootDir, social.asset)), true, social.asset);
+    assert.match(social.sourceUrl, /^https:\/\/(about\.instagram\.com|www\.whatsapp\.com)\//);
+    assert.match(social.usage, /oficial|aprovado/i);
+  }
+
+  for (const [slug, niche] of Object.entries(manifest.niches)) {
+    assert.equal(niche.safety.facesAllowed, false, `${slug} nao permite rostos`);
+    assert.equal(niche.safety.identifiablePeopleAllowed, false, `${slug} nao permite pessoas identificaveis`);
+    assert.equal(niche.safety.realClientEnvironmentAllowed, false, `${slug} nao simula ambiente real`);
+    assert.ok(niche.images.length >= 1, `${slug} precisa ter ao menos uma imagem`);
+
+    for (const image of niche.images) {
+      const imagePath = join(rootDir, image.path);
+      assert.equal(existsSync(imagePath), true, image.path);
+      assert.ok(statSync(imagePath).size > 1000, `${image.path} deve ser um asset real`);
+      assert.match(image.alt, /sem rosto|sem pessoas|sem paciente|sem ambiente real/i, image.path);
+    }
+  }
 });
 
 test("Deploy automatico para cPanel usa GitHub Actions sem segredos no repo", () => {
@@ -2459,6 +2509,36 @@ test("Worker QA de Demos revisa exemplos antes do link ser enviado", () => {
 
   assert.match(readme, /QA de Demos\/Exemplos/i);
   assert.match(readme, /qa-demos-YYYY-MM-DD\.md/i);
+});
+
+test("Workers de demos e atendimento usam o kit visual reutilizavel", () => {
+  const criador = criacao72h();
+  const qa = qaDemos();
+  const atendimentoWa = whatsappAtendimento();
+  const presencaAgent = agentConfig("agent-presenca72h.json");
+  const qaAgent = agentConfig("agent-qa-demos.json");
+  const atendimentoAgent = agentConfig("agent-whatsapp-atendimento.json");
+
+  for (const [name, doc] of [
+    ["Criador Presenca 72h", criador],
+    ["QA de Demos", qa],
+  ]) {
+    assert.match(doc, /docs\/freelancer\/demo-visual-kit\.md/i, name);
+    assert.match(doc, /assets\/demo-kit\/manifest\.json/i, name);
+    assert.match(doc, /sem rostos|sem pessoas identificaveis/i, name);
+    assert.match(doc, /icones oficiais|ícones oficiais|asset oficial|asset aprovado/i, name);
+    assert.match(doc, /paleta.*Instagram|Instagram.*paleta/i, name);
+  }
+
+  assert.match(atendimentoWa, /docs\/freelancer\/demo-visual-kit\.md/i);
+  assert.match(atendimentoWa, /cartao virtual\/PDF|cartão virtual\/PDF/i);
+  assert.match(atendimentoWa, /Luciene/i);
+  assert.match(atendimentoWa, /Outbox/i);
+  assert.match(atendimentoWa, /Guardiao|Guardião/i);
+
+  assert.match(presencaAgent.capabilities, /demo-visual-kit|kit visual/i);
+  assert.match(qaAgent.capabilities, /demo-visual-kit|kit visual/i);
+  assert.match(atendimentoAgent.capabilities, /demo aprovada|kit visual|cartao virtual|cartão virtual/i);
 });
 
 test("COO Freelancer orquestra a operacao sem executar trabalho dos especialistas", () => {

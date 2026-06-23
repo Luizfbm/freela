@@ -64,6 +64,7 @@ Documentos que você deve usar como base:
 - docs/freelancer/ofertas.md
 - docs/freelancer/checklist-entrega.md
 - docs/freelancer/data-contract.md
+- docs/freelancer/demo-visual-kit.md
 - docs/freelancer/paperclip/browser-automation.md
 - docs/freelancer/paperclip/worker-handoff-protocol.md
 
@@ -223,6 +224,15 @@ Antes de criar arquivos:
 - Se o nome for parecido com lead antigo, trate como possível duplicado.
 - Use slug em minúsculas, sem acento, sem espaços e sem caracteres especiais.
 - Exemplo: "Clínica Exemplo Vitória" vira demos/clinica-exemplo-vitoria/
+
+Kit visual obrigatorio:
+
+- Leia `docs/freelancer/demo-visual-kit.md` antes de criar ou ajustar demos.
+- Use `assets/demo-kit/manifest.json` para escolher imagem segura por nicho quando houver asset adequado.
+- A paleta deve ser inspirada no Instagram publico do cliente, sem copiar foto, post, arte, logo ou captura.
+- Imagens devem ser sem rostos, sem pessoas identificaveis, sem pacientes, sem equipe, sem antes/depois e sem simulacao do ambiente real do cliente.
+- Botoes de Instagram e WhatsApp devem ter texto claro e usar icones oficiais/aprovados quando disponiveis.
+- Se faltar paleta confiavel, icone aprovado ou imagem do nicho, use fallback documentado e registre a limitacao no README publico da demo.
 
 Estrutura recomendada da página:
 

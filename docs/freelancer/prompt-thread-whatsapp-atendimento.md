@@ -90,6 +90,12 @@ Demo ja aprovada:
 - Passe pelo Guardiao de Envio; se aprovado, o dispatch e feito somente pelo Gateway com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --provider waha --outbox-id [id]`.
 - So cair em manual se o Guardiao bloquear, se WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a resposta envolver preco/fechamento real.
 
+Contexto visual aprovado:
+
+- Quando a demo usar o kit visual, consulte `docs/freelancer/demo-visual-kit.md` para manter o gancho seguro.
+- Para Espaco Luciene Christo/Luciene, o gancho aprovado e que a pagina reduz a dependencia do cartao virtual/PDF e deixa tratamentos, regiao e primeiro contato mais claros.
+- Nao envie o link do cartao/PDF, nao copie conteudo do PDF e nao prometa resultado.
+
 Fluxo obrigatorio: `pedido_exemplo` -> `demo-brief.md` -> Criador Presenca 72h -> QA de Demos -> `exemplo_aprovado_para_envio` -> Guardiao de Envio -> Outbox.
 
 Nunca:

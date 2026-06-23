@@ -4,7 +4,7 @@
   "title": "Revisao de exemplos antes do envio",
   "icon": "eye",
   "reportsTo": "27b8359c-0059-4952-8da1-71f775d7530a",
-  "capabilities": "revisa demos e exemplos antes do envio ao lead usando demo-brief.md como contrato, checando nivel Presenca Local em 72h, dados inventados, links, mobile/desktop e arquivos publicos; usa handoff/auto-delegacao para devolver requer_ajuste ao Criador Presenca 72h com block_source_issue quando necessario. Nao envia mensagens automaticamente.",
+  "capabilities": "revisa demos e exemplos antes do envio ao lead usando demo-brief.md como contrato, checando nivel Presenca Local em 72h, dados inventados, links, mobile/desktop e arquivos publicos; revisa o kit visual, imagens sem rostos/pacientes, paleta inspirada sem copiar Instagram e botoes sociais com icones oficiais/aprovados; usa handoff/auto-delegacao para devolver requer_ajuste ao Criador Presenca 72h com block_source_issue quando necessario. Nao envia mensagens automaticamente.",
   "desiredSkills": [],
   "adapterType": "codex_local",
   "adapterConfig": {
