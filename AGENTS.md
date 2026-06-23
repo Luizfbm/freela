@@ -505,6 +505,7 @@ Agent IDs:
 | Jhon Snow - Atendimento e Fechamento | `4d334072-4966-4c9d-a16a-f3e48faf05d9` | Commercial replies and closer handoff |
 | Atendimento WhatsApp | `db8a76a9-e503-4cdc-b8cb-f14cf757070a` | Safe post-consent WhatsApp reply candidate generation |
 | Guardiao de Envio WhatsApp | `972bc52e-8e70-436d-9fb5-3b8201575136` | WhatsApp Outbox QA/approval |
+| QA Permissoes Locais | `b893cae3-fdbb-433c-99ea-f3d31244b9b9` | Local permissions/access QA |
 | Polina - Follow-up CRM | `27b8359c-0059-4952-8da1-71f775d7530a` | Pipeline/follow-up |
 | Johan - QA de Demos/Exemplos | `deb3a93b-c868-4b98-83bc-62df734b30e9` | Demo QA before sending |
 | OZZY - Criador Presenca 72h | `b69b7667-0e3d-4b07-b1ad-e0c788224300` | Demo creation |

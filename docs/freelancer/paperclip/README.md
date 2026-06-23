@@ -127,6 +127,7 @@ Nao usar cPanel manual, nao usar FTP e nao fazer SSH manual para publicar arquiv
 | Atendimento e Fechamento | `4d334072-4966-4c9d-a16a-f3e48faf05d9` | Atendimento e Fechamento | Sugerir respostas e qualificar oferta |
 | Atendimento WhatsApp | `db8a76a9-e503-4cdc-b8cb-f14cf757070a` | Atendimento e Fechamento | Escrever respostas candidatas curtas e contextuais para a Outbox WhatsApp, sem enviar direto |
 | Guardiao de Envio WhatsApp | `972bc52e-8e70-436d-9fb5-3b8201575136` | Atendimento e Fechamento | Validar Outbox WhatsApp e bloquear preco, proposta, risco ou oferta removida antes de qualquer saida |
+| QA Permissoes Locais | `b893cae3-fdbb-433c-99ea-f3d31244b9b9` | Atendimento e Fechamento | Validar permissoes locais dos workers, caminhos, SQLite, Paperclip API, Chrome/Scout e visibilidade Docker/WAHA somente leitura |
 | Follow-up CRM | `27b8359c-0059-4952-8da1-71f775d7530a` | Atendimento e Fechamento | Controlar pipeline, follow-ups e fila de envio manual |
 | QA de Demos/Exemplos | `deb3a93b-c868-4b98-83bc-62df734b30e9` | Atendimento e Fechamento | revisar exemplos antes do envio, checando escopo, dados inventados, links, mobile/desktop e arquivos públicos |
 | Criador Presenca 72h | `b69b7667-0e3d-4b07-b1ad-e0c788224300` | Presenca Local em 72h | Criar demos one-page com `nivel: Presenca Local em 72h` |
@@ -140,7 +141,7 @@ Todos usam:
 - `CODEX_HOME=/Users/luiz_fbm/.paperclip/instances/default/companies/50a2756c-2942-40c1-90f8-b16807a62ef3/agents/[agent-id]/codex-home`
 - `adapterConfig.env` deve conter apenas `PATH` e `CODEX_HOME`; segredos ficam fora do espelho versionado.
 - Sandbox do Codex: `workspace-write` por padrao.
-- Excecao de navegador assistido: COO Freelancer e Scout - Lead Searcher GV usam `danger-full-access`, porque `workspace-write` quebra LaunchServices/Spotlight no macOS e impede `node scripts/paperclip-open-chrome-window.mjs --preflight` de abrir Chrome pessoal. Essa excecao nao autoriza envio automatico nem acao social; continua valendo `dangerouslyBypassApprovalsAndSandbox=false`, `approval_policy="never"` e as regras de somente leitura de `docs/freelancer/paperclip/browser-automation.md`.
+- Excecao de navegador assistido/permissoes locais: COO Freelancer, Scout - Lead Searcher GV e QA Permissoes Locais usam `danger-full-access`, porque `workspace-write` quebra LaunchServices/Spotlight no macOS e impede checks locais como Chrome, browser smoke e auditoria de permissao. Essa excecao nao autoriza envio automatico nem acao social; continua valendo `dangerouslyBypassApprovalsAndSandbox=false`, `approval_policy="never"` e as regras de somente leitura de `docs/freelancer/paperclip/browser-automation.md`.
 - Raiz de trabalho explicita: `-C /Users/luiz_fbm/Developer/freela`
 - Raizes gravaveis explicitas:
   - `--add-dir /Users/luiz_fbm/Developer/freela`

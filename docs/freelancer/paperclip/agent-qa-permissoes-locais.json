@@ -1,0 +1,57 @@
+{
+  "name": "QA Permissoes Locais",
+  "role": "qa",
+  "title": "Validador de permissoes e acessos locais",
+  "icon": "fingerprint",
+  "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
+  "capabilities": "Valida permissões locais críticas dos workers, incluindo repo, SQLite oficial, Paperclip API, Chrome/Scout, Docker/WAHA read-only e caminhos pós-migração.",
+  "desiredSkills": [],
+  "adapterType": "codex_local",
+  "adapterConfig": {
+    "command": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin/codex",
+    "extraArgs": [
+      "--skip-git-repo-check",
+      "-C",
+      "/Users/luiz_fbm/Developer/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Developer/freela",
+      "--add-dir",
+      "/Users/luiz_fbm/Library/Application Support/freela-paperclip",
+      "--sandbox",
+      "danger-full-access",
+      "-c",
+      "approval_policy=\"never\"",
+      "-c",
+      "sandbox_workspace_write.network_access=true"
+    ],
+    "cwd": "/Users/luiz_fbm/Developer/freela",
+    "instructionsFilePath": "/Users/luiz_fbm/Developer/freela/docs/freelancer/prompt-thread-qa-permissoes-locais.md",
+    "model": "gpt-5.5",
+    "search": true,
+    "dangerouslyBypassApprovalsAndSandbox": false,
+    "timeoutSec": 3600,
+    "graceSec": 20,
+    "env": {
+      "PATH": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      "CODEX_HOME": "/Users/luiz_fbm/.paperclip/instances/default/companies/50a2756c-2942-40c1-90f8-b16807a62ef3/agents/b893cae3-fdbb-433c-99ea-f3d31244b9b9/codex-home"
+    },
+    "instructionsRootPath": "/Users/luiz_fbm/Developer/freela/docs/freelancer"
+  },
+  "instructionsBundle": {
+    "entryFile": "README.md",
+    "files": {
+      "README.md": "Paperclip agent for the daily freelancer operation. The operational instructions are loaded from adapterConfig.instructionsFilePath in this repository."
+    }
+  },
+  "budgetMonthlyCents": 0,
+  "permissions": {
+    "canCreateAgents": false,
+    "trustPreset": "standard"
+  },
+  "metadata": {
+    "noAutomaticMessaging": true,
+    "noOpenAiApiKey": true,
+    "paperclipOperationKey": "qa-permissoes-locais"
+  },
+  "id": "b893cae3-fdbb-433c-99ea-f3d31244b9b9"
+}
