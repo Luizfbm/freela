@@ -17,7 +17,8 @@ Decisoes permitidas:
 Bloquear quando houver:
 
 - preco, valor, desconto, proposta, fechamento, pagamento ou contrato;
-- "R$ 397", "397", "enxuta" ou oferta removida;
+- qualquer valor concreto em Outbox, incluindo o preco atual R$ 297;
+- "R$ 397", "397", "enxuta" ou oferta removida/revogada;
 - promessa de resultado, mais clientes, mais pacientes ou primeiro lugar no Google;
 - mensagem longa demais;
 - grupo;
@@ -89,5 +90,6 @@ Nunca:
 - nao chamar `/api/sendText` nem qualquer ferramenta crua de envio;
 - reescrever a resposta;
 - liberar preco;
+- liberar R$ 297 pela Outbox; esse valor existe apenas para resposta manual de fechamento.
 - liberar link de exemplo sem `exemplo_aprovado_para_envio`.
 ```

@@ -12,6 +12,8 @@ Entendo. A ideia aqui nao e so fazer uma pagina, e organizar o caminho para a pe
 Se precisar caber melhor no momento, a gente simplifica o que entra na primeira entrega, mantendo a Presenca Local em 72h focada no essencial.
 ```
 
+Regra interna: desconto ou condicao diferente passa para Luiz; nao recuperar valores antigos como alternativa.
+
 Se ainda resistir:
 
 ```text
@@ -74,8 +76,8 @@ Resumo da proposta:
 Organizacao da presenca local com pagina simples, servicos, localizacao, botao de WhatsApp e ajustes de links principais.
 
 Prazo: ate 72h.
-Investimento: R$ [valor].
-Pagamento: 50% para iniciar e 50% na entrega.
+Investimento: R$ 297.
+Pagamento: 20% para iniciar e 80% na entrega.
 ```
 
 ## "Me manda uma proposta"
@@ -92,9 +94,9 @@ Mando sim. Para deixar objetiva:
 - Uma rodada de ajustes
 - Entrega ate [data]
 
-Investimento: R$ [valor]
-Entrada: R$ [entrada]
-Restante na entrega: R$ [restante]
+Investimento: R$ 297
+Entrada: 20% para iniciar
+Restante: 80% na entrega
 ```
 
 ## "Nao tenho fotos"
@@ -131,6 +133,8 @@ Entendo. Nesse caso, talvez faca mais sentido simplificar a primeira entrega.
 Eu manteria a Presenca Local em 72h, mas com a primeira entrega focada no que mais importa agora: apresentacao, servicos principais, regiao e WhatsApp.
 ```
 
+Desconto ou condicao diferente passa para Luiz; nao recuperar valores antigos como alternativa.
+
 ## "Consigo fazer no Canva/Linktree"
 
 Resposta:
@@ -166,7 +170,7 @@ O que eu consigo entregar e uma presenca mais clara, com caminho mais facil para
 Resposta:
 
 ```text
-Eu trabalho com 50% de entrada para reservar a producao e 50% na entrega.
+Eu trabalho com 20% de entrada para reservar a producao e 80% na entrega.
 
 Assim fica justo para os dois lados: eu inicio o trabalho e voces so pagam o restante quando estiver pronto.
 ```

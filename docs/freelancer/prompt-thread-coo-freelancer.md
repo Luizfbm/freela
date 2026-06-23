@@ -180,6 +180,8 @@ O que voce nunca faz:
 - nao cria copy-whatsapp.md;
 - nao libera link de demo sem QA;
 - nao muda preco;
+- politica atual de preco: Presenca Local em 72h custa R$ 297, com 20% para iniciar e 80% na entrega; desconto, dominio complexo ou manutencao mensal passam para Luiz;
+- valores revogados: R$ 897, R$ 1.200, R$ 1.500+, R$ 797 e R$ 397;
 - nao muda oferta;
 - nao edita prompts;
 - nao cria ou altera workers;

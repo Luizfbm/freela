@@ -88,6 +88,30 @@ function walkFiles(dir) {
   });
 }
 
+function concreteMoneyMentions(doc) {
+  return [...doc.matchAll(/R\$\s*\d{1,3}(?:\.\d{3})?(?:,\d{2})?\+?/g)].map((match) => ({
+    value: match[0],
+    index: match.index ?? 0,
+  }));
+}
+
+function priceMentionContext(doc, index) {
+  return doc.slice(Math.max(0, index - 180), Math.min(doc.length, index + 180));
+}
+
+function assertNoUsableConcreteMoneyExceptCurrent(path, doc) {
+  for (const mention of concreteMoneyMentions(doc)) {
+    if (/^R\$\s*297$/i.test(mention.value)) continue;
+
+    const context = priceMentionContext(doc, mention.index);
+    assert.match(
+      context,
+      /revogad|revoked|bloquead|proibid|removid|historico|histórico|invalido|inválido|invalid|nao usar|não usar|oferta removida/i,
+      `${path} menciona ${mention.value} sem marcar como valor revogado/bloqueado`,
+    );
+  }
+}
+
 function execFileText(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     execFile(command, args, { encoding: "utf8", maxBuffer: 10 * 1024 * 1024, ...options }, (error, stdout, stderr) => {
@@ -340,7 +364,7 @@ test("Presenca Local em 72h nao tem rota enxuta nem preco nos bots", () => {
   for (const [path, doc] of activeDocs) {
     assert.doesNotMatch(
       doc,
-      /72h enxuta|escopo_72h:\s*enxuto|enxuto\|padrao|enxuto ou padrao|vers[aã]o enxuta|R\$\s*397|397 reais|pre[cç]o baixo|pacote barato/i,
+      /72h enxuta|escopo_72h:\s*enxuto|enxuto\|padrao|enxuto ou padrao|vers[aã]o enxuta|pre[cç]o baixo|pacote barato/i,
       path,
     );
     assert.match(doc, /Presen[cç]a Local em 72h/i, path);
@@ -351,6 +375,68 @@ test("Presenca Local em 72h nao tem rota enxuta nem preco nos bots", () => {
   assert.match(criacao72h(), /nivel:\s*Presen[cç]a Local em 72h/i);
   assert.doesNotMatch(criacao72h(), /escopo_72h/i);
   assert.doesNotMatch(qaDemos(), /escopo_72h|enxuto/i);
+});
+
+test("Presenca Local em 72h usa preco atual R$ 297 e quarentena valores antigos", () => {
+  const docs = [
+    ["AGENTS.md", read("AGENTS.md")],
+    ["docs/freelancer/ofertas.md", read("docs/freelancer/ofertas.md")],
+    ["docs/freelancer/playbook.md", read("docs/freelancer/playbook.md")],
+    ["docs/freelancer/objecoes.md", read("docs/freelancer/objecoes.md")],
+    ["docs/freelancer/prompt-thread-atendimento-clientes.md", atendimento()],
+    ["docs/freelancer/prompt-thread-coo-freelancer.md", cooFreelancer()],
+    ["docs/freelancer/prompt-thread-whatsapp-atendimento.md", whatsappAtendimento()],
+    ["docs/freelancer/prompt-thread-whatsapp-guardiao.md", read("docs/freelancer/prompt-thread-whatsapp-guardiao.md")],
+  ];
+
+  const ofertas = read("docs/freelancer/ofertas.md");
+  const playbook = read("docs/freelancer/playbook.md");
+  const atendimentoPrompt = atendimento();
+  const whatsappPrompt = whatsappAtendimento();
+  const guardiaoPrompt = read("docs/freelancer/prompt-thread-whatsapp-guardiao.md");
+  const jhonAgent = agentConfig("agent-atendimento.json");
+  const atendimentoWhatsappAgent = agentConfig("agent-whatsapp-atendimento.json");
+  const guardiaoAgent = agentConfig("agent-whatsapp-guardiao.json");
+  const cooAgent = agentConfig("agent-coo-freelancer.json");
+
+  assert.match(ofertas, /Preco atual autorizado|Preço atual autorizado/i);
+  assert.match(ofertas, /R\$\s*297/i);
+  assert.match(ofertas, /20%\s+para iniciar|20%\s+de entrada/i);
+  assert.match(ofertas, /80%\s+na entrega|80%\s+restante/i);
+  assert.match(ofertas, /Dominio.*nao.*incluido|Domínio.*não.*incluído/i);
+  assert.match(ofertas, /mensalidade.*opcional|manutencao mensal.*opcional|manutenção mensal.*opcional/i);
+  assert.match(ofertas, /desconto.*Luiz|Luiz.*desconto/i);
+  assert.match(playbook, /Preco atual|Preço atual/i);
+  assert.match(playbook, /R\$\s*297/i);
+
+  assert.match(atendimentoPrompt, /R\$\s*297/i);
+  assert.match(atendimentoPrompt, /20%/i);
+  assert.match(atendimentoPrompt, /80%/i);
+  assert.match(atendimentoPrompt, /manual/i);
+  assert.match(atendimentoPrompt, /desconto.*Luiz|Luiz.*desconto/i);
+  assert.match(atendimentoPrompt, /R\$\s*897|R\$\s*1\.200|R\$\s*1\.500\+|R\$\s*797|R\$\s*397/i);
+  assert.match(atendimentoPrompt, /revogad|bloquead|proibid|invalido|inválido/i);
+
+  assert.match(whatsappPrompt, /nao fala preco|não fala preço/i);
+  assert.match(whatsappPrompt, /R\$\s*297/i);
+  assert.match(whatsappPrompt, /bloque|proibid|nao pode|não pode/i);
+
+  assert.match(guardiaoPrompt, /R\$\s*297/i);
+  assert.match(guardiaoPrompt, /bloque/i);
+  assert.match(guardiaoPrompt, /R\$\s*397|397|enxuta/i);
+
+  for (const [path, doc] of docs) {
+    assertNoUsableConcreteMoneyExceptCurrent(path, doc);
+  }
+
+  assert.match(jhonAgent.capabilities, /R\$\s*297|preco atual|preço atual/i);
+  assert.match(jhonAgent.capabilities, /manual/i);
+  assert.match(jhonAgent.capabilities, /desconto.*Luiz|Luiz.*desconto/i);
+  assert.match(atendimentoWhatsappAgent.capabilities, /nao fala preco|não fala preço|sem preço/i);
+  assert.match(guardiaoAgent.capabilities, /R\$\s*297|preco atual|preço atual/i);
+  assert.match(guardiaoAgent.capabilities, /bloqueia/i);
+  assert.match(cooAgent.capabilities, /preco|preço/i);
+  assert.match(cooAgent.capabilities, /Luiz/i);
 });
 
 test("Demos antigas preservam sites sem artefatos operacionais", () => {

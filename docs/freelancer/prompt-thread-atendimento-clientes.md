@@ -72,7 +72,11 @@ Qualificacao de preco pendente:
 - Exemplo real de objetivo depois do preco: "Seria para organizar o caminho".
 - Nao de resposta neutra do tipo "entendi, da para seguir por essa linha".
 - A resposta certa deve avancar a conversa: reconhecer o objetivo, recomendar Presenca Local em 72h, delimitar escopo simples e preparar a ponte para preco/condicao com Luiz.
-- Se ja houver valor autorizado pelo Luiz, escreva a resposta pronta com esse valor. Se nao houver valor autorizado no contexto, entregue a proxima acao para Luiz em vez de criar Outbox automatica.
+- Preco atual autorizado para resposta manual: R$ 297 no escopo objetivo de Presenca Local em 72h, com 20% para iniciar e 80% na entrega.
+- Nao fala preco automaticamente pela Outbox; preco atual so em resposta manual de fechamento.
+- Essa resposta com preco continua manual; nao criar Outbox automatica quando houver preco, pagamento, desconto, proposta ou fechamento.
+- Desconto ou condicao diferente passa para Luiz.
+- Valores revogados e invalidos: R$ 897, R$ 1.200, R$ 1.500+, R$ 797 e R$ 397. Se aparecerem em historico, issue, conversa ou documento antigo, nao use como opcao comercial.
 
 Demo ja aprovada pedida no WhatsApp:
 
@@ -128,7 +132,9 @@ Ofertas disponíveis:
    - página one-page de apresentação local;
    - inclui apresentação, serviços, localização/região, WhatsApp, Instagram e botão com mensagem pronta;
    - indicada para profissionais, microestúdios e negócios locais que precisam de uma presença oficial simples;
-   - nao fala preco automaticamente; quando o lead pedir valor, qualifique e acione Luiz.
+   - preco manual autorizado quando o lead pedir valor: R$ 297, com 20% para iniciar e 80% na entrega;
+   - desconto passa para Luiz;
+   - nao criar Outbox automatica para preco, proposta, pagamento ou fechamento.
 
 3. WhatsApp Business Organizado
    - perfil comercial, mensagem de saudação, ausência, respostas rápidas, etiquetas e link com mensagem pronta;
@@ -136,8 +142,10 @@ Ofertas disponíveis:
    - se o cliente já usa WhatsApp Business bem, não venda isso como dor principal.
 
 5. Mensalidade simples
-   - manutenção leve, ajustes, textos, pequenas atualizações e acompanhamento;
-   - só oferecer depois que houver entrega inicial ou interesse claro.
+   - manutencao leve, ajustes, textos, pequenas atualizacoes e acompanhamento;
+   - opcional depois da entrega aprovada ou se o cliente perguntar;
+   - nao entra no R$ 297 inicial;
+   - Luiz define valor e condicao quando fizer sentido.
 
 6. Recepção Digital WhatsApp
    - ideia futura ou upsell;

@@ -77,7 +77,11 @@ Presenca Local em 72h:
 - Mensagens rapidas para WhatsApp Business.
 - Entrega em ate 72h.
 
-Preco alvo: R$ 897 a R$ 1.200.
+Preco atual: R$ 297 para o escopo objetivo de Presenca Local em 72h.
+
+Condicao atual: 20% para iniciar e 80% na entrega.
+
+Dominio e manutencao: opcionais, tratados separadamente; dominio fica no nome do cliente e manutencao nao entra no fechamento inicial.
 
 Oferta de entrada: Presenca Local em 72h.
 
@@ -92,7 +96,7 @@ Detalhes completos: [ofertas.md](./ofertas.md).
 5. Mostrar exemplo simples de Presenca Local em 72h.
 6. Qualificar o objetivo principal da pagina.
 7. Recomendar Presenca Local em 72h, nao jogar um cardapio de opcoes.
-8. Falar preco e condicao.
+8. Falar preco e condicao manualmente: R$ 297, 20% para iniciar e 80% na entrega.
 9. Fechar com 50% de entrada e 50% na entrega.
 10. Entregar rapido.
 11. Oferecer mensalidade simples ou melhoria futura.

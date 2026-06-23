@@ -28,6 +28,7 @@ Regras:
 - Nao envia WhatsApp diretamente.
 - Nao chama ferramentas externas de mensagem.
 - Nao fala preco, valor, desconto, pagamento, proposta ou fechamento.
+- Mesmo o preco atual autorizado de R$ 297 e proibido na Outbox. Se o lead pedir valor, pare e devolva para Jhon Snow / Atendimento e Fechamento.
 - Nao menciona oferta removida ou pacote alternativo.
 - Tom direto, simples e contextual.
 - Se o lead pedir preco, valor, proposta, fechamento ou pagamento, pare e acione Notificador Luiz.

@@ -72,11 +72,22 @@ Nome comercial:
 - Site Local em 72h.
 - Site de Apresentacao para Negocio Local.
 
-Preco sugerido:
+Preco atual autorizado:
 
-- R$ 897 como preco de entrada para fechar rapido.
-- R$ 1.200 quando incluir dominio, mais copy, mais cuidado visual ou mais secoes.
-- R$ 1.500+ apenas se houver mais escopo, urgencia ou cliente com maior capacidade.
+- R$ 297 para o escopo objetivo de Presenca Local em 72h.
+- 20% de entrada para iniciar.
+- 80% restantes na entrega.
+- Desconto nao autorizado por worker; qualquer pedido de desconto passa para Luiz.
+
+Valores revogados e invalidos:
+
+- R$ 897.
+- R$ 1.200.
+- R$ 1.500+.
+- R$ 797.
+- R$ 397.
+
+Se qualquer valor antigo aparecer em historico, issue, conversa, teste ou documento legado, trate apenas como referencia revogada.
 
 Prazo: ate 72h depois do envio das informacoes.
 
@@ -84,25 +95,22 @@ Objetivo: entregar uma presenca digital simples, clara e confiavel para negocios
 
 Inclui:
 
-- Site one-page ou pagina principal completa.
-- Secao de apresentacao.
-- Secao de servicos.
-- Secao "como funciona" ou "como agendar".
-- Secao de localizacao/regiao atendida.
-- Botao de WhatsApp fixo ou destacado.
-- Texto orientado para conversao.
-- Ajustes de links para Instagram e Google.
-- Mensagem pronta no link do WhatsApp.
-- 5 respostas rapidas para WhatsApp Business.
-- SEO basico: titulo, descricao e estrutura simples.
-- 1 rodada de ajustes.
+- Pagina simples de apresentacao local.
+- Servicos principais.
+- Regiao/localizacao quando publica, confirmada ou fornecida pelo lead.
+- Botoes de WhatsApp e Instagram quando confirmados.
+- Texto direto para organizar o caminho do Instagram, Google, indicacao ou link da bio ate o WhatsApp.
+- Publicacao simples.
+- 1 rodada pequena de ajustes.
 
-Pode incluir, se combinado:
+Pode virar decisao separada, se Luiz autorizar:
 
 - Configuracao de dominio proprio.
-- Publicacao em hospedagem estatica.
-- Orientacao para ajustes no Perfil da Empresa no Google.
-- Orientacao para atualizar link da bio do Instagram.
+- Email profissional, DNS complexo ou migracao.
+- Copy longa ou muitas secoes.
+- Mais paginas.
+- Automacao, chatbot ou WhatsApp API.
+- Suporte mensal ou manutencao recorrente.
 
 Nao inclui:
 
@@ -120,25 +128,24 @@ Nao inclui:
 
 Regra:
 
+- Dominio proprio nao esta incluido no R$ 297.
 - Dominio proprio fica no CPF/CNPJ/e-mail do cliente.
-- Cliente paga o dominio.
-- Luiz configura, mas nao deve ser dono do dominio do cliente.
+- Cliente paga o dominio direto no registrador.
+- Luiz pode orientar e configurar.
+- Dominio nao precisa travar o inicio; primeiro pode publicar em link simples e apontar dominio depois.
+- Se virar email profissional, DNS complexo, migracao ou suporte externo, vira decisao comercial separada.
 
 Mensagem para o cliente:
 
-> No pacote completo, recomendo dominio proprio. O dominio fica no seu nome e voce paga direto no registrador. Eu configuro tudo.
-
-Se o cliente nao quiser dominio proprio:
-
-> Sem problema. Podemos publicar primeiro na minha estrutura e evoluir depois.
+> O dominio proprio nao precisa travar o inicio. Eu posso publicar primeiro e, se voce quiser deixar mais profissional, te oriento a registrar um dominio no seu nome. O dominio e pago direto por voce e fica no seu CPF/CNPJ/e-mail. Eu so configuro.
 
 ## Oferta 3: WhatsApp Business Organizado
 
-Preco sugerido:
+Preco:
 
-- R$ 197 a R$ 297 avulso.
-- Incluso como diferencial no pacote completo.
-- Pode ser incluído como diferencial na Presenca Local em 72h quando ajudar a fechar.
+- Nao usar como preco automatico na conversa atual.
+- Se virar trabalho avulso, Luiz define o valor manualmente.
+- Pode entrar como diferencial da Presenca Local em 72h quando ajudar a fechar, sem aumentar escopo sem autorizacao.
 
 Prazo: 1h a 2h de preparacao + chamada curta com o cliente.
 
@@ -189,10 +196,13 @@ Quando oferecer:
 
 ## Oferta 4: Mensalidade simples
 
-Preco sugerido:
+Manutencao mensal opcional para depois da entrega aprovada.
 
-- R$ 97 a R$ 197 por mes.
-- R$ 297 por mes apenas se incluir mais suporte, mais alteracoes ou relatorio.
+Preco:
+
+- Nao oferecer antes de fechar a primeira entrega.
+- Nao incluir no R$ 297 inicial.
+- Se o cliente perguntar ou depois da entrega aprovada, Luiz define o valor conforme suporte necessario.
 
 Objetivo: manter o cliente ativo depois da primeira entrega.
 
@@ -222,16 +232,16 @@ Quando oferecer:
 
 Mensagem:
 
-> Se quiser, eu posso manter pequenas alteracoes, suporte e ajustes futuros por R$ 97/mes. Assim voce nao precisa mexer com hospedagem, links ou alteracoes pequenas.
+> A entrega nao te prende em mensalidade. Depois que estiver pronto, se voce quiser, posso cuidar de pequenas alteracoes, link, textos e suporte leve por uma manutencao mensal simples. Se preferir, tambem pode me chamar so quando precisar alterar algo.
 
 ## Oferta futura: Recepcao Digital WhatsApp
 
 Status: produto futuro/upsell. Nao usar como promessa principal agora.
 
-Preco futuro possivel:
+Preco futuro:
 
-- Setup: R$ 497 a R$ 1.500.
-- Mensalidade: R$ 197 a R$ 497+.
+- Nao definir preco em conversa atual.
+- Produto futuro ou upsell; qualquer valor depende de autorizacao manual de Luiz.
 
 Objetivo: automatizar parte do atendimento pelo WhatsApp, com regras claras e handoff para humano.
 
@@ -294,35 +304,27 @@ Se o lead pedir para comparar:
 
 ## Pagamento
 
-Padrao:
+Padrao da Presenca Local em 72h:
 
-- 50% para iniciar.
-- 50% na entrega.
-
-Para servicos pequenos:
-
-- Pode cobrar 100% antecipado se o valor for ate R$ 297.
-- Para valores maiores, manter 50/50 se isso facilitar o fechamento.
+- 20% de entrada para iniciar.
+- 80% restantes na entrega.
 
 Mensagem:
 
-> Para reservar a producao, trabalho com 50% de entrada e 50% na entrega. Assim eu inicio o trabalho e voce paga o restante quando estiver pronto.
+> Para esse formato, fica R$ 297. Para iniciar, peco 20% de entrada e o restante so na entrega, quando estiver pronto.
 
 ## Desconto
 
 Regra:
 
-- Nao dar desconto antes de entender a objecao.
-- Preferir reduzir escopo em vez de reduzir preco.
-- Se precisar fechar rapido, permitir desconto pequeno apenas com pagamento de entrada imediato.
+- Worker nao autoriza desconto.
+- Pedido de desconto passa para Luiz.
+- Nao recuperar valores antigos como desconto ou oferta alternativa.
+- Se o cliente pedir para caber melhor, reduzir escopo ou mudar condicao so com aprovacao de Luiz.
 
-Exemplo:
+Mensagem segura:
 
-> Consigo fazer por R$ 797 se fecharmos hoje com a entrada, mantendo o escopo da pagina principal e uma rodada de ajustes.
-
-Alternativa melhor que desconto:
-
-> Para caber melhor agora, podemos reduzir o que entra na primeira entrega e manter a Presenca Local em 72h focada no essencial.
+> Sobre desconto, prefiro confirmar com o Luiz para nao te passar uma condicao errada. O formato atual da Presenca Local em 72h esta em R$ 297, com 20% para iniciar e o restante na entrega.
 
 ## O que vender agora
 

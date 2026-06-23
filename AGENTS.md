@@ -32,6 +32,12 @@ Primary offer:
 
 - Simple, clear, local presence pages/sites for small businesses.
 - Strong current package: `Presenca Local em 72h`.
+- Current authorized price for `Presenca Local em 72h`: R$ 297.
+- Payment condition: 20% to start and 80% on delivery.
+- Discount requests go to Luiz; workers do not authorize discounts.
+- Domain is optional, paid by the client, and stays under the client's CPF/CNPJ/e-mail.
+- Monthly maintenance is optional after delivery approval; it is not part of the initial R$ 297 close.
+- Revoked values: R$ 897, R$ 1.200, R$ 1.500+, R$ 797, R$ 397.
 
 Current niches:
 
@@ -41,6 +47,7 @@ Core rule:
 
 - First cold outreach is manual.
 - Price, proposal, payment, closing, and sensitive objections remain manual/human-owned.
+- Jhon Snow may prepare manual price responses with the current policy when the lead explicitly asks for price; Atendimento WhatsApp and Guardiao must keep Outbox price-free.
 - Safe post-consent WhatsApp replies may go through Outbox -> Humanizer -> Guardiao -> Gateway only.
 
 ## Repository And Symlink

@@ -3481,6 +3481,7 @@ test("whatsapp guardian blocks currency and investment value phrases", () => {
     ["wa-guard-value-001", "Fica R$ 1200 para fazer."],
     ["wa-guard-value-002", "O investimento fica em 1200 reais."],
     ["wa-guard-value-003", "Fica 1200 para fazer."],
+    ["wa-guard-value-004", "Fica R$ 297 para fazer."],
   ];
 
   for (const [bridgeMessageId, message] of cases) {
