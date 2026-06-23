@@ -191,6 +191,23 @@ async function dispatch({ root, dbPath, command, args }) {
     return;
   }
 
+  if (command[0] === "lead" && command[1] === "purge-test") {
+    const flags = parseFlags(args);
+    requireFlag(flags, "name");
+    requireFlag(flags, "confirm");
+    const lead = requireUniqueLead(database, flags.name);
+    const result = purgeTestLead(database, lead, {
+      confirm: flags.confirm,
+      reason: flags.reason,
+      root,
+      dbPath,
+    });
+    console.log(`Lead de teste removido: ${result.leadName}`);
+    console.log(`Linhas removidas: ${result.deletedRows}`);
+    console.log(`Backups privados removidos: ${result.deletedBackups.length}`);
+    return;
+  }
+
   if (command[0] === "lead" && command[1] === "update") {
     const flags = parseFlags(args);
     requireFlag(flags, "name");
@@ -4005,6 +4022,306 @@ function markResponse(database, lead, { message, occurredAt, status, responseSta
     .run(lead.id, "inbound", "whatsapp", message, occurredAt, rawFile, responseStatus, now());
   closePendingQueueItems(database, lead, "responded");
   audit(database, "lead", lead.id, "mark-response", { responseStatus, occurredAt });
+}
+
+function purgeTestLead(database, lead, { confirm, reason, root, dbPath }) {
+  if (clean(confirm) !== "apagar-teste") {
+    throw usageError("Confirmacao obrigatoria: --confirm apagar-teste");
+  }
+  if (!isTestLeadForPurge(lead)) {
+    throw usageError(`Lead nao parece ser de teste; purge recusado: ${lead.canonical_name}`);
+  }
+
+  const outboxIds = idsFromRows(
+    database.prepare("select id from whatsapp_outbox where lead_id = ?").all(lead.id),
+  );
+  const aliasRows = database
+    .prepare("select identity_value from whatsapp_identity_aliases where lead_id = ?")
+    .all(lead.id);
+  const inboundIds = idsFromRows(
+    database.prepare("select id from whatsapp_inbound_events where lead_id = ?").all(lead.id),
+  );
+  const inboundRows = database
+    .prepare("select chat_id, sender_name, sender_phone from whatsapp_inbound_events where lead_id = ?")
+    .all(lead.id);
+  const platformProfileIds = idsFromRows(
+    database.prepare("select id from lead_platform_profiles where lead_id = ?").all(lead.id),
+  );
+  const unmatchedRows = inboundIds.length
+    ? database
+        .prepare(
+          `select id, chat_id, sender_name, sender_phone from whatsapp_unmatched_inbound_events
+           where matched_lead_id = ?
+              or matched_inbound_event_id in (${sqlPlaceholders(inboundIds)})`,
+        )
+        .all(lead.id, ...inboundIds)
+    : database
+        .prepare(
+          `select id, chat_id, sender_name, sender_phone from whatsapp_unmatched_inbound_events
+           where matched_lead_id = ?`,
+        )
+        .all(lead.id);
+  const unmatchedIds = idsFromRows(unmatchedRows);
+  const demoPath = clean(lead.demo_path);
+  const counts = {};
+  const privacyNeedles = purgePrivacyNeedles(lead, {
+    aliases: aliasRows.map((row) => row.identity_value),
+    inboundRows,
+    unmatchedRows,
+  });
+
+  const deleteRows = (key, sql, params = []) => {
+    const result = database.prepare(sql).run(...params);
+    counts[key] = (counts[key] ?? 0) + Number(result.changes ?? 0);
+  };
+
+  database.exec("BEGIN");
+  try {
+    deleteRows(
+      "audit_log",
+      "delete from audit_log where (entity_type = 'lead' and entity_id = ?) or (entity_type = 'queue' and entity_id = ?)",
+      [lead.id, lead.id],
+    );
+    if (platformProfileIds.length) {
+      deleteRows(
+        "audit_log",
+        `delete from audit_log where entity_type = 'lead_platform_profile' and entity_id in (${sqlPlaceholders(platformProfileIds)})`,
+        platformProfileIds,
+      );
+    }
+    if (unmatchedIds.length) {
+      deleteRows(
+        "audit_log",
+        `delete from audit_log where entity_type = 'whatsapp_unmatched_inbound_event' and entity_id in (${sqlPlaceholders(unmatchedIds)})`,
+        unmatchedIds,
+      );
+    }
+    deleteRows("message_reviews", "delete from message_reviews where lead_id = ? or lower(lead_name) = lower(?)", [
+      lead.id,
+      lead.canonical_name,
+    ]);
+    if (demoPath) {
+      deleteRows("demos", "delete from demos where lead_id = ? or demo_path = ?", [lead.id, demoPath]);
+    } else {
+      deleteRows("demos", "delete from demos where lead_id = ?", [lead.id]);
+    }
+    if (outboxIds.length) {
+      deleteRows(
+        "whatsapp_guardian_decisions",
+        `delete from whatsapp_guardian_decisions where outbox_id in (${sqlPlaceholders(outboxIds)})`,
+        outboxIds,
+      );
+    }
+    deleteRows("lead_conversation_state", "delete from lead_conversation_state where lead_id = ?", [lead.id]);
+    deleteRows("whatsapp_worker_wakes", "delete from whatsapp_worker_wakes where lead_id = ?", [lead.id]);
+    if (inboundIds.length) {
+      deleteRows(
+        "whatsapp_worker_wakes",
+        `delete from whatsapp_worker_wakes where inbound_event_id in (${sqlPlaceholders(inboundIds)})`,
+        inboundIds,
+      );
+      deleteRows(
+        "whatsapp_unmatched_inbound_events",
+        `delete from whatsapp_unmatched_inbound_events where matched_inbound_event_id in (${sqlPlaceholders(inboundIds)})`,
+        inboundIds,
+      );
+    }
+    deleteRows("whatsapp_unmatched_inbound_events", "delete from whatsapp_unmatched_inbound_events where matched_lead_id = ?", [
+      lead.id,
+    ]);
+    deleteRows("whatsapp_outbox", "delete from whatsapp_outbox where lead_id = ?", [lead.id]);
+    deleteRows("whatsapp_identity_aliases", "delete from whatsapp_identity_aliases where lead_id = ?", [lead.id]);
+    deleteRows("whatsapp_inbound_events", "delete from whatsapp_inbound_events where lead_id = ?", [lead.id]);
+    deleteRows("interactions", "delete from interactions where lead_id = ?", [lead.id]);
+    deleteRows("outreach_queue", "delete from outreach_queue where lead_id = ?", [lead.id]);
+    deleteRows("lead_sources", "delete from lead_sources where lead_id = ?", [lead.id]);
+    deleteRows("lead_analysis", "delete from lead_analysis where lead_id = ?", [lead.id]);
+    if (platformProfileIds.length) {
+      deleteRows(
+        "lead_platform_links",
+        `delete from lead_platform_links where platform_profile_id in (${sqlPlaceholders(platformProfileIds)})`,
+        platformProfileIds,
+      );
+    }
+    deleteRows("lead_platform_profiles", "delete from lead_platform_profiles where lead_id = ?", [lead.id]);
+    deleteRows("leads", "delete from leads where id = ?", [lead.id]);
+    deletePrivacyNeedleRows(database, counts, privacyNeedles);
+    audit(database, "privacy_purge", null, "lead-purge-test", {
+      reason: clean(reason) || "lead de teste removido",
+    });
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+
+  compactDatabaseAfterPrivacyPurge(database);
+  const deletedBackups = deleteSensitiveSqliteBackups(root, dbPath, privacyNeedles);
+  return {
+    leadName: lead.canonical_name,
+    deletedRows: Object.values(counts).reduce((sum, count) => sum + count, 0),
+    counts,
+    deletedBackups,
+  };
+}
+
+function isTestLeadForPurge(lead) {
+  const haystack = [
+    lead.canonical_name,
+    lead.slug,
+    lead.business,
+    lead.category,
+    lead.city,
+    lead.area,
+    lead.notes,
+    lead.merge_key,
+    lead.analysis_status,
+    lead.handoff_status,
+    lead.demo_path,
+  ]
+    .map((value) => clean(value).toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+  return /(^|[^a-z0-9])(teste|test|qa|sandbox)([^a-z0-9]|$)/i.test(haystack);
+}
+
+function idsFromRows(rows) {
+  return rows.map((row) => Number(row.id)).filter((id) => Number.isInteger(id) && id > 0);
+}
+
+function sqlPlaceholders(values) {
+  return values.map(() => "?").join(", ");
+}
+
+function compactDatabaseAfterPrivacyPurge(database) {
+  database.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+  database.exec("VACUUM;");
+  database.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+}
+
+function purgePrivacyNeedles(lead, related = {}) {
+  const canonicalName = clean(lead.canonical_name);
+  const [firstName] = canonicalName.split(/\s+/);
+  return [
+    canonicalName,
+    firstName?.length >= 4 ? firstName : "",
+    lead.slug,
+    lead.phone_or_contact,
+    lead.phone_normalized,
+    lead.instagram,
+    lead.instagram_normalized,
+    lead.website_url,
+    lead.website_normalized,
+    lead.demo_path,
+    ...(related.aliases ?? []),
+    ...(related.inboundRows ?? []).flatMap((row) => [row.chat_id, row.sender_name, row.sender_phone]),
+    ...(related.unmatchedRows ?? []).flatMap((row) => [row.chat_id, row.sender_name, row.sender_phone]),
+  ]
+    .map((value) => clean(value))
+    .filter((value, index, values) => value.length >= 4 && values.indexOf(value) === index);
+}
+
+function deletePrivacyNeedleRows(database, counts, needles) {
+  const tables = [
+    "audit_log",
+    "worker_handoffs",
+    "whatsapp_unmatched_inbound_events",
+    "whatsapp_inbound_events",
+  ];
+
+  for (const table of tables) {
+    if (!sqliteTableExists(database, table)) continue;
+    const columns = sqliteTextColumns(database, table);
+    if (!columns.length) continue;
+    const filters = columns.map((column) => `${quoteSqlIdentifier(column)} like ?`).join(" or ");
+    const statement = database.prepare(`delete from ${quoteSqlIdentifier(table)} where ${filters}`);
+    for (const needle of needles) {
+      const pattern = `%${needle}%`;
+      const result = statement.run(...columns.map(() => pattern));
+      counts[table] = (counts[table] ?? 0) + Number(result.changes ?? 0);
+    }
+  }
+}
+
+function sqliteTableExists(database, table) {
+  return Boolean(
+    database
+      .prepare(
+        `select 1 from sqlite_master
+         where type = 'table' and name = ?
+         limit 1`,
+      )
+      .get(table),
+  );
+}
+
+function sqliteTextColumns(database, table) {
+  return database
+    .prepare(`pragma table_info(${quoteSqlIdentifier(table)})`)
+    .all()
+    .filter((column) => {
+      const type = clean(column.type).toLowerCase();
+      return !type || type.includes("text") || type.includes("char") || type.includes("clob");
+    })
+    .map((column) => column.name);
+}
+
+function deleteSensitiveSqliteBackups(root, explicitPath, needles) {
+  if (!needles.length) return [];
+  const backupDirs = new Set([
+    databaseBackupDir(root, databasePath(root, explicitPath)),
+    join(root, ".scratch/db/backups"),
+    join(root, ".scratch/db-backups"),
+    join(root, ".scratch/ops/sqlite-backups"),
+  ]);
+  const deleted = [];
+
+  for (const dir of backupDirs) {
+    if (!existsSync(dir)) continue;
+    for (const file of readdirSync(dir)) {
+      if (!file.endsWith(".sqlite")) continue;
+      const path = join(dir, file);
+      if (!sqliteBackupContainsNeedle(path, needles)) continue;
+      rmSync(path, { force: true });
+      deleted.push(path);
+    }
+  }
+
+  return deleted;
+}
+
+function sqliteBackupContainsNeedle(path, needles) {
+  let database = null;
+  try {
+    database = new DatabaseSync(sqliteFileUri(path, "ro"), { readOnly: true });
+    database.exec("PRAGMA busy_timeout = 10000;");
+    const tables = database
+      .prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%'")
+      .all()
+      .map((row) => row.name);
+
+    for (const table of tables) {
+      const textColumns = sqliteTextColumns(database, table);
+      if (!textColumns.length) continue;
+
+      const filters = textColumns.map((column) => `${quoteSqlIdentifier(column)} like ?`).join(" or ");
+      const statement = database.prepare(`select 1 from ${quoteSqlIdentifier(table)} where ${filters} limit 1`);
+      for (const needle of needles) {
+        const pattern = `%${needle.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+        const values = textColumns.map(() => pattern);
+        if (statement.get(...values)) return true;
+      }
+    }
+  } catch {
+    return false;
+  } finally {
+    if (database) database.close();
+  }
+  return false;
+}
+
+function quoteSqlIdentifier(value) {
+  return `"${String(value).replaceAll('"', '""')}"`;
 }
 
 function closePendingQueueItems(database, lead, status, options = {}) {

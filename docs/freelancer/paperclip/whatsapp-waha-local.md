@@ -16,7 +16,7 @@ Atualizado em 2026-06-21 21:25 -03.
 - Webhook do container: `http://host.docker.internal:3105/waha/webhook`.
 - O Gateway deve ouvir somente em loopback (`127.0.0.1`). Se webhook vindo do container precisar alcancar o host, abrir decisao separada para proxy/tunel local aprovado; nao usar bind wildcard.
 - `scripts/whatsapp-local-gateway.mjs` carrega automaticamente o `.env` local a partir de `--root` e nao sobrescreve variaveis ja existentes.
-- Envio real controlado comprovado: Outbox 6 da Lidiane foi enviada via provider `waha`, recebeu ACK forte `DEVICE` e o CRM marcou `sent`/`delivered_at`.
+- Envio real controlado comprovado: Outbox 6 do contato de teste foi enviada via provider `waha`, recebeu ACK forte `DEVICE` e o CRM marcou `sent`/`delivered_at`.
 - Incidente posterior: Outbox 8 ficou `dispatch_ambiguous` por `WAHA check-exists falhou: Unauthorized`; diagnostico operacional e falha de credencial/processo de dispatch, nao bloqueio de conteudo.
 - Segredos ficam somente no `.env` local privado. Nao registrar valores em docs, issues, prompts, logs publicos ou arquivos versionados.
 
@@ -36,7 +36,7 @@ Regra operacional para agentes:
 - `delivery_pending`: envio aceito, mas ainda nao entregue; aguardar `message.ack`.
 - `message.waiting`, ausencia de `message_id`, resposta ambigua ou erro de transporte: marcar `dispatch_ambiguous` e mover para `handoff_luiz`.
 - `WAHA check-exists falhou: Unauthorized`: tratar como credencial ausente/desatualizada no processo de dispatch. Verificar `.env`, `WAHA_API_KEY`, sessao `default` e chamada via Gateway; nao reenviar a mesma Outbox automaticamente.
-- Outbox 8 da Lidiane: continua historicamente ambigua. Para novo teste, criar nova Outbox ou fazer liberacao explicita auditada.
+- Outbox 8 do contato de teste: continua historicamente ambigua. Para novo teste, criar nova Outbox ou fazer liberacao explicita auditada.
 
 ## Outbox-first WAHA mode
 
@@ -129,7 +129,7 @@ Use esse arquivo quando a WAHA mostrar status 200 mas a mensagem nao aparecer no
 Para reconciliar identidade, use:
 
 ```bash
-node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"
+node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "999000111222333@lid"
 node scripts/freela-crm.mjs whatsapp unmatched reconcile
 ```
 
@@ -137,7 +137,7 @@ Quando a auditoria mostrar que o inbound nao pertence a um lead comercial, prese
 
 ```bash
 node scripts/freela-crm.mjs whatsapp unmatched mark-no-match --id 123 --reason "status broadcast"
-node scripts/freela-crm.mjs whatsapp unmatched mark-no-match --chat-id "273478418722987@lid" --reason "conversa pessoal"
+node scripts/freela-crm.mjs whatsapp unmatched mark-no-match --chat-id "999000111222333@lid" --reason "conversa pessoal"
 ```
 
 O dedupe de acordar workers fica em `whatsapp_worker_wakes`.

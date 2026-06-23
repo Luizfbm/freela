@@ -785,11 +785,11 @@ test("gateway uses WAHA-resolved LID when check-exists returns one for a real ph
   const waha = await withBridgeServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     if (req.method === "GET" && req.url === "/api/contacts/check-exists?phone=5527999990000&session=default") {
-      res.end(JSON.stringify({ numberExists: true, chatId: "273478418722987@lid" }));
+      res.end(JSON.stringify({ numberExists: true, chatId: "999000111222333@lid" }));
       return;
     }
     if (req.method === "POST" && req.url === "/api/sendText") {
-      res.end(JSON.stringify({ id: "true_273478418722987@lid_3EB0WAHALIDPENDING" }));
+      res.end(JSON.stringify({ id: "true_999000111222333@lid_3EB0WAHALIDPENDING" }));
       return;
     }
     res.end(JSON.stringify({ success: true }));
@@ -814,11 +814,11 @@ test("gateway uses WAHA-resolved LID when check-exists returns one for a real ph
     assert.match(result.stdout, /Pendentes: 1/i);
 
     const sendText = waha.requests.find((request) => request.url === "/api/sendText");
-    assert.equal(sendText.body.chatId, "273478418722987@lid");
+    assert.equal(sendText.body.chatId, "999000111222333@lid");
 
     const { outbox, state } = readLatestDispatchAudit(root);
     assert.equal(outbox.status, "delivery_pending");
-    assert.equal(outbox.provider_message_id, "true_273478418722987@lid_3EB0WAHALIDPENDING");
+    assert.equal(outbox.provider_message_id, "true_999000111222333@lid_3EB0WAHALIDPENDING");
     assert.notEqual(state.whatsapp_state, "handoff_luiz");
   } finally {
     await waha.close();
@@ -832,7 +832,7 @@ test("gateway stores serialized WAHA object ids instead of object string", async
   const waha = await withBridgeServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     if (req.method === "GET" && req.url === "/api/contacts/check-exists?phone=5527999990000&session=default") {
-      res.end(JSON.stringify({ numberExists: true, chatId: "273478418722987@lid" }));
+      res.end(JSON.stringify({ numberExists: true, chatId: "999000111222333@lid" }));
       return;
     }
     if (req.method === "POST" && req.url === "/api/sendText") {
@@ -840,9 +840,9 @@ test("gateway stores serialized WAHA object ids instead of object string", async
         JSON.stringify({
           id: {
             fromMe: true,
-            remote: "273478418722987@lid",
+            remote: "999000111222333@lid",
             id: "3EB0WAHAOBJECTID",
-            _serialized: "true_273478418722987@lid_3EB0WAHAOBJECTID",
+            _serialized: "true_999000111222333@lid_3EB0WAHAOBJECTID",
           },
           ack: 0,
           ackName: "PENDING",
@@ -871,7 +871,7 @@ test("gateway stores serialized WAHA object ids instead of object string", async
     assert.match(result.stdout, /Pendentes: 1/i);
 
     const { outbox } = readLatestDispatchAudit(root);
-    assert.equal(outbox.provider_message_id, "true_273478418722987@lid_3EB0WAHAOBJECTID");
+    assert.equal(outbox.provider_message_id, "true_999000111222333@lid_3EB0WAHAOBJECTID");
     assert.notEqual(outbox.provider_message_id, "[object Object]");
   } finally {
     await waha.close();
@@ -1016,7 +1016,7 @@ test("gateway treats WAHA waiting event as ambiguous handoff", async () => {
 test("gateway bloqueia dispatch legado com destinatario LID antes de chamar bridge", async () => {
   const root = makeRoot();
   seedApprovedOutbox(root);
-  updateLatestOutbox(root, "target_chat_id = ?", ["273478418722987@lid"]);
+  updateLatestOutbox(root, "target_chat_id = ?", ["999000111222333@lid"]);
   const bridge = await withBridgeServer((_req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ success: true, message: "bridge must not be called" }));
@@ -1097,7 +1097,7 @@ test("gateway treats generic bridge success without WhatsApp message id as ambig
   seedApprovedOutbox(root);
   const bridge = await withBridgeServer((_req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: true, message: "Message sent to 5527992635649" }));
+    res.end(JSON.stringify({ success: true, message: "Message sent to 5500000000000" }));
   });
   try {
     const result = await runNodeAsync([
@@ -1711,7 +1711,7 @@ test("gateway importa eventos inbound WAHA e registra desconhecidos sem duplicar
       event: "message",
       session: "default",
       payload: {
-        id: "false_status@broadcast_3EB0WAHASTATUS_273478418722987@lid",
+        id: "false_status@broadcast_3EB0WAHASTATUS_999000111222333@lid",
         from: "status@broadcast",
         chatId: "status@broadcast",
         fromMe: false,

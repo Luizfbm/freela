@@ -279,7 +279,7 @@ Identidade WhatsApp:
 - Quando o Gateway nao encontra lead confiavel, ele grava o evento em `whatsapp_unmatched_inbound_events` e mostra `Sem identidade: N`.
 - Texto normal recebido pela WAHA pode chegar como `type: "chat"`; o Gateway/CRM normalizam para `message_type: "text"`.
 - O monitor WAHA grava auditoria privada de cada POST em `.scratch/whatsapp/waha-webhook-events.jsonl`. Se a WAHA mostrar HTTP 200 e o CRM nao refletir a mensagem, esse JSONL e a primeira evidencia a consultar.
-- Para reconciliar, use `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "273478418722987@lid"` e depois `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
+- Para reconciliar, use `node scripts/freela-crm.mjs whatsapp identity link --name "Nome do Lead" --identity "999000111222333@lid"` e depois `node scripts/freela-crm.mjs whatsapp unmatched reconcile`.
 - Para preservar um inbound comprovadamente sem lead comercial, use `node scripts/freela-crm.mjs whatsapp unmatched mark-no-match --id [id] --reason [motivo]` ou `--chat-id [jid] --reason [motivo]`.
 - O webhook/import WAHA com `--auto-wake` cria issue no Paperclip por roteamento seletivo; o dedupe fica em `whatsapp_worker_wakes`. Auto-wake nao envia WhatsApp, nao chama endpoint de envio e nao cria Outbox.
 - Atendimento WhatsApp recebe conversa normal: `resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`.

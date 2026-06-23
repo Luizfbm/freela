@@ -357,6 +357,272 @@ test("healthcheck valida SQLite existente sem criar banco ausente", () => {
   assert.match(ok.stdout, /integrity_check: ok/i);
 });
 
+test("lead purge-test remove lead de teste e dependencias privadas", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+  upsertLead(root, {
+    canonical_name: "Contato Teste WhatsApp LID",
+    slug: "contato-whatsapp-lid",
+    phone_or_contact: "5500000000000",
+    recommended_offer: "Presenca Local em 72h",
+    demo_path: "demos/contato-whatsapp-lid-exemplo/",
+    notes: "Lead criado somente para teste de WhatsApp LID.",
+  });
+
+  const database = db(root);
+  database.exec("PRAGMA foreign_keys = ON;");
+  const lead = database
+    .prepare("select * from leads where canonical_name = ?")
+    .get("Contato Teste WhatsApp LID");
+  const timestamp = "2026-06-23T09:00:00-03:00";
+  database
+    .prepare(
+      `insert into outreach_queue (
+         lead_id, queue_date, status, message, action_type, card_status, created_at
+       ) values (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(lead.id, "2026-06-23", "pending", "Mensagem de teste", "reply", "pending_message", timestamp);
+  database
+    .prepare(
+      `insert into interactions (
+         lead_id, direction, channel, body, occurred_at, classification, created_at
+       ) values (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(lead.id, "inbound", "whatsapp", "Mensagem privada de teste", timestamp, "resposta_pediu_exemplo", timestamp);
+  database
+    .prepare("insert into lead_sources (lead_id, source_url, source_type, observed_at) values (?, ?, ?, ?)")
+    .run(lead.id, "https://example.test/contato", "manual_test", timestamp);
+  database
+    .prepare(
+      `insert into lead_analysis (
+         lead_id, analysis_date, point_1, evidence_json, created_at
+       ) values (?, ?, ?, ?, ?)`,
+    )
+    .run(lead.id, "2026-06-23", "ponto de teste", JSON.stringify({ phone: "5500000000000" }), timestamp);
+  const profile = database
+    .prepare(
+      `insert into lead_platform_profiles (
+         lead_id, platform, bio_status, observed_at, run_id, notes, created_at, updated_at
+       ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(lead.id, "instagram", "ok", timestamp, "teste-controlado", "perfil de teste", timestamp, timestamp);
+  const profileId = Number(profile.lastInsertRowid);
+  database
+    .prepare(
+      `insert into lead_platform_links (
+         platform_profile_id, url, label, link_type, created_at
+       ) values (?, ?, ?, ?, ?)`,
+    )
+    .run(profileId, "https://example.test/cartao", "cartao", "bio_site", timestamp);
+  database
+    .prepare(
+      `insert into whatsapp_inbound_events (
+         bridge_message_id, chat_id, sender_name, sender_phone, body, received_at, lead_id,
+         classification, raw_json, created_at
+       ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      "contato-inbound-1",
+      "contato-test@lid",
+      "Contato",
+      "5500000000000",
+      "Pode me mandar o link?",
+      timestamp,
+      lead.id,
+      "resposta_pediu_exemplo",
+      JSON.stringify({ phone: "5500000000000" }),
+      timestamp,
+    );
+  const inboundId = Number(database.prepare("select id from whatsapp_inbound_events").get().id);
+  database
+    .prepare(
+      `insert into whatsapp_unmatched_inbound_events (
+         bridge_message_id, chat_id, sender_name, sender_phone, body, received_at, classification,
+         status, matched_lead_id, matched_inbound_event_id, raw_json, created_at, updated_at
+       ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      "contato-unmatched-1",
+      "contato-test@lid",
+      "Contato",
+      "5500000000000",
+      "evento reconciliado",
+      timestamp,
+      "resposta_recebida",
+      "reconciled",
+      lead.id,
+      inboundId,
+      JSON.stringify({ phone: "5500000000000" }),
+      timestamp,
+      timestamp,
+    );
+  const unmatchedId = Number(database.prepare("select id from whatsapp_unmatched_inbound_events").get().id);
+  database
+    .prepare(
+      `insert into whatsapp_identity_aliases (
+         lead_id, identity_value, source, notes, created_at, updated_at
+       ) values (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(lead.id, "contato-test@lid", "manual", "teste", timestamp, timestamp);
+  database
+    .prepare(
+      `insert into lead_conversation_state (
+         lead_id, whatsapp_state, auto_replies_since_human, last_inbound_event_id, handoff_reason, updated_at
+       ) values (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(lead.id, "pedido_exemplo", 1, inboundId, "teste", timestamp);
+  const outbox = database
+    .prepare(
+      `insert into whatsapp_outbox (
+         lead_id, inbound_event_id, target_chat_id, body, source, status, humanizer_pass,
+         used_last_inbound, contextual_reply, created_at
+       ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      lead.id,
+      inboundId,
+      "5500000000000@s.whatsapp.net",
+      "Resposta privada de teste",
+      "atendimento-whatsapp",
+      "approved",
+      1,
+      1,
+      1,
+      timestamp,
+    );
+  const outboxId = Number(outbox.lastInsertRowid);
+  database
+    .prepare("update lead_conversation_state set last_outbox_id = ? where lead_id = ?")
+    .run(outboxId, lead.id);
+  database
+    .prepare(
+      `insert into whatsapp_guardian_decisions (
+         outbox_id, decision, reason, triggered_rules, created_at
+       ) values (?, ?, ?, ?, ?)`,
+    )
+    .run(outboxId, "enviar", "teste aprovado", JSON.stringify([]), timestamp);
+  database
+    .prepare(
+      `insert into whatsapp_worker_wakes (
+         inbound_event_id, lead_id, target_agent_id, wake_type, status, created_at, updated_at
+       ) values (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(inboundId, lead.id, "agent-test", "resposta_recebida", "created", timestamp, timestamp);
+  database
+    .prepare("insert into demos (lead_id, demo_path, demo_type, status, created_at) values (?, ?, ?, ?, ?)")
+    .run(lead.id, "demos/contato-whatsapp-lid-exemplo/", "presenca_72h", "qa_pending", timestamp);
+  database
+    .prepare(
+      `insert into message_reviews (
+         lead_id, queue_date, lead_name, qa_status, decision, reviewed_at, created_at
+       ) values (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(lead.id, "2026-06-23", "Contato Teste WhatsApp LID", "aprovado_para_lead_cards", "liberar", timestamp, timestamp);
+  database
+    .prepare("insert into audit_log (entity_type, entity_id, action, details_json, created_at) values (?, ?, ?, ?, ?)")
+    .run(
+      "lead_platform_profile",
+      profileId,
+      "upsert",
+      JSON.stringify({ lead: "Contato Teste WhatsApp LID" }),
+      timestamp,
+    );
+  database
+    .prepare("insert into audit_log (entity_type, entity_id, action, details_json, created_at) values (?, ?, ?, ?, ?)")
+    .run(
+      "whatsapp_unmatched_inbound_event",
+      unmatchedId,
+      "mark-no-match",
+      JSON.stringify({ phone: "5500000000000" }),
+      timestamp,
+    );
+  database.close();
+
+  const purged = run(root, [
+    "lead",
+    "purge-test",
+    "--name",
+    "Contato Teste WhatsApp LID",
+    "--confirm",
+    "apagar-teste",
+    "--reason",
+    "celular de familiar usado somente em teste",
+  ]);
+  assert.equal(purged.status, 0, purged.stderr);
+  assert.match(purged.stdout, /Lead de teste removido/i);
+
+  const after = db(root);
+  for (const table of [
+    "leads",
+    "lead_sources",
+    "lead_analysis",
+    "lead_platform_profiles",
+    "lead_platform_links",
+    "interactions",
+    "outreach_queue",
+    "message_reviews",
+    "whatsapp_inbound_events",
+    "whatsapp_unmatched_inbound_events",
+    "whatsapp_identity_aliases",
+    "whatsapp_outbox",
+    "lead_conversation_state",
+    "whatsapp_guardian_decisions",
+    "whatsapp_worker_wakes",
+    "demos",
+  ]) {
+    assert.equal(after.prepare(`select count(*) as count from ${table}`).get().count, 0, table);
+  }
+  const auditRows = after.prepare("select entity_type, action, coalesce(details_json, '') as details_json from audit_log").all();
+  assert.equal(auditRows.length, 1);
+  assert.deepEqual(plainRows(auditRows), [
+    {
+      entity_type: "privacy_purge",
+      action: "lead-purge-test",
+      details_json: JSON.stringify({ reason: "celular de familiar usado somente em teste" }),
+    },
+  ]);
+  assert.doesNotMatch(JSON.stringify(auditRows), /Contato|5500000000000/i);
+  after.close();
+
+  const sensitiveBackups = backupFiles(root).filter((file) => {
+    const backup = new DatabaseSync(join(root, ".scratch/db/backups", file), { readOnly: true });
+    const count = backup
+      .prepare(
+        `select count(*) as count
+         from leads
+         where canonical_name like '%Contato%'
+            or coalesce(phone_or_contact, '') like '%5500000000000%'
+            or coalesce(demo_path, '') like '%contato-whatsapp-lid-exemplo%'`,
+      )
+      .get().count;
+    backup.close();
+    return count > 0;
+  });
+  assert.deepEqual(sensitiveBackups, []);
+});
+
+test("lead purge-test recusa lead real mesmo com confirmacao", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+  upsertLead(root, {
+    canonical_name: "Aghata Massoterapia",
+    phone_or_contact: "+55 27 99999-0000",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const result = run(root, [
+    "lead",
+    "purge-test",
+    "--name",
+    "Aghata Massoterapia",
+    "--confirm",
+    "apagar-teste",
+  ]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /nao parece ser de teste/i);
+});
+
 test("CRM bloqueia escrita critica quando Ops Doctor marcou status red", () => {
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);
@@ -2256,9 +2522,9 @@ test("whatsapp inbound com alias LID cadastrado identifica lead sem telefone pub
   assert.equal(run(root, ["init"]).status, 0);
 
   upsertLead(root, {
-    canonical_name: "Lidiane Teste WhatsApp",
+    canonical_name: "Contato Teste WhatsApp",
     city: "Vitoria",
-    phone_or_contact: "+55 27 99263-5649",
+    phone_or_contact: "5500000000000",
     recommended_offer: "Presenca Local em 72h",
   });
 
@@ -2267,9 +2533,9 @@ test("whatsapp inbound com alias LID cadastrado identifica lead sem telefone pub
     "identity",
     "link",
     "--name",
-    "Lidiane Teste WhatsApp",
+    "Contato Teste WhatsApp",
     "--identity",
-    "273478418722987@lid",
+    "999000111222333@lid",
     "--source",
     "teste",
   ]);
@@ -2278,9 +2544,9 @@ test("whatsapp inbound com alias LID cadastrado identifica lead sem telefone pub
 
   ingestWhatsApp(root, {
     bridge_message_id: "lid-msg-001",
-    chat_id: "273478418722987@lid",
-    sender_name: "273478418722987",
-    sender_phone: "273478418722987",
+    chat_id: "999000111222333@lid",
+    sender_name: "999000111222333",
+    sender_phone: "999000111222333",
     is_group: false,
     message_type: "text",
     body: "Pode!",
@@ -2289,7 +2555,7 @@ test("whatsapp inbound com alias LID cadastrado identifica lead sem telefone pub
 
   const database = db(root);
   const inbound = database.prepare("select * from whatsapp_inbound_events").get();
-  assert.equal(inbound.chat_id, "273478418722987@lid");
+  assert.equal(inbound.chat_id, "999000111222333@lid");
   assert.equal(inbound.lead_id, database.prepare("select id from leads").get().id);
   assert.equal(inbound.classification, "resposta_permissao");
 
@@ -2305,17 +2571,17 @@ test("whatsapp inbound desconhecido entra na fila unmatched e reconcilia apos vi
   assert.equal(run(root, ["init"]).status, 0);
 
   upsertLead(root, {
-    canonical_name: "Lidiane Teste WhatsApp",
+    canonical_name: "Contato Teste WhatsApp",
     city: "Vitoria",
-    phone_or_contact: "+55 27 99263-5649",
+    phone_or_contact: "5500000000000",
     recommended_offer: "Presenca Local em 72h",
   });
 
   const event = {
     bridge_message_id: "lid-msg-002",
-    chat_id: "273478418722987@lid",
-    sender_name: "273478418722987",
-    sender_phone: "273478418722987",
+    chat_id: "999000111222333@lid",
+    sender_name: "999000111222333",
+    sender_phone: "999000111222333",
     is_group: false,
     message_type: "text",
     body: "Pode!",
@@ -2330,7 +2596,7 @@ test("whatsapp inbound desconhecido entra na fila unmatched e reconcilia apos vi
   assert.equal(database.prepare("select count(*) as count from whatsapp_inbound_events").get().count, 0);
   const unmatched = database.prepare("select * from whatsapp_unmatched_inbound_events").get();
   assert.equal(unmatched.bridge_message_id, "lid-msg-002");
-  assert.equal(unmatched.chat_id, "273478418722987@lid");
+  assert.equal(unmatched.chat_id, "999000111222333@lid");
   assert.equal(unmatched.status, "unmatched");
   assert.equal(unmatched.classification, "resposta_permissao");
   database.close();
@@ -2341,9 +2607,9 @@ test("whatsapp inbound desconhecido entra na fila unmatched e reconcilia apos vi
       "identity",
       "link",
       "--name",
-      "Lidiane Teste WhatsApp",
+      "Contato Teste WhatsApp",
       "--identity",
-      "273478418722987@lid",
+      "999000111222333@lid",
       "--source",
       "teste",
     ]).status,
@@ -2881,8 +3147,8 @@ test("whatsapp outbox usa telefone real para envio quando inbound veio por LID",
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);
   upsertLead(root, {
-    canonical_name: "Lidiane Teste WhatsApp",
-    phone_or_contact: "+55 27 99263-5649",
+    canonical_name: "Contato Teste WhatsApp",
+    phone_or_contact: "5500000000000",
     recommended_offer: "Presenca Local em 72h",
   });
 
@@ -2891,9 +3157,9 @@ test("whatsapp outbox usa telefone real para envio quando inbound veio por LID",
     "identity",
     "link",
     "--name",
-    "Lidiane Teste WhatsApp",
+    "Contato Teste WhatsApp",
     "--identity",
-    "273478418722987@lid",
+    "999000111222333@lid",
     "--source",
     "teste",
   ]);
@@ -2901,9 +3167,9 @@ test("whatsapp outbox usa telefone real para envio quando inbound veio por LID",
 
   ingestWhatsApp(root, {
     bridge_message_id: "wa-lid-target-001",
-    chat_id: "273478418722987@lid",
-    sender_name: "273478418722987",
-    sender_phone: "273478418722987",
+    chat_id: "999000111222333@lid",
+    sender_name: "999000111222333",
+    sender_phone: "999000111222333",
     body: "Pode!",
     received_at: "2026-06-21T09:32:27-03:00",
   });
@@ -2913,7 +3179,7 @@ test("whatsapp outbox usa telefone real para envio quando inbound veio por LID",
     "outbox",
     "propose",
     "--name",
-    "Lidiane Teste WhatsApp",
+    "Contato Teste WhatsApp",
     "--body",
     "Boa, vou te mandar bem direto os 3 pontos.",
     "--source",
@@ -2924,7 +3190,7 @@ test("whatsapp outbox usa telefone real para envio quando inbound veio por LID",
   const database = db(root);
   const row = database.prepare("select * from whatsapp_outbox").get();
   database.close();
-  assert.equal(row.target_chat_id, "5527992635649");
+  assert.equal(row.target_chat_id, "5500000000000");
   assert.doesNotMatch(row.target_chat_id, /@lid$/i);
 });
 

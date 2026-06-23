@@ -1100,7 +1100,7 @@ test("publish updates Paperclip Ops Health without leaking private lead data", a
     leadFile,
     JSON.stringify([
       {
-        canonical_name: "Lidiane Privada",
+        canonical_name: "Lead Privado",
         phone_or_contact: "+55 27 99999-1111",
         recommended_offer: "Presenca Local em 72h",
       },
@@ -1130,7 +1130,7 @@ test("publish updates Paperclip Ops Health without leaking private lead data", a
     const body = put.body.body;
     assert.match(body, /Status: green/i);
     assert.match(body, /Ultimo snapshot integro/i);
-    assert.doesNotMatch(body, /Lidiane Privada/i);
+    assert.doesNotMatch(body, /Lead Privado/i);
     assert.doesNotMatch(body, /99999-1111/i);
     assert.equal(documents.has("FRE-OPS/reliability-status"), true);
   });
