@@ -612,6 +612,7 @@ Rules:
 - Do not use private phone numbers unless publicly confirmed or explicitly authorized.
 - Do not invent address, credentials, prices, services, testimonials, results, or medical claims.
 - Use generated or neutral imagery when needed; do not pretend generated imagery is the real business.
+- Hero visual de demo nova deve usar `<img>` com asset real registrado no `assets/demo-kit/manifest.json`; hero/placeholder ilustrado em CSS e proibido e deve ser bloqueado no QA.
 - Do not create `copy-whatsapp.md` by default.
 - Do not update gallery or screenshots by default.
 - Demo link cannot be sent to lead before QA approval by Johan.

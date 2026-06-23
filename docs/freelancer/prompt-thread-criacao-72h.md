@@ -228,7 +228,9 @@ Antes de criar arquivos:
 Kit visual obrigatorio:
 
 - Leia `docs/freelancer/demo-visual-kit.md` antes de criar ou ajustar demos.
-- Use `assets/demo-kit/manifest.json` para escolher imagem segura por nicho quando houver asset adequado.
+- Use `assets/demo-kit/manifest.json` para escolher uma imagem segura por nicho; a hero visual deve usar `<img>` apontando para asset real do kit.
+- E proibido usar hero, placeholder, ilustracao ou composicao montada em CSS no lugar da imagem real do kit.
+- Se faltar imagem adequada para o nicho, gere ou escolha uma imagem conceitual neutra, salve em `assets/demo-kit/niches/`, registre no manifest e so entao use na demo.
 - A paleta deve ser inspirada no Instagram publico do cliente, sem copiar foto, post, arte, logo ou captura.
 - Imagens devem ser sem rostos, sem pessoas identificaveis, sem pacientes, sem equipe, sem antes/depois e sem simulacao do ambiente real do cliente.
 - Botoes de Instagram e WhatsApp devem ter texto claro e usar icones oficiais/aprovados quando disponiveis.

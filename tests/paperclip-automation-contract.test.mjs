@@ -450,6 +450,51 @@ test("Demo da Vanessa usa foto gerada do kit visual, nao ilustracao CSS", () => 
   assert.match(readme, /imagem segura do kit visual/i);
 });
 
+test("Demos novas usam imagem real do kit visual, nao hero ilustrada em CSS", () => {
+  const doc = demoVisualKit();
+  const creator = criacao72h();
+  const qa = qaDemos();
+  const agents = read("AGENTS.md");
+  const manifest = demoKitManifest();
+  const registeredImages = new Set(
+    Object.values(manifest.niches)
+      .flatMap((niche) => niche.images.map((image) => image.path)),
+  );
+
+  for (const [name, content] of [
+    ["demo-visual-kit", doc],
+    ["criacao-72h", creator],
+    ["qa-demos", qa],
+    ["AGENTS", agents],
+    ["agent-presenca72h", agentConfig("agent-presenca72h.json").capabilities],
+    ["agent-qa-demos", agentConfig("agent-qa-demos.json").capabilities],
+  ]) {
+    assert.match(content, /hero.*CSS|CSS.*hero/i, `${name} deve mencionar o risco de hero CSS`);
+    assert.match(content, /proibid[ao]|bloque/i, `${name} deve tratar placeholder CSS como bloqueio`);
+    assert.match(content, /manifest/i, `${name} deve exigir imagem registrada no manifest`);
+  }
+
+  const demoDirs = readdirSync(join(rootDir, "demos"), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((slug) => existsSync(join(rootDir, "demos", slug, "README.md")));
+
+  assert.ok(demoDirs.length > 0, "ao menos uma demo nova com README deve existir");
+
+  for (const slug of demoDirs) {
+    const html = readFileSync(join(rootDir, "demos", slug, "index.html"), "utf8");
+    const readme = readFileSync(join(rootDir, "demos", slug, "README.md"), "utf8");
+    const stylesPath = join(rootDir, "demos", slug, "styles.css");
+    const styles = existsSync(stylesPath) ? readFileSync(stylesPath, "utf8") : "";
+    const imageMatch = html.match(/\.\.\/\.\.\/(assets\/demo-kit\/niches\/[^"'\s>]+\.(?:jpg|jpeg|png|webp))/i);
+
+    assert.ok(imageMatch, `${slug} deve usar imagem real do kit visual no hero`);
+    assert.ok(registeredImages.has(imageMatch[1]), `${slug} deve usar imagem registrada no manifest: ${imageMatch[1]}`);
+    assert.match(readme, /imagem segura do kit visual/i, `${slug} deve documentar o asset seguro usado`);
+    assert.doesNotMatch(`${html}\n${styles}`, /Ilustracao neutra|Ilustração neutra|visual-board|appointment-note|polish/i, `${slug} nao deve usar placeholder CSS`);
+  }
+});
+
 test("Deploy automatico para cPanel usa GitHub Actions sem segredos no repo", () => {
   const workflowPath = ".github/workflows/deploy-cpanel.yml";
   const guidePath = "docs/deploy-cpanel.md";

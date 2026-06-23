@@ -12,12 +12,14 @@ Usar um padrao pequeno para demos parecerem feitas para o cliente, sem copiar fo
 4. Defina paleta inspirada no Instagram publico, sem copiar arte.
 5. Nao copiar Instagram: nao reaproveite post, foto, arte, logo, captura de tela ou composicao autoral do perfil.
 6. Use imagem segura do kit: sem rostos, sem pessoas identificaveis, sem paciente e sem simular ambiente real.
-7. Use botoes sociais com texto e icones oficiais/aprovados.
-8. Registre fallback quando a paleta, imagem ou dado comercial nao for confiavel.
+7. A hero visual deve usar `<img>` com asset real registrado no `assets/demo-kit/manifest.json`.
+8. E proibido usar placeholder, ilustracao ou composicao montada em CSS no hero no lugar da imagem real do kit.
+9. Use botoes sociais com texto e icones oficiais/aprovados.
+10. Registre fallback quando a paleta, imagem ou dado comercial nao for confiavel.
 
 ## Uso por Johan
 
-Bloqueie ou devolva para ajuste quando houver rosto, paciente, equipe, ambiente real simulado, promessa clinica/estetica, copia de Instagram, iconografia de fonte aleatoria, dado oficial nao confirmado ou mobile quebrado.
+Bloqueie ou devolva para ajuste quando houver rosto, paciente, equipe, ambiente real simulado, promessa clinica/estetica, copia de Instagram, iconografia de fonte aleatoria, dado oficial nao confirmado, mobile quebrado ou hero/placeholder em CSS no lugar de imagem real registrada no manifest.
 
 ## Uso por Atendimento WhatsApp
 
@@ -29,5 +31,5 @@ Atendimento continua sem enviar WhatsApp diretamente. Toda mensagem passa por Ou
 
 - Sem paleta confiavel: usar paleta neutra do nicho.
 - Sem icone oficial/aprovado: usar botao textual e registrar lacuna.
-- Sem imagem do nicho: usar imagem conceitual neutra e registrar no manifest.
+- Sem imagem do nicho: gerar ou escolher imagem conceitual neutra, salvar em `assets/demo-kit/niches/`, registrar no manifest e so entao apontar a demo para esse asset.
 - Dado comercial duvidoso: remover ou marcar como "a confirmar".
