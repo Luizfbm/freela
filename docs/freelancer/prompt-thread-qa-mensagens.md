@@ -80,6 +80,7 @@ Checklist por mensagem:
 1. Especifica do lead.
 2. Curta o suficiente para WhatsApp.
 3. Natural, sem tom artificial.
+3.1. Use a skill humanizer quando precisar identificar ou sugerir ajuste de tom artificial.
 4. Nao agressiva.
 5. Sem dado inventado.
 6. Nao vender site no primeiro contato.

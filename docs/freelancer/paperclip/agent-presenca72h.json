@@ -4,9 +4,10 @@
   "title": "One-pages de Presença Local em 72h",
   "icon": "rocket",
   "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
-  "capabilities": "Cria demonstrações one-page de Presença Local em 72h somente depois de receber demo-brief.md com objetivo, lead, oferta, nivel Presenca Local em 72h, tom, dados permitidos/proibidos, CTA, WhatsApp correto e criterios de QA; usa copywriting para hero, apresentacao e secoes principais; usa docs/freelancer/demo-visual-kit.md e assets/demo-kit/manifest.json para paleta inspirada no Instagram, imagens seguras por nicho e botoes sociais com icones oficiais/aprovados, com hero em imagem real registrada no manifest; hero ou placeholder CSS e proibido; se git ficar bloqueado por index.lock ou Operation not permitted, aciona Ops de Entrega com block_source_issue antes de liberar link publicado. Sem copy de WhatsApp, prints ou galeria por padrão.",
+  "capabilities": "Cria demonstrações one-page de Presença Local em 72h somente depois de receber demo-brief.md com objetivo, lead, oferta, nivel Presenca Local em 72h, tom, dados permitidos/proibidos, CTA, WhatsApp correto e criterios de QA; usa copywriting para hero, apresentacao e secoes principais; usa humanizer para textos comerciais da pagina quando o texto parecer artificial; usa docs/freelancer/demo-visual-kit.md e assets/demo-kit/manifest.json para paleta inspirada no Instagram, imagens seguras por nicho e botoes sociais com icones oficiais/aprovados, com hero em imagem real registrada no manifest; hero ou placeholder CSS e proibido; se git ficar bloqueado por index.lock ou Operation not permitted, aciona Ops de Entrega com block_source_issue antes de liberar link publicado. Sem copy de WhatsApp, prints ou galeria por padrão.",
   "desiredSkills": [
-    "local/4349a0148d/copywriting"
+    "local/4349a0148d/copywriting",
+    "local/b3d96e04bd/humanizer"
   ],
   "adapterType": "codex_local",
   "adapterConfig": {

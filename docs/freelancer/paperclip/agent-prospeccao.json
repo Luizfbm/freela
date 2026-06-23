@@ -4,8 +4,10 @@
   "title": "Volume qualificado de prospecção local",
   "icon": "search",
   "reportsTo": "75be697f-26c9-4d4d-a40e-a9ad675dcba7",
-  "capabilities": "Volume qualificado de prospeccao: pesquisa ao menos 25 candidatos brutos, entrega no minimo 15 leads novos qualificados, deduplica, roda paperclip-chrome-scout-smoke.mjs no perfil Paperclip Scout antes de Instagram, alimenta o CRM via SQLite comercial, gera Bio Evidence Pack em lead_platform_profiles com browser_evidence_status, browser_evidence_method chrome_operational_profile e instagram_session_status, atualiza commercial_pending_validation e commercial_ready_for_writer com commercial export, entrega pacote de decisao/dossies e registra worker_handoffs antes de auto-delegar para Validador de Dados. Planilha e apenas espelho opcional. Nao envia mensagens automaticamente.",
-  "desiredSkills": [],
+  "capabilities": "Volume qualificado de prospeccao: pesquisa ao menos 25 candidatos brutos, entrega no minimo 15 leads novos qualificados, deduplica, roda paperclip-chrome-scout-smoke.mjs no perfil Paperclip Scout antes de Instagram, alimenta o CRM via SQLite comercial, gera Bio Evidence Pack em lead_platform_profiles com browser_evidence_status, browser_evidence_method chrome_operational_profile e instagram_session_status, usa humanizer apenas quando rascunhar gancho/mensagem para nao sair artificial, atualiza commercial_pending_validation e commercial_ready_for_writer com commercial export, entrega pacote de decisao/dossies e registra worker_handoffs antes de auto-delegar para Validador de Dados. Planilha e apenas espelho opcional. Nao envia mensagens automaticamente.",
+  "desiredSkills": [
+    "local/b3d96e04bd/humanizer"
+  ],
   "adapterType": "codex_local",
   "adapterConfig": {
     "command": "/Users/luiz_fbm/.nvm/versions/node/v24.11.1/bin/codex",

@@ -2760,6 +2760,41 @@ test("Workers com copy comercial declaram a skill copywriting atribuida", () => 
   assert.doesNotMatch(JSON.stringify(guardiaoAgent.desiredSkills ?? []), /copywriting/i);
 });
 
+test("Workers que escrevem ou revisam texto para cliente declaram humanizer atribuido", () => {
+  const humanizerSkill = "local/b3d96e04bd/humanizer";
+  const agents = {
+    scout: agentConfig("agent-prospeccao.json"),
+    levi: agentConfig("agent-redator-primeira-mensagem.json"),
+    temma: agentConfig("agent-qa-mensagens.json"),
+    jhon: agentConfig("agent-atendimento.json"),
+    whatsapp: agentConfig("agent-whatsapp-atendimento.json"),
+    polina: agentConfig("agent-followup-crm.json"),
+    ozzy: agentConfig("agent-presenca72h.json"),
+    johan: agentConfig("agent-qa-demos.json"),
+  };
+  const guardiaoAgent = agentConfig("agent-whatsapp-guardiao.json");
+
+  for (const [name, agent] of Object.entries(agents)) {
+    assert.ok(agent.desiredSkills.includes(humanizerSkill), `${name} deve ter humanizer atribuido`);
+    assert.match(agent.capabilities, /humanizer|natural|artificial/i, name);
+  }
+
+  assert.match(prospeccao(), /humanizer/i);
+  assert.match(redatorPrimeiraMensagem(), /skill humanizer/i);
+  assert.match(qaMensagens(), /skill humanizer/i);
+  assert.match(atendimento(), /skill humanizer/i);
+  assert.match(whatsappAtendimento(), /skill `?humanizer`?/i);
+  assert.match(followupCrm(), /humanizer/i);
+  assert.match(criacao72h(), /skill humanizer/i);
+  assert.match(qaDemos(), /skill humanizer/i);
+  assert.match(read("AGENTS.md"), /local\/b3d96e04bd\/humanizer/i);
+  assert.match(read("AGENTS.md"), /Scout, Levi, Temma, Jhon Snow, Atendimento WhatsApp, Polina, OZZY, and Johan/i);
+  assert.match(paperclipReadme(), /local\/b3d96e04bd\/humanizer/i);
+
+  assert.doesNotMatch(JSON.stringify(guardiaoAgent.desiredSkills ?? []), /humanizer/i);
+  assert.match(guardiaoAgent.capabilities, /humanizer_pass/i);
+});
+
 test("COO Freelancer orquestra a operacao sem executar trabalho dos especialistas", () => {
   const prompt = cooFreelancer();
   const readme = paperclipReadme();

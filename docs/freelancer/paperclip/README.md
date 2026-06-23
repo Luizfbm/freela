@@ -168,6 +168,8 @@ node scripts/paperclip-sync-agents.mjs --apply
 
 O sync usa uma allowlist curta: `name`, `role`, `title`, `icon`, `reportsTo`, `capabilities` e `metadata`. Para `adapterConfig`, ele sincroniza somente os paths operacionais `cwd`, `extraArgs`, `instructionsRootPath` e `env` limitado a `PATH` + `CODEX_HOME`; `adapterConfig.instructionsFilePath` nao passa pelo patch generico e usa a rota dedicada `PATCH /api/agents/:id/instructions-path`. O script nao sincroniza modelo, comando, budget, permissoes, runtime, skills, segredos ou bundle de instrucoes.
 
+Skills de empresa nao sao o mesmo que skills locais do Codex. `copywriting` esta instalada como `local/4349a0148d/copywriting` e fica anexada a OZZY, Johan, Jhon Snow e Levi. `humanizer` esta instalada como `local/b3d96e04bd/humanizer` e fica anexada aos workers que escrevem ou revisam texto para cliente: Scout, Levi, Temma, Jhon Snow, Atendimento WhatsApp, Polina, OZZY e Johan. Guardiao valida `humanizer_pass`, mas nao precisa da skill para escrever texto.
+
 ## Projetos
 
 | Projeto | ID |

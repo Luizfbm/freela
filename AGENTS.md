@@ -530,6 +530,7 @@ Current observed skill assignment:
 - Paperclip company skills are separate.
 - Agent JSON `desiredSkills` are empty or absent unless explicitly changed.
 - `copywriting` is installed in the Paperclip company as `local/4349a0148d/copywriting` from `/Users/luiz_fbm/.agents/skills/copywriting` and is intentionally attached to OZZY, Johan, Jhon Snow, and Levi.
+- `humanizer` is installed in the Paperclip company as `local/b3d96e04bd/humanizer` from `/Users/luiz_fbm/.codex/skills/humanizer` and is intentionally attached to Scout, Levi, Temma, Jhon Snow, Atendimento WhatsApp, Polina, OZZY, and Johan.
 - Installing a company skill does not attach it to an agent. Attachment requires `POST /api/agents/:agentId/skills/sync`.
 
 Agent sync:

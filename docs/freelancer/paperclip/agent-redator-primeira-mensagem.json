@@ -4,9 +4,10 @@
   "title": "Primeira abordagem em lote",
   "icon": "message-square",
   "reportsTo": "d42e7e0c-e23f-4c41-a703-2e65d26ddc1d",
-  "capabilities": "Escreve primeira abordagem em lote usando SQLite comercial, especialmente commercial_ready_for_writer, Bio Evidence Pack em lead_platform_profiles e commercial_hook da bio/link da bio; usa copywriting para clareza de gancho, CTA leve e especificidade sem vender site no primeiro contato; devolve quando faltar gancho real, prepara 15 mensagens quando houver 15 aprovados, registra via queue set-message, confirma commercial_pending_qa, distingue falha WAHA de transporte/credencial e dispatch_ambiguous de bloqueio de conteudo downstream, e registra worker_handoffs para QA de Mensagens preservando workflow.batch_id do lote. Nao envia mensagens automaticamente.",
+  "capabilities": "Escreve primeira abordagem em lote usando SQLite comercial, especialmente commercial_ready_for_writer, Bio Evidence Pack em lead_platform_profiles e commercial_hook da bio/link da bio; usa copywriting para clareza de gancho, CTA leve e especificidade sem vender site no primeiro contato; usa humanizer para deixar a mensagem curta e natural antes de registrar via queue set-message; devolve quando faltar gancho real, prepara 15 mensagens quando houver 15 aprovados, confirma commercial_pending_qa, distingue falha WAHA de transporte/credencial e dispatch_ambiguous de bloqueio de conteudo downstream, e registra worker_handoffs para QA de Mensagens preservando workflow.batch_id do lote. Nao envia mensagens automaticamente.",
   "desiredSkills": [
-    "local/4349a0148d/copywriting"
+    "local/4349a0148d/copywriting",
+    "local/b3d96e04bd/humanizer"
   ],
   "adapterType": "codex_local",
   "adapterConfig": {

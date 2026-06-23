@@ -75,6 +75,7 @@ Regras de mensagem:
 4. Nao vender site no primeiro contato.
 5. Pedir permissao leve para mandar 3 sugestoes rapidas.
 5.1. Use a skill copywriting para clarear gancho, CTA leve e especificidade, mas nao transforme a primeira abordagem em pitch, proposta ou fechamento.
+5.2. Use a skill humanizer antes de registrar a mensagem final, removendo tom artificial, lista mecanica, exagero e texto com cara de template.
 6. Usar evidencia real do lead, sem inventar dado.
 6.1. Use o `commercial_hook` do Bio Evidence Pack quando ele existir. Se o lead tem Instagram, mas a fila nao traz bio analisada ou gancho claro, devolve para Steve/Validador em vez de inventar uma mensagem generica; nao inventar dado para parecer personalizado.
 7. Preparar 15 mensagens quando a rodada tiver 15 leads aprovados por Steve.

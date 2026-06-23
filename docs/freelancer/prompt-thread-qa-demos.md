@@ -144,6 +144,7 @@ Checklist de QA:
    - Verificar `docs/freelancer/demo-visual-kit.md` e `assets/demo-kit/manifest.json` quando a demo usar assets do kit.
    - Bloquear hero, placeholder, ilustracao ou composicao em CSS no lugar de imagem real registrada no manifest.
    - Use a skill copywriting para avaliar hero, CTA e apresentacao quando a copy da pagina parecer generica, vaga, exagerada ou pouco especifica para o cliente.
+   - Use a skill humanizer para apontar ou sugerir ajuste quando o texto comercial da pagina parecer artificial.
    - Verificar que a imagem do kit pertence ao nicho correto e e sem rostos, sem pessoas identificaveis, sem paciente, sem equipe, sem antes/depois ou ambiente real simulado.
    - Verificar que a paleta parece inspirada no Instagram publico, mas nao copia post, foto, arte, logo ou captura.
    - Verificar que botoes de Instagram e WhatsApp tem texto acessivel e icones oficiais/aprovados quando houver icone.
