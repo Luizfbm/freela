@@ -51,10 +51,10 @@ Saida:
 
 - Decisao registrada em `whatsapp_guardian_decisions`.
 - Outbox atualizada como `approved` ou `blocked`.
-- Quando bloquear, rode a revisao com auto-wake para criar o proximo trabalho:
+- Rode a revisao com auto-wake e auto-dispatch. Se bloquear, o CRM cria o proximo trabalho; se aprovar e `Pode despachar: sim`, o CRM chama o Gateway com `--outbox-id` explicito:
 
 ```bash
-node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true
+node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true --auto-dispatch true
 ```
 
 Loop seguro de bloqueio:
@@ -66,17 +66,13 @@ Loop seguro de bloqueio:
 
 Fluxo obrigatorio depois de `enviar`:
 
-1. Rode `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]`.
-2. Se `Pode despachar: sim`, acione somente o Gateway Local:
+1. A revisao padrao deve usar `--auto-dispatch true`, que chama somente o Gateway Local quando a Outbox estiver aprovada e despachavel:
 
 ```bash
-node scripts/whatsapp-local-gateway.mjs \
-  --root /Users/luiz_fbm/Developer/freela \
-  dispatch-approved-outbox \
-  --provider waha \
-  --outbox-id [id]
+node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true --auto-dispatch true
 ```
 
+2. Para diagnostico, confirme com `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]`; nao use SQL manual para decidir dispatch.
 3. Nunca rode `dispatch-approved-outbox` sem `--outbox-id`.
 4. Se o Gateway retornar `Pendentes: 1`, a Outbox ficou `delivery_pending`; aguarde `message.ack` do webhook/import WAHA para virar `sent`.
 5. Se o Gateway retornar `Enviados: 1`, houve ACK forte imediato e a Outbox pode ser considerada enviada.

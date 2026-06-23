@@ -452,8 +452,8 @@ Auto-wake routing:
 
 Guardiao repair loop:
 
-- When `whatsapp guardian review --auto-wake true` blocks a repairable Outbox (`mensagem contem lista artificial`, artificial dash/marker, generic AI tone, or too long), CRM creates `whatsapp_guardian_repair` for Jhon Snow / Atendimento e Fechamento.
-- Jhon repairs once by releasing the state to `atendimento_autonomo`, creating a new Outbox with Humanizer/context flags, and returning to Guardiao. Jhon never sends WhatsApp directly.
+- When `whatsapp guardian review --auto-wake true --auto-dispatch true` blocks a repairable Outbox (`mensagem contem lista artificial`, artificial dash/marker, generic AI tone, or too long), CRM creates `whatsapp_guardian_repair` for Jhon Snow / Atendimento e Fechamento.
+- Jhon repairs once by releasing the state to `atendimento_autonomo`, creating a new Outbox with Humanizer/context flags, and returning to Guardiao. The safe return command is `node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true --auto-dispatch true`: Guardiao approves or blocks; only Gateway sends. Jhon never sends WhatsApp directly.
 - If another Outbox for the same inbound is blocked again for a repairable reason, CRM creates `whatsapp_guardian_reanalysis` for Scout to reanalyze bio, bio link, virtual card/PDF, and WhatsApp path before any new message attempt.
 - The blocked Outbox remains evidence and is never reused automatically.
 

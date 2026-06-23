@@ -43,8 +43,8 @@ Regra operacional para agentes:
 Quando WAHA estiver saudavel, respostas seguras pos-consentimento deixam de ir para lead-cards por padrao. O caminho alvo e:
 
 1. Atendimento WhatsApp ou Jhon cria nova Outbox com `whatsapp outbox propose`.
-2. Guardiao revisa a Outbox.
-3. Gateway despacha somente com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+2. Guardiao revisa com `whatsapp guardian review --outbox-id [id] --auto-wake true --auto-dispatch true`.
+3. Se aprovada e despachavel, Gateway despacha somente com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
 4. Follow-up so considera enviado apos ACK forte: `DEVICE`, `READ`, `PLAYED` ou `ack >= 2`.
 
 Continuam manuais: primeira abordagem fria, preco, desconto, proposta, pagamento, fechamento, objecao sensivel, Guardiao bloqueado, WAHA/Gateway falho, `delivery_pending` prolongado e `dispatch_ambiguous`.
@@ -213,7 +213,18 @@ curl -H "X-Api-Key: $WAHA_API_KEY" http://127.0.0.1:3000/api/sessions
 
 O dispatch WAHA e explicito e passa sempre pelo Gateway.
 
-Antes do dispatch, consulte a Outbox pelo CLI oficial:
+No fluxo padrao, use a revisao do Guardiao com auto-dispatch:
+
+```bash
+node scripts/freela-crm.mjs \
+  --root /Users/luiz_fbm/Developer/freela \
+  whatsapp guardian review \
+  --outbox-id 6 \
+  --auto-wake true \
+  --auto-dispatch true
+```
+
+Para diagnostico manual, consulte a Outbox pelo CLI oficial:
 
 ```bash
 node scripts/freela-crm.mjs \
@@ -222,7 +233,7 @@ node scripts/freela-crm.mjs \
   --outbox-id 6
 ```
 
-O status deve mostrar `Pode despachar: sim`. Nao use SQL manual para decidir dispatch.
+O status deve mostrar `Pode despachar: sim`. Nao use SQL manual para decidir dispatch. O comando Gateway direto abaixo e fallback operacional/diagnostico; workers devem preferir `whatsapp guardian review --auto-dispatch true`.
 
 ```bash
 node scripts/whatsapp-local-gateway.mjs \

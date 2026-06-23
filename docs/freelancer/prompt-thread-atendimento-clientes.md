@@ -88,6 +88,7 @@ Bloqueio reparavel do Guardiao:
 - Leia o motivo do Guardiao, o ultimo inbound e o contexto real do lead antes de escrever.
 - Para reparar, primeiro libere o estado com `node scripts/freela-crm.mjs whatsapp state set --name [nome] --state atendimento_autonomo --reason "reparo de bloqueio do Guardiao" --reset-auto-replies true`.
 - Depois crie nova Outbox curta e natural com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source jhon-guardiao-repair --humanizer-pass true --used-last-inbound true --contextual-reply true`.
+- Em seguida, devolva ao fluxo seguro com `node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true --auto-dispatch true`. Isso ainda nao da envio direto ao Jhon: quem aprova e o Guardiao; quem envia e somente o Gateway.
 - Esta e uma tentativa de reparo. Se faltar contexto real ou se a nova Outbox bloquear de novo, acione Scout para reanalisar bio, link da bio, cartao virtual/PDF e caminho ate WhatsApp antes de tentar outra mensagem.
 
 Modo WAHA pleno / Outbox-first:

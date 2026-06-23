@@ -13,6 +13,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -440,6 +441,10 @@ async function dispatch({ root, dbPath, command, args }) {
     const outboxId = parsePositiveInt(flags["outbox-id"], "outbox-id");
     const decision = reviewWhatsAppOutbox(database, outboxId);
     console.log(`Guardiao: ${decision.decision} (${decision.reason})`);
+    if (parseBooleanFlag(flags["auto-dispatch"])) {
+      const dispatch = autoDispatchForGuardianReview(database, outboxId, buildGuardianAutoDispatchOptions(flags, root));
+      console.log(formatGuardianAutoDispatch(dispatch));
+    }
     if (parseBooleanFlag(flags["auto-wake"])) {
       const wake = await autoWakeForGuardianReview(database, outboxId, buildGuardianAutoWakeOptions(flags));
       console.log(`Wake Paperclip: ${wake.status}${wake.error ? ` (${wake.error})` : ""}`);
@@ -3328,6 +3333,57 @@ function whatsappOutboxDispatchCheck(outbox) {
   }
   if (isWhatsAppLid(outbox.target_chat_id)) blockers.push("destino direto @lid");
   return { canDispatch: blockers.length === 0, blockers };
+}
+
+function buildGuardianAutoDispatchOptions(flags, root) {
+  return {
+    root,
+    provider: clean(flags["dispatch-provider"]) || "waha",
+    gatewayScript: flags["gateway-script"]
+      ? resolve(flags["gateway-script"])
+      : join(root, "scripts/whatsapp-local-gateway.mjs"),
+    timeoutMs: parsePositiveInt(flags["gateway-timeout-ms"] || "60000", "gateway-timeout-ms"),
+  };
+}
+
+function autoDispatchForGuardianReview(database, outboxId, options) {
+  const report = whatsappOutboxStatus(database, outboxId, options.root);
+  if (!report.can_dispatch) {
+    return {
+      status: "skipped",
+      reason: report.dispatch_blockers.join("; ") || "outbox nao despachavel",
+    };
+  }
+
+  const args = [
+    "--root",
+    options.root,
+    "dispatch-approved-outbox",
+    "--provider",
+    options.provider,
+    "--outbox-id",
+    String(outboxId),
+  ];
+  const result = spawnSync(process.execPath, [options.gatewayScript, ...args], {
+    cwd: options.root,
+    encoding: "utf8",
+    timeout: options.timeoutMs,
+  });
+
+  if (result.error) {
+    return { status: "failed", reason: result.error.message };
+  }
+  if (result.status !== 0) {
+    return {
+      status: "failed",
+      reason: `gateway exit ${result.status}`,
+    };
+  }
+  return { status: "dispatched" };
+}
+
+function formatGuardianAutoDispatch(result) {
+  return `Gateway dispatch: ${result.status}${result.reason ? ` (${result.reason})` : ""}`;
 }
 
 function formatWhatsAppOutboxStatus(report) {

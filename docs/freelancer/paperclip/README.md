@@ -349,8 +349,8 @@ Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound do 
 Quando WAHA estiver saudavel, respostas seguras pos-consentimento deixam de ir para lead-cards por padrao. O caminho alvo e:
 
 1. Atendimento WhatsApp ou Jhon cria nova Outbox com `whatsapp outbox propose`.
-2. Guardiao revisa a Outbox.
-3. Gateway despacha somente com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
+2. Guardiao revisa com `whatsapp guardian review --outbox-id [id] --auto-wake true --auto-dispatch true`.
+3. Se aprovada e despachavel, o Gateway despacha somente com `dispatch-approved-outbox --provider waha --outbox-id [id]`.
 4. Follow-up so considera enviado apos ACK forte: `DEVICE`, `READ`, `PLAYED` ou `ack >= 2`.
 
 Continuam manuais: primeira abordagem fria, preco, desconto, proposta, pagamento, fechamento, objecao sensivel, Guardiao bloqueado, WAHA/Gateway falho, `delivery_pending` prolongado e `dispatch_ambiguous`.
@@ -367,7 +367,7 @@ Cada linha deve ser enviada pelo Gateway com `--outbox-id` explicito.
 
 Demo ja aprovada pedida no WhatsApp segue o mesmo caminho automatizavel: lead pediu demo/exemplo/link, existe link seguro aprovado por QA e o estado esta em `exemplo_aprovado_para_envio` -> criar nova Outbox com `node scripts/freela-crm.mjs whatsapp outbox propose --name [nome] --body [mensagem] --source [fonte] --humanizer-pass true --used-last-inbound true --contextual-reply true` -> Guardiao -> Gateway com `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela dispatch-approved-outbox --provider waha --outbox-id [id]`. Nesse caso nao usar lead-cards, `queue set-message` ou Follow-up manual como caminho padrao. So cair em manual se o Guardiao bloquear, se WAHA/Gateway falhar ou ficar `dispatch_ambiguous`, ou se a conversa envolver preco/fechamento real.
 
-Contrato de saida: depois de aprovar, Guardiao consulta `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]`. Se o status mostrar `Pode despachar: sim`, ele chama o Gateway com o mesmo `--outbox-id`. `delivery_pending` exige aguardar `message.ack`; `sent` so vale com ACK forte. `Unauthorized` em `check-exists` vira falha de transporte/credencial e `handoff_luiz`, nao retry automatico. O modo sem `--outbox-id` e reservado para operacao assistida em lote, nao para worker.
+Contrato de saida: Guardiao revisa com `node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true --auto-dispatch true`. O `--auto-dispatch` consulta internamente se `Pode despachar: sim` e chama o Gateway com o mesmo `--outbox-id`; para diagnostico, use `node scripts/freela-crm.mjs whatsapp outbox status --outbox-id [id]` antes de qualquer acao manual. Se bloquear, `--auto-wake` cria o proximo trabalho para Jhon/Scout conforme o motivo. `delivery_pending` exige aguardar `message.ack`; `sent` so vale com ACK forte. `Unauthorized` em `check-exists` vira falha de transporte/credencial e `handoff_luiz`, nao retry automatico. O modo sem `--outbox-id` e reservado para operacao assistida em lote, nao para worker.
 
 Workers nao recebem ferramentas cruas de envio. Eles leem somente CRM/Paperclip; o Gateway importa inbound com `set -a; . ./.env; set +a; node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela serve-waha-webhook --host 127.0.0.1 --port 3105 --auto-wake` ou, para replay/debug, `node scripts/whatsapp-local-gateway.mjs --root /Users/luiz_fbm/Developer/freela import-waha-event --file .scratch/waha-event.json --auto-wake`. A WAHA local sobe com `docker compose -f docker-compose.waha.yml up -d`, API presa em `http://127.0.0.1:3000`, sessao persistida em `.scratch/waha/.sessions`, credenciais fixas vindas do `.env` local privado (`WAHA_API_KEY`, `WAHA_DASHBOARD_PASSWORD`, `WHATSAPP_SWAGGER_PASSWORD`, `WHATSAPP_WAHA_WEBHOOK_SECRET`) e webhook interno apontando para `http://host.docker.internal:3105/waha/webhook` com header `X-Webhook-Secret`; isso nao autoriza bind wildcard no Gateway. O Gateway carrega `.env` automaticamente a partir de `--root` e nao sobrescreve variaveis ja existentes. Texto normal da WAHA pode chegar como `type: "chat"` e e normalizado para `message_type: "text"`.
 
@@ -379,13 +379,13 @@ Identidade WhatsApp e parte do contrato operacional. Se a WAHA entregar um conta
 
 Com `--auto-wake`, o Gateway roteia seletivamente por classificacao/estado. Atendimento WhatsApp recebe conversa normal (`resposta_permissao`, `resposta_pediu_exemplo`, `resposta_recebida`). Jhon Snow / Atendimento e Fechamento recebe fechamento comercial (`preco_pedido`, `lead_quente`, `objecao_comercial`, `handoff_luiz`, `qualificacao_preco_pendente`, `bloqueado_guardiao`). Use `--closer-agent-id` para sobrescrever o agente closer em teste. O dedupe fica em `whatsapp_worker_wakes`, sem enviar mensagem e sem chamar bridge.
 
-O Guardiao tambem pode acordar workers ao bloquear uma Outbox:
+O Guardiao tambem pode acordar workers ao bloquear uma Outbox e despachar automaticamente quando aprovar:
 
 ```bash
-node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true
+node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wake true --auto-dispatch true
 ```
 
-Bloqueio reparavel (`mensagem contem lista artificial`, travessao/marcador artificial, tom generico de IA ou mensagem longa) cria uma issue para Jhon reparar uma vez e criar nova Outbox. Se outra Outbox do mesmo inbound bloquear de novo por motivo reparavel, o CRM cria issue para Scout reanalisar bio, link da bio, cartao virtual/PDF e caminho ate WhatsApp antes de nova tentativa. Nenhum desses wakes envia WhatsApp; todos voltam ao fluxo Outbox -> Guardiao -> Gateway.
+Bloqueio reparavel (`mensagem contem lista artificial`, travessao/marcador artificial, tom generico de IA ou mensagem longa) cria uma issue para Jhon reparar uma vez e criar nova Outbox. Se outra Outbox do mesmo inbound bloquear de novo por motivo reparavel, o CRM cria issue para Scout reanalisar bio, link da bio, cartao virtual/PDF e caminho ate WhatsApp antes de nova tentativa. Nenhum desses wakes envia WhatsApp; quando o Guardiao aprova, somente o Gateway envia pelo `--outbox-id` aprovado.
 
 Primeira abordagem fria continua manual. Respostas depois do "Pode!" podem ser despachadas automaticamente somente via Gateway + Outbox aprovada + Humanizer + Guardiao.
 

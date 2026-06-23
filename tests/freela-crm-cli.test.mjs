@@ -99,6 +99,35 @@ function writeJson(root, name, value) {
   return file;
 }
 
+function writeFakeGateway(root) {
+  const file = join(root, "fake-gateway.mjs");
+  writeFileSync(
+    file,
+    [
+      "import { appendFileSync } from 'node:fs';",
+      "import { join } from 'node:path';",
+      "const rootIndex = process.argv.indexOf('--root');",
+      "const root = rootIndex >= 0 ? process.argv[rootIndex + 1] : process.cwd();",
+      "appendFileSync(join(root, 'gateway-calls.jsonl'), `${JSON.stringify(process.argv.slice(2))}\\n`);",
+      "console.log('Enviados: 0');",
+      "console.log('Pendentes: 1');",
+      "console.log('Falhas: 0');",
+      "console.log('Ignorados: 0');",
+    ].join("\n"),
+  );
+  return file;
+}
+
+function readFakeGatewayCalls(root) {
+  const file = join(root, "gateway-calls.jsonl");
+  if (!existsSync(file)) return [];
+  return readFileSync(file, "utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
 function upsertLead(root, lead) {
   const file = writeJson(root, `lead-${Date.now()}-${Math.random()}.json`, [lead]);
   const result = run(root, ["lead", "upsert", "--file", file]);
@@ -3003,6 +3032,71 @@ test("whatsapp outbox list-dispatchable exposes explicit ids for Gateway dispatc
   assert.equal(list.status, 0, list.stderr);
   assert.match(list.stdout, new RegExp(`Outbox ${outbox.id}`));
   assert.match(list.stdout, /dispatch-approved-outbox --provider waha --outbox-id/i);
+});
+
+test("guardian review auto-dispatches approved WhatsApp outbox through Gateway with explicit id", () => {
+  const root = makeWhatsAppLeadRoot("wa-guardian-auto-dispatch-001", "Pode sim");
+  const gateway = writeFakeGateway(root);
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito, posso te mandar os 3 pontos por aqui.",
+  );
+
+  const review = run(root, [
+    "whatsapp",
+    "guardian",
+    "review",
+    "--outbox-id",
+    String(outbox.id),
+    "--auto-dispatch",
+    "true",
+    "--gateway-script",
+    gateway,
+  ]);
+
+  assert.equal(review.status, 0, review.stderr);
+  assert.match(review.stdout, /Guardiao: aprovado/i);
+  assert.match(review.stdout, /Gateway dispatch: dispatched/i);
+
+  const calls = readFakeGatewayCalls(root);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], [
+    "--root",
+    root,
+    "dispatch-approved-outbox",
+    "--provider",
+    "waha",
+    "--outbox-id",
+    String(outbox.id),
+  ]);
+});
+
+test("guardian review auto-dispatch skips blocked WhatsApp outbox", () => {
+  const root = makeWhatsAppLeadRoot("wa-guardian-auto-dispatch-blocked-001", "Pode sim");
+  const gateway = writeFakeGateway(root);
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito.\n\n1. ponto simples para ajustar\n2. outro ponto simples",
+  );
+
+  const review = run(root, [
+    "whatsapp",
+    "guardian",
+    "review",
+    "--outbox-id",
+    String(outbox.id),
+    "--auto-dispatch",
+    "true",
+    "--gateway-script",
+    gateway,
+  ]);
+
+  assert.equal(review.status, 0, review.stderr);
+  assert.match(review.stdout, /Guardiao: bloqueado/i);
+  assert.match(review.stdout, /Gateway dispatch: skipped/i);
+  assert.deepEqual(readFakeGatewayCalls(root), []);
 });
 
 test("delivery_pending outbox does not create follow-up as delivered", () => {
