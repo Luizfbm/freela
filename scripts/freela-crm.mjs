@@ -354,9 +354,8 @@ async function dispatch({ root, dbPath, command, args }) {
 
   if (command[0] === "whatsapp" && command[1] === "identity" && command[2] === "link") {
     const flags = parseFlags(args);
-    requireFlag(flags, "name");
     requireFlag(flags, "identity");
-    const lead = requireUniqueLead(database, flags.name);
+    const lead = resolveLeadForIdentityLink(database, flags);
     const identity = linkWhatsAppIdentity(database, lead, {
       identity: flags.identity,
       source: flags.source ?? "manual",
@@ -370,6 +369,8 @@ async function dispatch({ root, dbPath, command, args }) {
     const flags = parseFlags(args);
     const result = reconcileUnmatchedWhatsAppInbound(database, {
       limit: flags.limit ? parsePositiveInt(flags.limit, "limit") : 50,
+      ids: flags.id ? parseListFlag(flags.id).map((id) => parsePositiveInt(id, "id")) : [],
+      chatId: clean(flags["chat-id"]),
     });
     console.log(`Reconciliados: ${result.reconciled}`);
     console.log(`Pendentes: ${result.pending}`);
@@ -2720,6 +2721,20 @@ function requireUniqueLead(database, name) {
   return matches[0];
 }
 
+function requireLeadById(database, leadId) {
+  const id = parsePositiveInt(leadId, "lead-id");
+  const lead = database.prepare("select * from leads where id = ?").get(id);
+  if (!lead) throw usageError(`Lead nao encontrado: ${id}`);
+  return lead;
+}
+
+function resolveLeadForIdentityLink(database, flags) {
+  const hasName = Boolean(clean(flags.name));
+  const hasLeadId = Boolean(clean(flags["lead-id"]));
+  if (hasName === hasLeadId) throw usageError("Informe exatamente um filtro: --name ou --lead-id");
+  return hasLeadId ? requireLeadById(database, flags["lead-id"]) : requireUniqueLead(database, flags.name);
+}
+
 function findLeadsByName(database, name) {
   const query = normalizeName(name);
   if (!query) return [];
@@ -2976,16 +2991,42 @@ function normalizeWhatsAppInboundMessageType(messageType) {
   return normalized;
 }
 
-function reconcileUnmatchedWhatsAppInbound(database, { limit }) {
-  const rows = database
-    .prepare(
-      `select *
-       from whatsapp_unmatched_inbound_events
-       where status = 'unmatched'
-       order by received_at asc, id asc
-       limit ?`,
-    )
-    .all(limit);
+function reconcileUnmatchedWhatsAppInbound(database, { limit, ids = [], chatId = "" }) {
+  if (ids.length && chatId) throw usageError("Informe apenas um filtro: --id ou --chat-id");
+
+  let rows;
+  if (ids.length) {
+    const placeholders = ids.map(() => "?").join(", ");
+    rows = database
+      .prepare(
+        `select *
+         from whatsapp_unmatched_inbound_events
+         where status = 'unmatched'
+           and id in (${placeholders})
+         order by received_at asc, id asc`,
+      )
+      .all(...ids);
+  } else if (chatId) {
+    rows = database
+      .prepare(
+        `select *
+         from whatsapp_unmatched_inbound_events
+         where status = 'unmatched'
+           and chat_id = ?
+         order by received_at asc, id asc`,
+      )
+      .all(chatId);
+  } else {
+    rows = database
+      .prepare(
+        `select *
+         from whatsapp_unmatched_inbound_events
+         where status = 'unmatched'
+         order by received_at asc, id asc
+         limit ?`,
+      )
+      .all(limit);
+  }
   let reconciled = 0;
   let pending = 0;
 
@@ -3127,6 +3168,7 @@ function proposeWhatsAppOutbox(
     humanizerNotes = "",
   },
 ) {
+  const normalizedBody = normalizeWhatsAppOutboxBody(body);
   const state = database
     .prepare("select * from lead_conversation_state where lead_id = ?")
     .get(lead.id);
@@ -3153,7 +3195,7 @@ function proposeWhatsAppOutbox(
       lead.id,
       inbound.id,
       targetChatId,
-      body,
+      normalizedBody,
       source,
       "pending_guardian",
       humanizerPass ? 1 : 0,
@@ -3164,6 +3206,15 @@ function proposeWhatsAppOutbox(
     );
 
   return database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+}
+
+function normalizeWhatsAppOutboxBody(value) {
+  return clean(value)
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
 }
 
 function whatsappOutboxTargetChatId(lead, inbound) {

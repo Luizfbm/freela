@@ -11,6 +11,8 @@ const DEFAULT_ATENDIMENTO_AGENT_ID = "db8a76a9-e503-4cdc-b8cb-f14cf757070a";
 const DEFAULT_CLOSER_AGENT_ID = "4d334072-4966-4c9d-a16a-f3e48faf05d9";
 const WHATSAPP_ATENDIMENTO_WAKE_TYPE = "atendimento_whatsapp";
 const WHATSAPP_CLOSER_WAKE_TYPE = "whatsapp_closer";
+const WHATSAPP_NO_INTEREST_WAKE_TYPE = "whatsapp_no_interest";
+const WHATSAPP_AUTO_WAKE_BURST_DEDUPE_MS = 30_000;
 
 function main() {
   const { root, command, flags } = parseArgs(process.argv.slice(2));
@@ -55,6 +57,12 @@ function main() {
   if (command === "import-waha-event") {
     const result = importWahaEvent(root, flags);
     printWahaEventResult(result, flags);
+    return;
+  }
+
+  if (command === "wake-reconciled-inbound") {
+    const result = wakeReconciledInbound(root, flags);
+    printWakeReconciledInboundResult(result);
     return;
   }
 
@@ -218,6 +226,12 @@ function autoWakeForInbound(root, event, options) {
 
     if (["created", "creating"].includes(existing?.status)) return 0;
 
+    const recentConversationWake = findRecentConversationWake(database, inbound, route);
+    if (recentConversationWake) {
+      markInboundCoveredByRecentWake(database, inbound, route, recentConversationWake);
+      return 0;
+    }
+
     const timestamp = new Date().toISOString();
     if (existing) {
       database
@@ -287,11 +301,278 @@ function autoWakeForInbound(root, event, options) {
   }
 }
 
+function findRecentConversationWake(database, inbound, route) {
+  const candidates = database
+    .prepare(
+      `select
+        w.*,
+        e.chat_id,
+        e.received_at
+       from whatsapp_worker_wakes w
+       join whatsapp_inbound_events e on e.id = w.inbound_event_id
+       where w.lead_id = ?
+         and w.target_agent_id = ?
+         and w.wake_type = ?
+         and w.inbound_event_id != ?
+         and w.status in ('created', 'creating')
+       order by w.id desc
+       limit 10`,
+    )
+    .all(inbound.lead_id, route.targetAgentId, route.wakeType, inbound.id);
+
+  return candidates.find(
+    (candidate) =>
+      clean(candidate.chat_id) === clean(inbound.chat_id) &&
+      isWithinAutoWakeBurstWindow(candidate.received_at, inbound.received_at),
+  );
+}
+
+function markInboundCoveredByRecentWake(database, inbound, route, recentWake) {
+  const timestamp = new Date().toISOString();
+  database
+    .prepare(
+      `insert into whatsapp_worker_wakes (
+        inbound_event_id, lead_id, target_agent_id, wake_type, status,
+        paperclip_issue_id, paperclip_issue_identifier, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      on conflict(inbound_event_id, target_agent_id, wake_type) do update set
+        status = excluded.status,
+        paperclip_issue_id = excluded.paperclip_issue_id,
+        paperclip_issue_identifier = excluded.paperclip_issue_identifier,
+        updated_at = excluded.updated_at`,
+    )
+    .run(
+      inbound.id,
+      inbound.lead_id,
+      route.targetAgentId,
+      route.wakeType,
+      recentWake.status,
+      clean(recentWake.paperclip_issue_id),
+      clean(recentWake.paperclip_issue_identifier),
+      timestamp,
+      timestamp,
+    );
+}
+
+function isWithinAutoWakeBurstWindow(left, right) {
+  const leftTime = Date.parse(clean(left));
+  const rightTime = Date.parse(clean(right));
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return false;
+  return Math.abs(rightTime - leftTime) <= WHATSAPP_AUTO_WAKE_BURST_DEDUPE_MS;
+}
+
+function wakeReconciledInbound(root, flags) {
+  validateWakeReconciledInboundFlags(flags);
+  const crmDbPath = resolve(root, flags["crm-db"] || ".scratch/db/freela.sqlite");
+  if (!existsSync(crmDbPath)) {
+    throw new Error(`CRM SQLite nao encontrado para wake reconciliado: ${crmDbPath}`);
+  }
+
+  const options = buildAutoWakeOptions(flags);
+  const database = new DatabaseSync(crmDbPath);
+  try {
+    const rows = readInboundRowsForWake(database, flags);
+    const groups = new Map();
+    let skipped = 0;
+
+    for (const row of rows) {
+      const route = whatsappWakeRouteForInbound(row, options);
+      if (!route) {
+        skipped += 1;
+        continue;
+      }
+
+      const existing = database
+        .prepare(
+          `select *
+           from whatsapp_worker_wakes
+           where inbound_event_id = ?
+             and target_agent_id = ?
+             and wake_type = ?
+           order by id desc
+           limit 1`,
+        )
+        .get(row.id, route.targetAgentId, route.wakeType);
+
+      if (["created", "creating"].includes(existing?.status)) {
+        skipped += 1;
+        continue;
+      }
+
+      const key = [row.lead_id, route.targetAgentId, route.wakeType].join(":");
+      if (!groups.has(key)) {
+        groups.set(key, { route, rows: [] });
+      }
+      groups.get(key).rows.push(row);
+    }
+
+    let issuesCreated = 0;
+    let eventsWoken = 0;
+    for (const group of groups.values()) {
+      const timestamp = new Date().toISOString();
+      for (const row of group.rows) {
+        database
+          .prepare(
+            `insert into whatsapp_worker_wakes (
+              inbound_event_id, lead_id, target_agent_id, wake_type, status, created_at, updated_at
+            ) values (?, ?, ?, ?, ?, ?, ?)
+            on conflict(inbound_event_id, target_agent_id, wake_type) do update set
+              status = 'creating',
+              updated_at = excluded.updated_at`,
+          )
+          .run(
+            row.id,
+            row.lead_id,
+            group.route.targetAgentId,
+            group.route.wakeType,
+            "creating",
+            timestamp,
+            timestamp,
+          );
+      }
+
+      try {
+        const issue = createPaperclipIssue({
+          apiBase: options.apiBase,
+          companyId: options.companyId,
+          apiKey: options.apiKey,
+          runId: options.runId,
+          timeoutMs: options.timeoutMs,
+          payload: buildGroupedWakePayload(group.rows, group.route),
+        });
+        for (const row of group.rows) {
+          database
+            .prepare(
+              `update whatsapp_worker_wakes
+               set status = 'created',
+                   paperclip_issue_id = ?,
+                   paperclip_issue_identifier = ?,
+                   updated_at = ?
+               where inbound_event_id = ?
+                 and target_agent_id = ?
+                 and wake_type = ?`,
+            )
+            .run(
+              clean(issue.id),
+              clean(issue.identifier),
+              new Date().toISOString(),
+              row.id,
+              group.route.targetAgentId,
+              group.route.wakeType,
+            );
+        }
+        issuesCreated += 1;
+        eventsWoken += group.rows.length;
+      } catch (error) {
+        for (const row of group.rows) {
+          database
+            .prepare(
+              `update whatsapp_worker_wakes
+               set status = 'failed', updated_at = ?
+               where inbound_event_id = ?
+                 and target_agent_id = ?
+                 and wake_type = ?`,
+            )
+            .run(new Date().toISOString(), row.id, group.route.targetAgentId, group.route.wakeType);
+        }
+        throw error;
+      }
+    }
+
+    return { issuesCreated, eventsWoken, skipped, scanned: rows.length };
+  } finally {
+    database.close();
+  }
+}
+
+function readInboundRowsForWake(database, flags) {
+  if (flags["inbound-id"] && flags["chat-id"]) {
+    throw new Error("Informe apenas um filtro: --inbound-id ou --chat-id");
+  }
+  if (flags["inbound-id"]) {
+    return database
+      .prepare(
+        `select
+          e.*,
+          l.canonical_name as lead_name,
+          s.whatsapp_state
+         from whatsapp_inbound_events e
+         join leads l on l.id = e.lead_id
+         left join lead_conversation_state s on s.lead_id = e.lead_id
+         where e.id = ?
+         order by datetime(e.received_at), e.id`,
+      )
+      .all(parsePositiveInt(flags["inbound-id"], "--inbound-id"));
+  }
+  const chatId = clean(flags["chat-id"]);
+  if (!chatId) throw new Error("--chat-id ou --inbound-id obrigatorio");
+  return database
+    .prepare(
+      `select
+        e.*,
+        l.canonical_name as lead_name,
+        s.whatsapp_state
+       from whatsapp_inbound_events e
+       join leads l on l.id = e.lead_id
+       left join lead_conversation_state s on s.lead_id = e.lead_id
+       where e.chat_id = ?
+       order by datetime(e.received_at), e.id`,
+    )
+    .all(chatId);
+}
+
+function buildGroupedWakePayload(rows, route) {
+  const first = rows[0] ?? {};
+  const inboundIds = rows.map((row) => row.id).join(", ");
+  const messages = rows.map((row) => `- ${row.received_at} | inbound_event_id ${row.id}: ${row.body}`);
+  const closer = route.wakeType === WHATSAPP_CLOSER_WAKE_TYPE;
+  const noInterest = route.wakeType === WHATSAPP_NO_INTEREST_WAKE_TYPE;
+  const title = noInterest
+    ? `WhatsApp - ${first.lead_name}: ${rows.length === 1 ? "sem interesse reconciliado" : `${rows.length} respostas sem interesse reconciliadas`}`
+    : `WhatsApp - ${first.lead_name}: ${rows.length} resposta${rows.length === 1 ? "" : "s"} reconciliada${rows.length === 1 ? "" : "s"}`;
+  return {
+    title,
+    description: [
+      closer
+        ? "## Handoff WhatsApp para Jhon Snow"
+        : noInterest
+          ? "## Encerramento WhatsApp"
+          : "## ultimo inbound WhatsApp",
+      "",
+      `Lead: ${first.lead_name}`,
+      `chat_id: ${first.chat_id}`,
+      `classification: ${first.classification}`,
+      `whatsapp_state: ${first.whatsapp_state || "nao_definido"}`,
+      `inbound_event_ids: ${inboundIds}`,
+      "",
+      "## Mensagens recebidas",
+      "",
+      ...messages,
+      "",
+      "## Trabalho",
+      "",
+      ...workLinesForWhatsAppWake(route),
+      "- Nao envie WhatsApp. Nao chame bridge.",
+    ].join("\n"),
+    assigneeAgentId: route.targetAgentId,
+    priority: noInterest ? "medium" : "high",
+    status: "todo",
+  };
+}
+
 function whatsappWakeRouteForInbound(inbound, options) {
   const classification = clean(inbound.classification);
   const state = clean(inbound.whatsapp_state);
 
-  if (state === "encerrado" || classification === "resposta_sem_interesse") return null;
+  if (classification === "resposta_sem_interesse") {
+    return {
+      targetAgentId: options.atendimentoAgentId,
+      wakeType: WHATSAPP_NO_INTEREST_WAKE_TYPE,
+      payload: buildNoInterestWakePayload(inbound, options.atendimentoAgentId),
+    };
+  }
+
+  if (state === "encerrado") return null;
 
   if (shouldWakeCloser(classification, state)) {
     return {
@@ -355,6 +636,33 @@ function buildAtendimentoWakePayload(inbound, atendimentoAgentId) {
   };
 }
 
+function buildNoInterestWakePayload(inbound, atendimentoAgentId) {
+  return {
+    title: `WhatsApp - ${inbound.lead_name}: sem interesse`,
+    description: [
+      "## Encerramento WhatsApp",
+      "",
+      `Lead: ${inbound.lead_name}`,
+      `chat_id: ${inbound.chat_id}`,
+      `classification: ${inbound.classification}`,
+      `whatsapp_state: ${inbound.whatsapp_state || "nao_definido"}`,
+      `inbound_event_id: ${inbound.id}`,
+      "",
+      "## Mensagem recebida",
+      "",
+      inbound.body,
+      "",
+      "## Trabalho",
+      "",
+      ...workLinesForWhatsAppWake({ wakeType: WHATSAPP_NO_INTEREST_WAKE_TYPE }),
+      "- Nao envie WhatsApp. Nao chame bridge.",
+    ].join("\n"),
+    assigneeAgentId: atendimentoAgentId,
+    priority: "medium",
+    status: "todo",
+  };
+}
+
 function buildCloserWakePayload(inbound, closerAgentId) {
   return {
     title: `WhatsApp - ${inbound.lead_name}: ${labelForCloserWake(inbound)}`,
@@ -400,7 +708,32 @@ function labelForCloserWake(inbound) {
 function labelForWhatsAppClassification(classification) {
   if (classification === "resposta_permissao") return "respondeu Pode";
   if (classification === "resposta_pediu_exemplo") return "pediu exemplo";
+  if (classification === "resposta_sem_interesse") return "sem interesse";
   return "nova resposta";
+}
+
+function workLinesForWhatsAppWake(route) {
+  if (route.wakeType === WHATSAPP_CLOSER_WAKE_TYPE) {
+    return [
+      "- Assumir como Atendimento e Fechamento quando houver preco, objeção, lead quente, bloqueio de guardiao ou handoff.",
+      "- Preparar resposta comercial curta, contextual e segura; se precisar falar preco/proposta, manter criterio comercial.",
+      "- Registrar a resposta ou proxima acao no CRM/Paperclip.",
+    ];
+  }
+
+  if (route.wakeType === WHATSAPP_NO_INTEREST_WAKE_TYPE) {
+    return [
+      "- Registrar que o lead respondeu sem interesse e manter o historico do atendimento coerente.",
+      "- Nao criar Outbox por padrao; so propor resposta se houver necessidade operacional clara.",
+      "- Se houver resposta candidata, o Guardiao de Envio WhatsApp deve revisar antes de qualquer dispatch.",
+    ];
+  }
+
+  return [
+    "- Escrever resposta candidata curta, contextual e humanizada na Outbox WhatsApp.",
+    "- Usar contexto real do lead no CRM antes de propor a resposta.",
+    "- Depois da proposta, o Guardiao de Envio WhatsApp deve revisar antes de qualquer dispatch.",
+  ];
 }
 
 function createPaperclipIssue({ apiBase, companyId, apiKey, runId, timeoutMs, payload }) {
@@ -1348,6 +1681,13 @@ function printWahaEventResult(result, flags) {
   console.log(`WAHA evento ignorado: ${result.event || "desconhecido"}`);
 }
 
+function printWakeReconciledInboundResult(result) {
+  console.log(`Issues criadas: ${result.issuesCreated}`);
+  console.log(`Eventos acordados: ${result.eventsWoken}`);
+  console.log(`Ignorados: ${result.skipped}`);
+  console.log(`Analisados: ${result.scanned}`);
+}
+
 function serveWahaWebhook(root, flags) {
   validateServeWahaWebhookFlags(flags);
   const host = clean(flags.host || process.env.WHATSAPP_WAHA_WEBHOOK_HOST || "127.0.0.1");
@@ -1437,6 +1777,26 @@ function logWahaWebhookResult(result) {
     `failed=${result.failed ?? 0}`,
   ];
   console.log(`[waha-webhook] ${parts.join(" ")}`);
+}
+
+function validateWakeReconciledInboundFlags(flags) {
+  const allowed = new Set([
+    "chat-id",
+    "inbound-id",
+    "crm-db",
+    "paperclip-api-base",
+    "paperclip-company-id",
+    "paperclip-api-key",
+    "paperclip-run-id",
+    "atendimento-agent-id",
+    "closer-agent-id",
+    "timeout-ms",
+  ]);
+  for (const flag of Object.keys(flags)) {
+    if (!allowed.has(flag)) {
+      throw new Error(`Opcao desconhecida para wake-reconciled-inbound: --${flag}`);
+    }
+  }
 }
 
 function validateServeWahaWebhookFlags(flags) {

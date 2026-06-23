@@ -8,6 +8,8 @@ import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import {
+  executeWahaUnmatchedNoMatch,
+  executeWahaUnmatchedReconcile,
   executeCockpitAction,
   openCockpitDatabase,
   previewCommand,
@@ -86,6 +88,13 @@ function insertActiveSafeOutbox(root, name = "Aghata Massoterapia") {
   database.close();
 }
 
+function ingestUnknownWhatsApp(root, event) {
+  const eventFile = writeJson(root, `wa-unmatched-${Date.now()}-${Math.random()}.json`, event);
+  const result = runCrm(root, ["whatsapp", "inbound", "ingest", "--file", eventFile]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /WhatsApp inbound sem lead/i);
+}
+
 function setWhatsAppState(root, name, state) {
   const database = openScratchDatabase(root);
   database
@@ -145,6 +154,10 @@ test("cockpit summary and kanban read official SQLite views", () => {
     assert.equal(kanban.enviarAgora.length, 1);
     assert.equal(kanban.enviarAgora[0].canonicalName, "Aghata Massoterapia");
     assert.equal(kanban.enviarAgora[0].leadId > 0, true);
+    assert.equal(kanban.enviarAgora[0].phoneNormalized, "27999990000");
+
+    const detail = readLeadDetail(database, kanban.enviarAgora[0].leadId);
+    assert.equal(detail.phoneNormalized, "27999990000");
   } finally {
     database.close();
   }
@@ -377,6 +390,217 @@ test("waha summary treats delivery pending, ambiguous dispatch, and strong ACK s
   } finally {
     readOnly.close();
   }
+});
+
+test("waha summary exposes unmatched inbox and recent lead candidates", () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Ana Claudia Santos Matos Esteticista",
+    phone_or_contact: "+55 27 99747-6383",
+    status: "novo",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  approveManualLeadCard(root, "Ana Claudia Santos Matos Esteticista", "Oi, posso te mandar 3 sugestoes?");
+  assert.equal(
+    runCrm(root, ["lead", "mark-contacted", "--name", "Ana Claudia Santos Matos Esteticista"]).status,
+    0,
+  );
+  ingestUnknownWhatsApp(root, {
+    bridge_message_id: "lid-ana-001",
+    chat_id: "56405973332127@lid",
+    sender_name: "medmaisvitoria",
+    sender_phone: "56405973332127",
+    is_group: false,
+    message_type: "text",
+    body: "Boa noite. ela ja tem uma pessoa nessa area",
+    received_at: "2026-06-22T20:45:52.000Z",
+  });
+
+  const database = openCockpitDatabase({ root, readOnly: true });
+  try {
+    const waha = readWahaSummary(database);
+    assert.equal(waha.unmatchedOpen, 1);
+    assert.equal(waha.unmatched.length, 1);
+    assert.equal(waha.unmatched[0].chatId, "56405973332127@lid");
+    assert.equal(waha.unmatched[0].senderName, "medmaisvitoria");
+    assert.equal(waha.unmatched[0].classification, "resposta_recebida");
+    assert.match(waha.unmatched[0].body, /Boa noite/i);
+    assert.equal(waha.recentCandidates.length >= 1, true);
+    assert.equal(waha.recentCandidates[0].canonicalName, "Ana Claudia Santos Matos Esteticista");
+  } finally {
+    database.close();
+  }
+});
+
+test("waha unmatched reconcile blocks stale rows before mutating", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Ana Claudia Santos Matos Esteticista",
+    phone_or_contact: "+55 27 99747-6383",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  ingestUnknownWhatsApp(root, {
+    bridge_message_id: "lid-ana-stale-001",
+    chat_id: "56405973332127@lid",
+    sender_name: "medmaisvitoria",
+    sender_phone: "56405973332127",
+    is_group: false,
+    message_type: "text",
+    body: "obrigada",
+    received_at: "2026-06-22T20:45:54.000Z",
+  });
+
+  const database = openScratchDatabase(root);
+  const unmatched = database.prepare("select * from whatsapp_unmatched_inbound_events").get();
+  const lead = database.prepare("select id from leads where canonical_name = ?").get("Ana Claudia Santos Matos Esteticista");
+  database.close();
+
+  const result = await executeWahaUnmatchedReconcile({
+    root,
+    unmatchedId: unmatched.id,
+    leadId: lead.id,
+    expectedUpdatedAt: "2026-01-01T00:00:00.000Z",
+    confirmed: true,
+    runCommand: (args) => runCrm(root, args),
+    runGatewayCommand: () => {
+      throw new Error("gateway should not run for stale rows");
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "unmatched_changed");
+
+  const after = openScratchDatabase(root);
+  assert.equal(after.prepare("select count(*) as count from whatsapp_identity_aliases").get().count, 0);
+  assert.equal(after.prepare("select status from whatsapp_unmatched_inbound_events").get().status, "unmatched");
+  after.close();
+});
+
+test("waha unmatched reconcile links identity, reconciles chat, and calls grouped wake", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  seedLead(root, {
+    canonical_name: "Ana Claudia Santos Matos Esteticista",
+    phone_or_contact: "+55 27 99747-6383",
+    recommended_offer: "Presenca Local em 72h",
+  });
+  for (const event of [
+    {
+      bridge_message_id: "lid-ana-002",
+      chat_id: "56405973332127@lid",
+      sender_name: "medmaisvitoria",
+      sender_phone: "56405973332127",
+      is_group: false,
+      message_type: "text",
+      body: "Boa noite. ela ja tem uma pessoa nessa area",
+      received_at: "2026-06-22T20:45:52.000Z",
+    },
+    {
+      bridge_message_id: "lid-ana-003",
+      chat_id: "56405973332127@lid",
+      sender_name: "medmaisvitoria",
+      sender_phone: "56405973332127",
+      is_group: false,
+      message_type: "text",
+      body: "obrigada",
+      received_at: "2026-06-22T20:45:54.000Z",
+    },
+  ]) {
+    ingestUnknownWhatsApp(root, event);
+  }
+
+  const database = openScratchDatabase(root);
+  const unmatched = database
+    .prepare("select * from whatsapp_unmatched_inbound_events order by id limit 1")
+    .get();
+  const lead = database.prepare("select id from leads where canonical_name = ?").get("Ana Claudia Santos Matos Esteticista");
+  database.close();
+  const gatewayCalls = [];
+
+  const result = await executeWahaUnmatchedReconcile({
+    root,
+    unmatchedId: unmatched.id,
+    leadId: lead.id,
+    expectedUpdatedAt: unmatched.updated_at,
+    confirmed: true,
+    runCommand: (args) => runCrm(root, args),
+    runGatewayCommand: (args) => {
+      gatewayCalls.push(args);
+      return { status: 0, stdout: "Issues criadas: 1\nEventos acordados: 2\n", stderr: "" };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.reconciled, 2);
+  assert.equal(gatewayCalls.length, 1);
+  assert.deepEqual(gatewayCalls[0], ["wake-reconciled-inbound", "--chat-id", "56405973332127@lid"]);
+
+  const after = openScratchDatabase(root);
+  assert.equal(
+    after.prepare("select identity_value from whatsapp_identity_aliases").get().identity_value,
+    "56405973332127@lid",
+  );
+  assert.equal(after.prepare("select count(*) as count from whatsapp_inbound_events").get().count, 2);
+  assert.equal(
+    after.prepare("select count(*) as count from whatsapp_unmatched_inbound_events where status = 'reconciled'").get()
+      .count,
+    2,
+  );
+  after.close();
+});
+
+test("waha unmatched no-match marks entire chat with required reason", async () => {
+  const root = makeRoot();
+  assert.equal(runCrm(root, ["init"]).status, 0);
+  for (const event of [
+    {
+      bridge_message_id: "lid-personal-001",
+      chat_id: "personal@lid",
+      sender_name: "contato pessoal",
+      sender_phone: "123",
+      is_group: false,
+      message_type: "text",
+      body: "oi",
+      received_at: "2026-06-22T20:45:52.000Z",
+    },
+    {
+      bridge_message_id: "lid-personal-002",
+      chat_id: "personal@lid",
+      sender_name: "contato pessoal",
+      sender_phone: "123",
+      is_group: false,
+      message_type: "text",
+      body: "tudo bem?",
+      received_at: "2026-06-22T20:45:54.000Z",
+    },
+  ]) {
+    ingestUnknownWhatsApp(root, event);
+  }
+
+  const database = openScratchDatabase(root);
+  const unmatched = database.prepare("select * from whatsapp_unmatched_inbound_events order by id limit 1").get();
+  database.close();
+
+  const result = await executeWahaUnmatchedNoMatch({
+    root,
+    unmatchedId: unmatched.id,
+    expectedUpdatedAt: unmatched.updated_at,
+    reason: "conversa pessoal sem lead comercial",
+    runCommand: (args) => runCrm(root, args),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.marked, 2);
+
+  const after = openScratchDatabase(root);
+  assert.equal(
+    after.prepare("select count(*) as count from whatsapp_unmatched_inbound_events where status = 'no_match'").get()
+      .count,
+    2,
+  );
+  after.close();
 });
 
 test("cockpit search includes closed leads and resolves by lead id", () => {
@@ -1056,6 +1280,9 @@ test("cockpit server serves private frontend shell", async () => {
     assert.match(html, /Freela Cockpit/);
     assert.match(html, /Console/);
     assert.match(html, /Painel WAHA|WAHA/);
+    assert.match(html, /lead-list/);
+    assert.match(html, /detail-panel/);
+    assert.match(html, /mode-tabs/);
     assert.match(html, /\/app\.js/);
   } finally {
     await closeServer(server);
@@ -1251,6 +1478,37 @@ test("cockpit frontend exposes Paperclip retry only through local API", async ()
   assert.match(app, /enterPaperclipRecoveryMode/);
   assert.match(app, /clearActionSurface/);
   assert.doesNotMatch(app, /\/api\/sendText|whatsapp-local-gateway/i);
+});
+
+test("cockpit frontend exposes list detail and safe quick enviado action", async () => {
+  const app = await readServedCockpitApp();
+
+  assert.match(app, /renderLeadList/);
+  assert.match(app, /renderSelectedDetail/);
+  assert.match(app, /data-open-whatsapp/);
+  assert.match(app, /https:\/\/wa\.me\//);
+  assert.match(app, /buildWhatsAppUrl/);
+  assert.match(app, /data-copy-message/);
+  assert.match(app, /data-confirm-send/);
+  assert.match(app, /data-submit-send/);
+  assert.match(app, /Confirmar que voce enviou manualmente/);
+  assert.match(app, /\/api\/actions\/enviado/);
+  assert.match(app, /expectedStage:\s*card\.commercialStage/);
+  assert.doesNotMatch(app, /\/api\/sendText|whatsapp-local-gateway/i);
+});
+
+test("cockpit frontend exposes WAHA unmatched inbox without direct send route", async () => {
+  const app = await readServedCockpitApp();
+
+  assert.match(app, /Mensagens sem identidade/);
+  assert.match(app, /data-waha-reconcile/);
+  assert.match(app, /data-waha-reconcile-ready/);
+  assert.match(app, /data-waha-no-match/);
+  assert.match(app, /\/api\/waha\/unmatched\/reconcile/);
+  assert.match(app, /\/api\/waha\/unmatched\/no-match/);
+  assert.match(app, /expectedUpdatedAt/);
+  assert.match(app, /Conciliar \+ acordar agente/);
+  assert.doesNotMatch(app, /\/api\/sendText|sendText|whatsapp-local-gateway/i);
 });
 
 test("cockpit frontend warns and blocks stale modal actions", async () => {

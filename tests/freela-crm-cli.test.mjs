@@ -2336,6 +2336,110 @@ test("whatsapp inbound desconhecido entra na fila unmatched e reconcilia apos vi
   assert.equal(reconciled.matched_inbound_event_id, inbound.id);
 });
 
+test("whatsapp identity link aceita lead-id e unmatched reconcile filtra por id e chat-id", () => {
+  const root = makeRoot();
+  assert.equal(run(root, ["init"]).status, 0);
+
+  upsertLead(root, {
+    canonical_name: "Ana Claudia Santos Matos Esteticista",
+    phone_or_contact: "+55 27 99747-6383",
+    recommended_offer: "Presenca Local em 72h",
+  });
+
+  const events = [
+    {
+      bridge_message_id: "lid-filter-001",
+      chat_id: "56405973332127@lid",
+      sender_name: "medmaisvitoria",
+      sender_phone: "56405973332127",
+      is_group: false,
+      message_type: "text",
+      body: "Boa noite",
+      received_at: "2026-06-21T09:32:27-03:00",
+    },
+    {
+      bridge_message_id: "lid-filter-002",
+      chat_id: "56405973332127@lid",
+      sender_name: "medmaisvitoria",
+      sender_phone: "56405973332127",
+      is_group: false,
+      message_type: "text",
+      body: "obrigada",
+      received_at: "2026-06-21T09:33:27-03:00",
+    },
+    {
+      bridge_message_id: "lid-filter-other",
+      chat_id: "999999@lid",
+      sender_name: "outro",
+      sender_phone: "999999",
+      is_group: false,
+      message_type: "text",
+      body: "oi",
+      received_at: "2026-06-21T09:34:27-03:00",
+    },
+  ];
+  for (const [index, event] of events.entries()) {
+    const file = writeJson(root, `wa-filter-${index}.json`, event);
+    const ingest = run(root, ["whatsapp", "inbound", "ingest", "--file", file]);
+    assert.equal(ingest.status, 0, ingest.stderr);
+    assert.match(ingest.stdout, /WhatsApp inbound sem lead/i);
+  }
+
+  let database = db(root);
+  const lead = database.prepare("select id from leads where canonical_name = ?").get("Ana Claudia Santos Matos Esteticista");
+  const first = database
+    .prepare("select id from whatsapp_unmatched_inbound_events where bridge_message_id = ?")
+    .get("lid-filter-001");
+  database.close();
+
+  const link = run(root, [
+    "whatsapp",
+    "identity",
+    "link",
+    "--lead-id",
+    String(lead.id),
+    "--identity",
+    "56405973332127@lid",
+    "--source",
+    "teste",
+  ]);
+  assert.equal(link.status, 0, link.stderr);
+  assert.match(link.stdout, /Identidade WhatsApp vinculada/i);
+
+  const one = run(root, ["whatsapp", "unmatched", "reconcile", "--id", String(first.id)]);
+  assert.equal(one.status, 0, one.stderr);
+  assert.match(one.stdout, /Reconciliados: 1/i);
+  assert.match(one.stdout, /Pendentes: 0/i);
+
+  database = db(root);
+  assert.equal(
+    database.prepare("select status from whatsapp_unmatched_inbound_events where bridge_message_id = ?").get(
+      "lid-filter-001",
+    ).status,
+    "reconciled",
+  );
+  assert.equal(
+    database.prepare("select status from whatsapp_unmatched_inbound_events where bridge_message_id = ?").get(
+      "lid-filter-002",
+    ).status,
+    "unmatched",
+  );
+  database.close();
+
+  const chat = run(root, ["whatsapp", "unmatched", "reconcile", "--chat-id", "56405973332127@lid"]);
+  assert.equal(chat.status, 0, chat.stderr);
+  assert.match(chat.stdout, /Reconciliados: 1/i);
+
+  database = db(root);
+  assert.equal(database.prepare("select count(*) as count from whatsapp_inbound_events").get().count, 2);
+  assert.equal(
+    database.prepare("select count(*) as count from whatsapp_unmatched_inbound_events where status = 'unmatched'").get()
+      .count,
+    1,
+  );
+  database.close();
+});
+
 test("whatsapp unmatched mark-no-match preserva inbound sem lead comercial e tira da conciliacao", () => {
   const root = makeRoot();
   assert.equal(run(root, ["init"]).status, 0);
@@ -2557,6 +2661,35 @@ test("whatsapp outbox propose cria resposta candidata sem enviar", () => {
   assert.equal(row.status, "pending_guardian");
   assert.equal(row.target_chat_id, "5527999990000@s.whatsapp.net");
   assert.equal(row.source, "atendimento-whatsapp");
+});
+
+test("whatsapp outbox propose normaliza quebras escapadas antes do guardiao", () => {
+  const root = makeWhatsAppLeadRoot("wa-outbox-escaped-newlines-001");
+  const escapedBody =
+    "Perfeito.\\n\\n1. ponto simples para ajustar\\n2. outro ponto simples";
+  const expectedBody = "Perfeito.\n\n1. ponto simples para ajustar\n2. outro ponto simples";
+
+  const outbox = proposeSafeWhatsApp(root, "Aghata Massoterapia", escapedBody);
+  assert.equal(outbox.body, expectedBody);
+  assert.equal(outbox.body.includes("\\n"), false);
+
+  const review = runNode([
+    crm,
+    "--root",
+    root,
+    "whatsapp",
+    "guardian",
+    "review",
+    "--outbox-id",
+    String(outbox.id),
+  ]);
+  assert.equal(review.status, 0, review.stderr);
+  assert.match(review.stdout, /bloqueado/i);
+
+  const database = db(root);
+  const reviewed = database.prepare("select * from whatsapp_outbox where id = ?").get(outbox.id);
+  database.close();
+  assert.match(reviewed.guardian_reason, /lista artificial/i);
 });
 
 test("guardian review auto-wakes Jhon once for repairable WhatsApp block", async () => {

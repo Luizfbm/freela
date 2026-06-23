@@ -6,6 +6,8 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  executeWahaUnmatchedNoMatch,
+  executeWahaUnmatchedReconcile,
   executeCockpitAction,
   openCockpitDatabase,
   previewCommand,
@@ -22,6 +24,7 @@ const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = dirname(SCRIPT_DIR);
 const CRM_SCRIPT = join(SCRIPT_DIR, "freela-crm.mjs");
+const WAHA_GATEWAY_SCRIPT = join(SCRIPT_DIR, "whatsapp-local-gateway.mjs");
 const OPERATIONAL_SURFACES_SCRIPT = join(SCRIPT_DIR, "paperclip-sync-operational-surfaces.mjs");
 
 const MIME = new Map([
@@ -44,11 +47,13 @@ export function createCockpitServer({
   port = DEFAULT_PORT,
   dbPath = null,
   operationalSurfacesScript = OPERATIONAL_SURFACES_SCRIPT,
+  wahaGatewayScript = WAHA_GATEWAY_SCRIPT,
 } = {}) {
   assertLoopbackHost(host);
   const resolvedRoot = resolve(root);
   const publicDir = resolve(resolvedRoot, "dev/freela-cockpit");
   const resolvedOperationalSurfacesScript = resolve(operationalSurfacesScript ?? OPERATIONAL_SURFACES_SCRIPT);
+  const resolvedWahaGatewayScript = resolve(wahaGatewayScript ?? WAHA_GATEWAY_SCRIPT);
 
   const server = createServer(async (request, response) => {
     try {
@@ -61,6 +66,7 @@ export function createCockpitServer({
           root: resolvedRoot,
           dbPath,
           operationalSurfacesScript: resolvedOperationalSurfacesScript,
+          wahaGatewayScript: resolvedWahaGatewayScript,
         });
         return;
       }
@@ -78,7 +84,7 @@ export function createCockpitServer({
   return enforceLoopbackListen(server, host);
 }
 
-async function handleApi({ request, response, url, root, dbPath, operationalSurfacesScript }) {
+async function handleApi({ request, response, url, root, dbPath, operationalSurfacesScript, wahaGatewayScript }) {
   const postBlocker = validatePostRequest({ request });
   if (postBlocker) {
     sendJson(response, postBlocker.status, postBlocker.payload);
@@ -127,6 +133,34 @@ async function handleApi({ request, response, url, root, dbPath, operationalSurf
     return withReadDb({ root, dbPath }, (database) =>
       sendJson(response, 200, { ok: true, waha: readWahaSummary(database) }),
     );
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/waha/unmatched/reconcile") {
+    const body = await readJsonBody(request);
+    const result = await executeWahaUnmatchedReconcile({
+      root,
+      dbPath,
+      unmatchedId: body.unmatchedId,
+      leadId: body.leadId,
+      expectedUpdatedAt: body.expectedUpdatedAt,
+      confirmed: body.confirmed,
+      runCommand: (args) => runCrmCommand({ root, dbPath, args }),
+      runGatewayCommand: (args) => runWahaGatewayCommand({ root, dbPath, wahaGatewayScript, args }),
+    });
+    return sendJson(response, result.ok ? 200 : 409, { ok: result.ok, result });
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/waha/unmatched/no-match") {
+    const body = await readJsonBody(request);
+    const result = await executeWahaUnmatchedNoMatch({
+      root,
+      dbPath,
+      unmatchedId: body.unmatchedId,
+      expectedUpdatedAt: body.expectedUpdatedAt,
+      reason: body.reason,
+      runCommand: (args) => runCrmCommand({ root, dbPath, args }),
+    });
+    return sendJson(response, result.ok ? 200 : 409, { ok: result.ok, result });
   }
 
   if (request.method === "POST" && url.pathname === "/api/command/preview") {
@@ -362,6 +396,13 @@ function runCrmCommand({ root, dbPath, args }) {
   });
 }
 
+function runWahaGatewayCommand({ root, dbPath, wahaGatewayScript = WAHA_GATEWAY_SCRIPT, args }) {
+  return runNode({
+    args: [wahaGatewayScript, "--root", root, ...args, ...optionalCrmDb(dbPath)],
+    cwd: PROJECT_ROOT,
+  });
+}
+
 function syncOperationalSurfaces({ root, operationalSurfacesScript = OPERATIONAL_SURFACES_SCRIPT }) {
   if (!existsSync(operationalSurfacesScript)) {
     return Promise.resolve({
@@ -379,6 +420,10 @@ function syncOperationalSurfaces({ root, operationalSurfacesScript = OPERATIONAL
 
 function optionalDb(dbPath) {
   return dbPath ? ["--db", dbPath] : [];
+}
+
+function optionalCrmDb(dbPath) {
+  return dbPath ? ["--crm-db", dbPath] : [];
 }
 
 function runNode({ args, cwd }) {

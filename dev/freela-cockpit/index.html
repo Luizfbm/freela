@@ -26,41 +26,68 @@
         <p class="empty-state">Carregando indicadores.</p>
       </section>
 
-      <section class="search-panel" aria-label="Busca global">
-        <div class="panel-heading">
-          <label for="lead-search">Buscar lead</label>
-          <span id="search-state" class="subtle">Todos os status</span>
-        </div>
-        <input id="lead-search" type="search" name="q" placeholder="Nome, contato, cidade, status" autocomplete="off">
-        <div id="search-results" class="search-results" aria-live="polite"></div>
+      <section class="top-tools" aria-label="Ferramentas">
+        <section class="search-panel" aria-label="Busca global">
+          <div class="panel-heading">
+            <label for="lead-search">Buscar lead</label>
+            <span id="search-state" class="subtle">Todos os status</span>
+          </div>
+          <input id="lead-search" type="search" name="q" placeholder="Nome, contato, cidade, status" autocomplete="off">
+          <div id="search-results" class="search-results" aria-live="polite"></div>
+        </section>
+
+        <section class="command-panel" aria-label="Console de comando">
+          <div class="panel-heading">
+            <label for="command-input">Console</label>
+            <span class="subtle">Preview sem mutacao</span>
+          </div>
+          <div class="command-row">
+            <input id="command-input" type="text" placeholder="enviado Nome do Lead" autocomplete="off">
+            <button id="preview-command" class="button secondary" type="button">Preview</button>
+          </div>
+          <div id="command-preview" class="command-preview" aria-live="polite"></div>
+        </section>
       </section>
 
-      <section id="kanban" class="kanban" aria-label="Kanban operacional">
-        <p class="empty-state">Carregando kanban.</p>
-      </section>
+      <section class="ops-shell" aria-label="Operacao diaria">
+        <nav id="mode-tabs" class="mode-tabs" aria-label="Modos do cockpit"></nav>
 
-      <section class="command-panel" aria-label="Console de comando">
-        <div class="panel-heading">
-          <label for="command-input">Console</label>
-          <span class="subtle">Preview sem mutacao</span>
+        <div class="ops-grid">
+          <section class="queue-panel" aria-labelledby="queue-title">
+            <div class="queue-header">
+              <div>
+                <p class="eyebrow">Fila ativa</p>
+                <h2 id="queue-title">Enviar hoje</h2>
+                <p id="queue-subtitle" class="subtle">Leads com mensagem pronta para envio manual.</p>
+              </div>
+              <span id="mode-count" class="count-pill">0</span>
+            </div>
+            <div id="lead-list" class="lead-list" aria-live="polite">
+              <p class="empty-state">Carregando leads.</p>
+            </div>
+          </section>
+
+          <aside id="detail-panel" class="detail-panel" aria-label="Detalhe do lead">
+            <section class="waha-rail" aria-label="Painel WAHA">
+              <div class="panel-heading">
+                <h2>Painel WAHA</h2>
+                <span class="subtle">Outbox</span>
+              </div>
+              <div id="waha-summary" class="waha-summary" aria-live="polite">
+                <p class="empty-state">Carregando WAHA.</p>
+              </div>
+            </section>
+
+            <div id="detail-empty" class="detail-empty">
+              <p class="eyebrow">Detalhe</p>
+              <h2>Selecione um lead</h2>
+              <p class="subtle">A linha abre mensagem, canal, observacoes e acoes sem trocar de tela.</p>
+            </div>
+            <div id="detail-body" class="lead-detail hidden"></div>
+          </aside>
         </div>
-        <div class="command-row">
-          <input id="command-input" type="text" placeholder="enviado Nome do Lead" autocomplete="off">
-          <button id="preview-command" class="button secondary" type="button">Preview</button>
-        </div>
-        <div id="command-preview" class="command-preview" aria-live="polite"></div>
       </section>
     </section>
-
-    <aside class="waha-panel" aria-label="Painel WAHA">
-      <div class="panel-heading">
-        <h2>WAHA</h2>
-        <span class="subtle">Outbox</span>
-      </div>
-      <div id="waha-summary" class="waha-summary" aria-live="polite">
-        <p class="empty-state">Carregando WAHA.</p>
-      </div>
-    </aside>
   </main>
 
   <div id="lead-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="lead-modal-title">

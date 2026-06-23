@@ -1907,6 +1907,345 @@ test("gateway auto-wake cria task Paperclip para inbound Pode e resposta comum s
   }
 });
 
+test("gateway auto-wake cria task Paperclip para resposta sem interesse sem propor envio", async () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+  const leadFile = join(root, "lead.json");
+  writeFileSync(
+    leadFile,
+    JSON.stringify([
+      {
+        canonical_name: "Espaço Viver Pilates Sabrina Cecato",
+        phone_or_contact: "+55 27 99878-8631",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]),
+  );
+  assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
+
+  const inboundFile = join(root, "waha-no-interest.json");
+  writeFileSync(
+    inboundFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_5527998788631@c.us_3EB0WAHANOINTEREST",
+        from: "5527998788631@c.us",
+        fromMe: false,
+        body: "No momento o Studio não tem interesse. Obrigada!",
+        notifyName: "Espaço Viver Pilates",
+        timestamp: "2026-06-22T19:21:23-03:00",
+      },
+    }),
+  );
+
+  const paperclip = await withPaperclipServer((req, res) => {
+    assert.equal(req.method, "POST");
+    assert.equal(req.url, "/api/companies/company-test/issues");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ id: "issue-no-interest-1", identifier: "FRE-NO-INTEREST-1" }));
+  });
+
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "import-waha-event",
+      "--file",
+      inboundFile,
+      "--auto-wake",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--atendimento-agent-id",
+      "agent-atendimento-test",
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Importados: 1/i);
+    assert.match(result.stdout, /Auto-wakes: 1/i);
+    assert.equal(paperclip.requests.length, 1);
+    assert.equal(paperclip.requests[0].body.assigneeAgentId, "agent-atendimento-test");
+    assert.equal(paperclip.requests[0].body.priority, "medium");
+    assert.match(paperclip.requests[0].body.title, /sem interesse/i);
+    assert.match(paperclip.requests[0].body.description, /Encerramento WhatsApp/i);
+    assert.match(paperclip.requests[0].body.description, /Nao criar Outbox por padrao/i);
+    assert.match(paperclip.requests[0].body.description, /Nao envie WhatsApp|Nao chame bridge/i);
+
+    const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+    const inbound = database.prepare("select * from whatsapp_inbound_events").get();
+    const state = database.prepare("select * from lead_conversation_state").get();
+    const wake = database.prepare("select * from whatsapp_worker_wakes").get();
+    assert.equal(inbound.classification, "resposta_sem_interesse");
+    assert.equal(state.whatsapp_state, "encerrado");
+    assert.equal(wake.wake_type, "whatsapp_no_interest");
+    assert.equal(wake.paperclip_issue_identifier, "FRE-NO-INTEREST-1");
+    assert.equal(database.prepare("select count(*) as count from whatsapp_outbox").get().count, 0);
+    database.close();
+  } finally {
+    await paperclip.close();
+  }
+});
+
+test("gateway auto-wake deduplica mensagens sequenciais do mesmo chat em janela curta", async () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+  const leadFile = join(root, "lead.json");
+  writeFileSync(
+    leadFile,
+    JSON.stringify([
+      {
+        canonical_name: "Espaco Marilsa Gama",
+        phone_or_contact: "+55 27 99999-0000",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]),
+  );
+  assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
+
+  const firstInboundFile = join(root, "waha-auto-burst-001.json");
+  writeFileSync(
+    firstInboundFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_5527999990000@c.us_3EB0WAHABURST001",
+        from: "5527999990000@c.us",
+        fromMe: false,
+        body: "Boa noite",
+        notifyName: "Espaco Marilsa Gama",
+        timestamp: "2026-06-21T09:32:27-03:00",
+      },
+    }),
+  );
+  const secondInboundFile = join(root, "waha-auto-burst-002.json");
+  writeFileSync(
+    secondInboundFile,
+    JSON.stringify({
+      event: "message",
+      session: "default",
+      payload: {
+        id: "false_5527999990000@c.us_3EB0WAHABURST002",
+        from: "5527999990000@c.us",
+        fromMe: false,
+        body: "Sim",
+        notifyName: "Espaco Marilsa Gama",
+        timestamp: "2026-06-21T09:32:29-03:00",
+      },
+    }),
+  );
+
+  const paperclip = await withPaperclipServer((_req, res, requests) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ id: `issue-test-${requests.length}`, identifier: `FRE-TEST-${requests.length}` }));
+  });
+
+  try {
+    const commonArgs = [
+      "--auto-wake",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--atendimento-agent-id",
+      "agent-atendimento-test",
+    ];
+    const first = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "import-waha-event",
+      "--file",
+      firstInboundFile,
+      ...commonArgs,
+    ]);
+    assert.equal(first.status, 0, first.stderr);
+    assert.match(first.stdout, /Auto-wakes: 1/i);
+
+    const second = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "import-waha-event",
+      "--file",
+      secondInboundFile,
+      ...commonArgs,
+    ]);
+    assert.equal(second.status, 0, second.stderr);
+    assert.match(second.stdout, /Auto-wakes: 0/i);
+    assert.equal(paperclip.requests.length, 1);
+
+    const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+    const wakes = database
+      .prepare(
+        `select inbound_event_id, paperclip_issue_id, paperclip_issue_identifier, status
+         from whatsapp_worker_wakes
+         order by inbound_event_id`,
+      )
+      .all()
+      .map((row) => ({ ...row }));
+    database.close();
+
+    assert.deepEqual(wakes, [
+      {
+        inbound_event_id: 1,
+        paperclip_issue_id: "issue-test-1",
+        paperclip_issue_identifier: "FRE-TEST-1",
+        status: "created",
+      },
+      {
+        inbound_event_id: 2,
+        paperclip_issue_id: "issue-test-1",
+        paperclip_issue_identifier: "FRE-TEST-1",
+        status: "created",
+      },
+    ]);
+  } finally {
+    await paperclip.close();
+  }
+});
+
+test("gateway wake-reconciled-inbound agrupa eventos reconciliados do mesmo chat em uma issue", async () => {
+  const root = makeRoot();
+  assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
+  const leadFile = join(root, "lead.json");
+  writeFileSync(
+    leadFile,
+    JSON.stringify([
+      {
+        canonical_name: "Ana Claudia Santos Matos Esteticista",
+        phone_or_contact: "+55 27 99747-6383",
+        recommended_offer: "Presenca Local em 72h",
+      },
+    ]),
+  );
+  assert.equal(runNode([crm, "--root", root, "lead", "upsert", "--file", leadFile]).status, 0);
+  assert.equal(
+    runNode([
+      crm,
+      "--root",
+      root,
+      "whatsapp",
+      "identity",
+      "link",
+      "--name",
+      "Ana Claudia Santos Matos Esteticista",
+      "--identity",
+      "56405973332127@lid",
+    ]).status,
+    0,
+  );
+
+  for (const [index, event] of [
+    {
+      bridge_message_id: "lid-wake-001",
+      chat_id: "56405973332127@lid",
+      sender_name: "medmaisvitoria",
+      sender_phone: "56405973332127",
+      is_group: false,
+      message_type: "text",
+      body: "Boa noite. ela ja tem uma pessoa nessa area",
+      received_at: "2026-06-22T20:45:52.000Z",
+    },
+    {
+      bridge_message_id: "lid-wake-002",
+      chat_id: "56405973332127@lid",
+      sender_name: "medmaisvitoria",
+      sender_phone: "56405973332127",
+      is_group: false,
+      message_type: "text",
+      body: "obrigada",
+      received_at: "2026-06-22T20:45:54.000Z",
+    },
+  ].entries()) {
+    const file = join(root, `inbound-${index}.json`);
+    writeFileSync(file, JSON.stringify(event));
+    const ingest = runNode([crm, "--root", root, "whatsapp", "inbound", "ingest", "--file", file]);
+    assert.equal(ingest.status, 0, ingest.stderr);
+    assert.match(ingest.stdout, /WhatsApp inbound registrado/i);
+  }
+
+  const paperclip = await withPaperclipServer((req, res, requests) => {
+    assert.equal(req.method, "POST");
+    assert.equal(req.url, "/api/companies/company-test/issues");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ id: `issue-group-${requests.length}`, identifier: `FRE-GROUP-${requests.length}` }));
+  });
+
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "wake-reconciled-inbound",
+      "--chat-id",
+      "56405973332127@lid",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--atendimento-agent-id",
+      "agent-atendimento-test",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Issues criadas: 1/i);
+    assert.match(result.stdout, /Eventos acordados: 2/i);
+    assert.equal(paperclip.requests.length, 1);
+    assert.equal(paperclip.requests[0].body.assigneeAgentId, "agent-atendimento-test");
+    assert.match(paperclip.requests[0].body.title, /Ana Claudia Santos Matos/i);
+    assert.match(paperclip.requests[0].body.description, /inbound_event_ids: 1, 2/i);
+    assert.match(paperclip.requests[0].body.description, /Boa noite/i);
+    assert.match(paperclip.requests[0].body.description, /obrigada/i);
+    assert.doesNotMatch(JSON.stringify(paperclip.requests[0].body), /sendText|send_message/i);
+
+    const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
+    const wakes = database
+      .prepare("select inbound_event_id, paperclip_issue_id, paperclip_issue_identifier, status from whatsapp_worker_wakes order by inbound_event_id")
+      .all()
+      .map((row) => ({ ...row }));
+    assert.deepEqual(wakes, [
+      {
+        inbound_event_id: 1,
+        paperclip_issue_id: "issue-group-1",
+        paperclip_issue_identifier: "FRE-GROUP-1",
+        status: "created",
+      },
+      {
+        inbound_event_id: 2,
+        paperclip_issue_id: "issue-group-1",
+        paperclip_issue_identifier: "FRE-GROUP-1",
+        status: "created",
+      },
+    ]);
+    database.close();
+
+    const again = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "wake-reconciled-inbound",
+      "--chat-id",
+      "56405973332127@lid",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--atendimento-agent-id",
+      "agent-atendimento-test",
+    ]);
+    assert.equal(again.status, 0, again.stderr);
+    assert.match(again.stdout, /Issues criadas: 0/i);
+    assert.match(again.stdout, /Eventos acordados: 0/i);
+    assert.equal(paperclip.requests.length, 1);
+  } finally {
+    await paperclip.close();
+  }
+});
+
 test("gateway auto-wake roteia preco e lead quente para Jhon Snow", async () => {
   const root = makeRoot();
   assert.equal(runNode([crm, "--root", root, "init"]).status, 0);

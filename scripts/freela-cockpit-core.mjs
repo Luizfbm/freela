@@ -48,27 +48,51 @@ export function readKanban(database, options = {}) {
   return {
     enviarAgora: manualReadyLeadCards(database).map(mapLeadContextRow),
     followupResposta: database
-      .prepare("select * from commercial_followups_today order by updated_at, canonical_name")
+      .prepare(
+        `select c.*, l.phone_normalized
+         from commercial_followups_today c
+         join leads l on l.id = c.lead_id
+         order by c.updated_at, c.canonical_name`,
+      )
       .all()
       .map(mapLeadContextRow),
     aguardandoWorker: [
-      ...database.prepare("select * from commercial_ready_for_writer order by canonical_name").all(),
       ...database
-        .prepare("select * from commercial_pending_qa where queue_date = ? order by canonical_name")
+        .prepare(
+          `select c.*, l.phone_normalized
+           from commercial_ready_for_writer c
+           join leads l on l.id = c.lead_id
+           order by c.canonical_name`,
+        )
+        .all(),
+      ...database
+        .prepare(
+          `select c.*, l.phone_normalized
+           from commercial_pending_qa c
+           join leads l on l.id = c.lead_id
+           where c.queue_date = ?
+           order by c.canonical_name`,
+        )
         .all(queueDate),
     ].map(mapLeadContextRow).concat(readActiveWorkerHandoffs(database)),
     bloqueados: database
-      .prepare("select * from commercial_pending_validation order by canonical_name")
+      .prepare(
+        `select c.*, l.phone_normalized
+         from commercial_pending_validation c
+         join leads l on l.id = c.lead_id
+         order by c.canonical_name`,
+      )
       .all()
       .map(mapLeadContextRow)
       .concat(readWahaBlockers(database)),
     revisar: database
       .prepare(
-        `select *
-         from commercial_lead_context
-         where commercial_stage = 'review'
-            or status = 'reanalisar'
-         order by updated_at desc, canonical_name`,
+        `select c.*, l.phone_normalized
+         from commercial_lead_context c
+         join leads l on l.id = c.lead_id
+         where c.commercial_stage = 'review'
+            or c.status = 'reanalisar'
+         order by c.updated_at desc, c.canonical_name`,
       )
       .all()
       .map(mapLeadContextRow),
@@ -80,25 +104,26 @@ export function searchLeads(database, { q = "", limit = 50 } = {}) {
   const term = `%${query}%`;
   const rows = database
     .prepare(
-      `select *
-       from commercial_lead_context
-       where lower(coalesce(canonical_name, '')) like ?
-          or lower(coalesce(phone_or_contact, '')) like ?
-          or lower(coalesce(contact_path, '')) like ?
-          or lower(coalesce(instagram, '')) like ?
-          or lower(coalesce(city, '')) like ?
-          or lower(coalesce(area, '')) like ?
-          or lower(coalesce(category, '')) like ?
-          or lower(coalesce(status, '')) like ?
-          or lower(coalesce(commercial_stage, '')) like ?
+      `select c.*, l.phone_normalized
+       from commercial_lead_context c
+       join leads l on l.id = c.lead_id
+       where lower(coalesce(c.canonical_name, '')) like ?
+          or lower(coalesce(c.phone_or_contact, '')) like ?
+          or lower(coalesce(c.contact_path, '')) like ?
+          or lower(coalesce(c.instagram, '')) like ?
+          or lower(coalesce(c.city, '')) like ?
+          or lower(coalesce(c.area, '')) like ?
+          or lower(coalesce(c.category, '')) like ?
+          or lower(coalesce(c.status, '')) like ?
+          or lower(coalesce(c.commercial_stage, '')) like ?
        order by
          case
-           when lower(coalesce(canonical_name, '')) = ? then 0
-           when lower(coalesce(canonical_name, '')) like ? then 1
+           when lower(coalesce(c.canonical_name, '')) = ? then 0
+           when lower(coalesce(c.canonical_name, '')) like ? then 1
            else 2
          end,
-         datetime(updated_at) desc,
-         canonical_name
+         datetime(c.updated_at) desc,
+         c.canonical_name
        limit ?`,
     )
     .all(term, term, term, term, term, term, term, term, term, query, term, normalizeLimit(limit));
@@ -106,7 +131,14 @@ export function searchLeads(database, { q = "", limit = 50 } = {}) {
 }
 
 export function readLeadDetail(database, leadId) {
-  const row = database.prepare("select * from commercial_lead_context where lead_id = ?").get(leadId);
+  const row = database
+    .prepare(
+      `select c.*, l.phone_normalized
+       from commercial_lead_context c
+       join leads l on l.id = c.lead_id
+       where c.lead_id = ?`,
+    )
+    .get(leadId);
   if (!row) {
     throw Object.assign(new Error(`Lead nao encontrado: ${leadId}`), {
       code: "LEAD_NOT_FOUND",
@@ -376,6 +408,126 @@ export function readWahaSummary(database) {
     deliveryPending: row.delivery_pending ?? 0,
     dispatchAmbiguous: row.dispatch_ambiguous ?? 0,
     sentStrongAck: row.sent_strong_ack ?? 0,
+    unmatchedOpen: countRows(
+      database,
+      "select count(*) as count from whatsapp_unmatched_inbound_events where status = 'unmatched'",
+    ),
+    unmatched: readWahaUnmatched(database),
+    recentCandidates: readWahaRecentCandidates(database),
+  };
+}
+
+export async function executeWahaUnmatchedReconcile({
+  root,
+  dbPath = null,
+  unmatchedId,
+  leadId,
+  expectedUpdatedAt,
+  confirmed,
+  runCommand,
+  runGatewayCommand,
+}) {
+  if (confirmed !== true) {
+    return wahaActionFailure("confirmation_required", { unmatchedId, leadId, nextRefreshRecommended: false });
+  }
+  const precheck = readWahaUnmatchedActionTarget({ root, dbPath, unmatchedId, expectedUpdatedAt });
+  if (!precheck.ok) return precheck;
+  const lead = readWahaLeadTarget({ root, dbPath, leadId });
+  if (!lead.ok) return lead;
+
+  const health = await runCommand(["healthcheck"]);
+  if (runnerFailed(health)) {
+    return wahaCommandFailure("healthcheck_failed", { command: ["healthcheck"], result: health });
+  }
+
+  const linkArgs = [
+    "whatsapp",
+    "identity",
+    "link",
+    "--lead-id",
+    String(lead.leadId),
+    "--identity",
+    precheck.chatId,
+    "--source",
+    "cockpit_unmatched_reconcile",
+    "--notes",
+    `Vinculo confirmado no cockpit para unmatched ${precheck.unmatchedId}.`,
+  ];
+  const link = await runCommand(linkArgs);
+  if (runnerFailed(link)) return wahaCommandFailure("identity_link_failed", { command: linkArgs, result: link });
+
+  const reconcileArgs = ["whatsapp", "unmatched", "reconcile", "--chat-id", precheck.chatId];
+  const reconcile = await runCommand(reconcileArgs);
+  if (runnerFailed(reconcile)) {
+    return wahaCommandFailure("unmatched_reconcile_failed", { command: reconcileArgs, result: reconcile });
+  }
+
+  const wakeArgs = ["wake-reconciled-inbound", "--chat-id", precheck.chatId];
+  const wake = await runGatewayCommand(wakeArgs);
+  if (runnerFailed(wake)) return wahaCommandFailure("wake_failed", { command: wakeArgs, result: wake });
+
+  return {
+    ok: true,
+    action: "waha_unmatched_reconcile",
+    unmatchedId: precheck.unmatchedId,
+    leadId: lead.leadId,
+    leadName: lead.canonicalName,
+    chatId: precheck.chatId,
+    crmUpdated: true,
+    agentRouted: parseCount(reconcile.stdout, /Reconciliados:\s*(\d+)/i) > 0,
+    reconciled: parseCount(reconcile.stdout, /Reconciliados:\s*(\d+)/i),
+    pending: parseCount(reconcile.stdout, /Pendentes:\s*(\d+)/i),
+    issuesCreated: parseCount(wake.stdout, /Issues criadas:\s*(\d+)/i),
+    eventsWoken: parseCount(wake.stdout, /Eventos acordados:\s*(\d+)/i),
+    nextRefreshRecommended: true,
+    warnings: [],
+    errors: [],
+  };
+}
+
+export async function executeWahaUnmatchedNoMatch({
+  root,
+  dbPath = null,
+  unmatchedId,
+  expectedUpdatedAt,
+  reason,
+  runCommand,
+}) {
+  const normalizedReason = clean(reason);
+  if (!normalizedReason) {
+    return wahaActionFailure("no_match_reason_required", { unmatchedId, nextRefreshRecommended: false });
+  }
+  const precheck = readWahaUnmatchedActionTarget({ root, dbPath, unmatchedId, expectedUpdatedAt });
+  if (!precheck.ok) return precheck;
+
+  const health = await runCommand(["healthcheck"]);
+  if (runnerFailed(health)) {
+    return wahaCommandFailure("healthcheck_failed", { command: ["healthcheck"], result: health });
+  }
+
+  const markArgs = [
+    "whatsapp",
+    "unmatched",
+    "mark-no-match",
+    "--chat-id",
+    precheck.chatId,
+    "--reason",
+    normalizedReason,
+  ];
+  const mark = await runCommand(markArgs);
+  if (runnerFailed(mark)) return wahaCommandFailure("no_match_failed", { command: markArgs, result: mark });
+
+  return {
+    ok: true,
+    action: "waha_unmatched_no_match",
+    unmatchedId: precheck.unmatchedId,
+    chatId: precheck.chatId,
+    marked: parseCount(mark.stdout, /Eventos sem match registrados:\s*(\d+)/i),
+    crmUpdated: true,
+    agentRouted: false,
+    nextRefreshRecommended: true,
+    warnings: [],
+    errors: [],
   };
 }
 
@@ -389,8 +541,9 @@ function latestQueueDate(database) {
 function manualReadyLeadCards(database) {
   const rows = database
     .prepare(
-      `select c.*, s.whatsapp_state
+      `select c.*, l.phone_normalized, s.whatsapp_state
        from commercial_ready_lead_cards c
+       join leads l on l.id = c.lead_id
        left join lead_conversation_state s on s.lead_id = c.lead_id
        where c.has_ready_message = 1
        order by case c.status when 'interessado' then 0 when 'respondeu' then 1 else 2 end, c.canonical_name`,
@@ -476,6 +629,7 @@ function readWahaBlockers(database) {
          l.city,
          l.area,
          l.phone_or_contact,
+         l.phone_normalized,
          l.instagram,
          l.website_url,
          l.recommended_offer,
@@ -497,6 +651,106 @@ function readWahaBlockers(database) {
     )
     .all()
     .map(mapWahaBlockerRow);
+}
+
+function readWahaUnmatched(database, { limit = 25 } = {}) {
+  return database
+    .prepare(
+      `select
+         id,
+         bridge_message_id,
+         chat_id,
+         sender_name,
+         sender_phone,
+         body,
+         received_at,
+         classification,
+         match_reason,
+         created_at,
+         updated_at
+       from whatsapp_unmatched_inbound_events
+       where status = 'unmatched'
+       order by datetime(received_at) desc, id desc
+       limit ?`,
+    )
+    .all(normalizeLimit(limit))
+    .map(mapWahaUnmatchedRow);
+}
+
+function readWahaRecentCandidates(database, { limit = 30 } = {}) {
+  return database
+    .prepare(
+      `select
+         id as lead_id,
+         canonical_name,
+         status,
+         phone_normalized,
+         phone_or_contact,
+         instagram,
+         city,
+         area,
+         category,
+         contacted_at,
+         updated_at
+       from leads
+       where contacted_at is not null
+          or lower(coalesce(status, '')) in ('abordado', 'respondeu', 'interessado', 'tem_demo')
+       order by datetime(updated_at) desc, canonical_name
+       limit ?`,
+    )
+    .all(normalizeLimit(limit))
+    .map(mapWahaCandidateRow);
+}
+
+function readWahaUnmatchedActionTarget({ root, dbPath, unmatchedId, expectedUpdatedAt }) {
+  const id = normalizePositiveInteger(unmatchedId);
+  if (!id) return wahaActionFailure("invalid_unmatched_id", { unmatchedId, nextRefreshRecommended: false });
+  const database = openCockpitDatabase({ root, dbPath, readOnly: true });
+  try {
+    const row = database
+      .prepare(
+        `select *
+         from whatsapp_unmatched_inbound_events
+         where id = ?`,
+      )
+      .get(id);
+    if (!row || row.status !== "unmatched") {
+      return wahaActionFailure("unmatched_not_found", { unmatchedId: id, nextRefreshRecommended: true });
+    }
+    if (expectedUpdatedAt && clean(row.updated_at) !== clean(expectedUpdatedAt)) {
+      return wahaActionFailure("unmatched_changed", {
+        unmatchedId: id,
+        chatId: row.chat_id,
+        currentUpdatedAt: row.updated_at,
+        expectedUpdatedAt,
+        nextRefreshRecommended: true,
+      });
+    }
+    return {
+      ok: true,
+      unmatchedId: id,
+      chatId: row.chat_id,
+      updatedAt: row.updated_at,
+      row: mapWahaUnmatchedRow(row),
+    };
+  } finally {
+    database.close();
+  }
+}
+
+function readWahaLeadTarget({ root, dbPath, leadId }) {
+  const id = normalizePositiveInteger(leadId);
+  if (!id) return wahaActionFailure("invalid_lead_id", { leadId, nextRefreshRecommended: false });
+  const database = openCockpitDatabase({ root, dbPath, readOnly: true });
+  try {
+    const row = database
+      .prepare("select id, canonical_name from leads where id = ?")
+      .get(id);
+    if (!row) return wahaActionFailure("lead_not_found", { leadId: id, nextRefreshRecommended: true });
+    return { ok: true, leadId: row.id, canonicalName: row.canonical_name };
+  } finally {
+    database.close();
+  }
 }
 
 function parseNamedAction(command, prefix, action) {
@@ -678,6 +932,29 @@ function syncFailure({ action, lead, result }) {
   };
 }
 
+function wahaActionFailure(reason, extra = {}) {
+  return {
+    ok: false,
+    reason,
+    action: extra.action ?? "waha_unmatched",
+    crmUpdated: false,
+    agentRouted: false,
+    warnings: extra.warnings ?? [],
+    errors: extra.errors ?? [],
+    nextRefreshRecommended: extra.nextRefreshRecommended ?? true,
+    ...extra,
+  };
+}
+
+function wahaCommandFailure(reason, { command, result }) {
+  return wahaActionFailure(reason, {
+    command,
+    exitStatus: runnerExitStatus(result),
+    errors: [runnerErrorMessage(result, `Comando falhou: ${command.join(" ")}`)],
+    nextRefreshRecommended: true,
+  });
+}
+
 function runnerFailed(result) {
   if (!result) return true;
   if (result.error || result.signal || result.ok === false) return true;
@@ -829,6 +1106,7 @@ function mapWahaBlockerRow(row) {
     city: row.city,
     area: row.area,
     contact: row.phone_or_contact || row.instagram || row.target_chat_id || "",
+    phoneNormalized: row.phone_normalized,
     instagram: row.instagram,
     websiteUrl: row.website_url,
     recommendedOffer: row.recommended_offer,
@@ -856,6 +1134,38 @@ function mapWahaBlockerRow(row) {
   };
 }
 
+function mapWahaUnmatchedRow(row) {
+  return {
+    id: row.id,
+    bridgeMessageId: row.bridge_message_id,
+    chatId: row.chat_id,
+    senderName: row.sender_name,
+    senderPhone: row.sender_phone,
+    body: row.body,
+    receivedAt: row.received_at,
+    classification: row.classification,
+    matchReason: row.match_reason,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWahaCandidateRow(row) {
+  return {
+    leadId: row.lead_id,
+    canonicalName: row.canonical_name,
+    status: row.status,
+    phoneNormalized: row.phone_normalized,
+    contact: row.phone_or_contact || row.instagram || "",
+    instagram: row.instagram,
+    city: row.city,
+    area: row.area,
+    category: row.category,
+    contactedAt: row.contacted_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapLeadContextRow(row) {
   return {
     leadId: row.lead_id,
@@ -866,6 +1176,7 @@ function mapLeadContextRow(row) {
     city: row.city,
     area: row.area,
     contact: row.phone_or_contact || row.contact_path || row.instagram || "",
+    phoneNormalized: row.phone_normalized,
     instagram: row.instagram,
     websiteUrl: row.website_url,
     recommendedOffer: row.recommended_offer,
@@ -906,6 +1217,19 @@ function normalizeLimit(limit) {
   const parsed = Number(limit);
   if (!Number.isFinite(parsed)) return 50;
   return Math.max(0, Math.trunc(parsed));
+}
+
+function normalizePositiveInteger(value) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function parseCount(output, pattern) {
+  const match = pattern.exec(String(output ?? ""));
+  if (!match) return 0;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function firstFilled(...values) {

@@ -1,12 +1,14 @@
 const state = {
   requestCount: 0,
+  activeMode: "enviarAgora",
+  selectedLeadId: null,
+  currentLead: null,
   modalOpen: false,
   modalStale: false,
   paperclipRecoveryOnly: false,
   paperclipRecoveryResult: null,
-  currentLead: null,
-  modalSnapshot: null,
   selectedAction: null,
+  inlineConfirmLeadId: null,
   refreshTimer: null,
   boardSnapshots: new Map(),
   boardSnapshotsPrimed: false,
@@ -16,15 +18,24 @@ const state = {
   searchController: null,
   toastTimer: null,
   errorTimer: null,
+  kanban: {},
+  waha: {},
+  wahaReconcileDrafts: new Map(),
+  wahaNoMatchDrafts: new Map(),
+  wahaNoMatchOpenId: null,
+  modalSnapshot: null,
 };
 
-const columns = [
-  ["enviarAgora", "Enviar agora"],
-  ["followupResposta", "Follow-up / resposta"],
-  ["aguardandoWorker", "Aguardando worker"],
-  ["bloqueados", "Bloqueados"],
-  ["revisar", "Revisar"],
+const modes = [
+  ["enviarAgora", "Enviar", "Leads com mensagem pronta para envio manual"],
+  ["followupResposta", "Follow-up", "Respostas e follow-ups que pedem proxima acao"],
+  ["aguardandoWorker", "Workers", "Itens aguardando redator, QA ou handoff ativo"],
+  ["bloqueados", "Bloqueios", "Leads bloqueados por validacao, evidencia ou guardiao"],
+  ["revisar", "Revisar", "Leads que precisam reanalise antes de operar"],
+  ["waha", "WAHA", "Outbox com gargalo operacional ou ACK ambiguo"],
 ];
+
+const modeByKey = new Map(modes.map(([key, label, description]) => [key, { key, label, description }]));
 
 const actionLabels = {
   enviado: "Marcar enviado",
@@ -47,10 +58,16 @@ const elements = {
   lastRefresh: document.getElementById("last-refresh"),
   refreshButton: document.getElementById("refresh-button"),
   scorebar: document.getElementById("scorebar"),
+  modeTabs: document.getElementById("mode-tabs"),
+  queueTitle: document.getElementById("queue-title"),
+  queueSubtitle: document.getElementById("queue-subtitle"),
+  modeCount: document.getElementById("mode-count"),
+  leadList: document.getElementById("lead-list"),
+  detailEmpty: document.getElementById("detail-empty"),
+  detailBody: document.getElementById("detail-body"),
   searchInput: document.getElementById("lead-search"),
   searchResults: document.getElementById("search-results"),
   searchState: document.getElementById("search-state"),
-  kanban: document.getElementById("kanban"),
   wahaSummary: document.getElementById("waha-summary"),
   commandInput: document.getElementById("command-input"),
   previewButton: document.getElementById("preview-command"),
@@ -64,7 +81,7 @@ const elements = {
   errorBox: document.getElementById("error-box"),
 };
 
-elements.refreshButton.addEventListener("click", () => refresh({ manual: true }));
+elements.refreshButton.addEventListener("click", () => refresh({ manual: true, force: true }));
 elements.previewButton.addEventListener("click", () => previewCommand());
 elements.commandInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") previewCommand();
@@ -78,69 +95,179 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && state.modalOpen) closeModal();
 });
 
-elements.kanban.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-open-lead]");
+elements.modeTabs.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-mode]");
   if (!button) return;
-  openLead(button.dataset.openLead);
+  await activateMode(button.dataset.mode);
 });
 
-elements.searchResults.addEventListener("click", (event) => {
-  const item = event.target.closest("[data-open-lead]");
-  if (!item) return;
-  openLead(item.dataset.openLead);
-});
-
-elements.commandPreview.addEventListener("click", (event) => {
-  const item = event.target.closest("[data-open-lead]");
-  if (!item) return;
-  openLead(item.dataset.openLead);
-});
-
-elements.leadDetail.addEventListener("click", (event) => {
-  const actionButton = event.target.closest("[data-select-action]");
-  if (actionButton) {
-    selectAction(actionButton.dataset.selectAction);
+elements.leadList.addEventListener("click", async (event) => {
+  const whatsappLink = event.target.closest("[data-open-whatsapp]");
+  if (whatsappLink) {
+    showToast("WhatsApp aberto. Registre enviado so depois do envio real.");
     return;
   }
 
-  const submitButton = event.target.closest("[data-submit-action]");
+  const copyButton = event.target.closest("[data-copy-message]");
+  if (copyButton) {
+    await copyLeadMessage(copyButton.dataset.copyMessage);
+    return;
+  }
+
+  const confirmButton = event.target.closest("[data-confirm-send]");
+  if (confirmButton) {
+    state.inlineConfirmLeadId = numberOrNull(confirmButton.dataset.confirmSend);
+    renderLeadList();
+    return;
+  }
+
+  const cancelButton = event.target.closest("[data-cancel-send]");
+  if (cancelButton) {
+    state.inlineConfirmLeadId = null;
+    renderLeadList();
+    return;
+  }
+
+  const submitButton = event.target.closest("[data-submit-send]");
   if (submitButton) {
-    submitSelectedAction();
+    await submitQuickSend(submitButton.dataset.submitSend);
     return;
   }
 
-  const retryPaperclipButton = event.target.closest("[data-retry-paperclip]");
-  if (retryPaperclipButton) {
-    retryPaperclipRefresh();
+  const reconcileButton = event.target.closest("[data-waha-reconcile]");
+  if (reconcileButton) {
+    await submitWahaReconcile(reconcileButton.dataset.wahaReconcile);
     return;
   }
 
-  const reloadButton = event.target.closest("[data-reload-open-lead]");
-  if (reloadButton) {
-    reloadOpenLead();
+  const noMatchButton = event.target.closest("[data-waha-no-match]");
+  if (noMatchButton) {
+    state.wahaNoMatchOpenId = numberOrNull(noMatchButton.dataset.wahaNoMatch);
+    renderLeadList();
+    return;
+  }
+
+  const cancelNoMatchButton = event.target.closest("[data-waha-cancel-no-match]");
+  if (cancelNoMatchButton) {
+    state.wahaNoMatchOpenId = null;
+    renderLeadList();
+    return;
+  }
+
+  const submitNoMatchButton = event.target.closest("[data-waha-submit-no-match]");
+  if (submitNoMatchButton) {
+    await submitWahaNoMatch(submitNoMatchButton.dataset.wahaSubmitNoMatch);
+    return;
+  }
+
+  const row = event.target.closest("[data-open-lead]");
+  if (!row) return;
+  await openLead(row.dataset.openLead);
+});
+
+elements.leadList.addEventListener("change", (event) => {
+  const select = event.target.closest("[data-waha-lead-select]");
+  if (select) {
+    const unmatchedId = numberOrNull(select.dataset.wahaLeadSelect);
+    if (!unmatchedId) return;
+    const draft = wahaDraft(unmatchedId);
+    draft.leadId = numberOrNull(select.value);
+    renderLeadList();
+    return;
+  }
+
+  const confirm = event.target.closest("[data-waha-confirm]");
+  if (confirm) {
+    const unmatchedId = numberOrNull(confirm.dataset.wahaConfirm);
+    if (!unmatchedId) return;
+    const draft = wahaDraft(unmatchedId);
+    draft.confirmed = confirm.checked;
+    renderLeadList();
   }
 });
 
-elements.leadDetail.addEventListener("input", (event) => {
-  if (
-    event.target.id === "action-message" ||
-    event.target.id === "action-reason" ||
-    event.target.id === "action-confirm"
-  ) {
-    updateActionSubmitState();
-  }
+elements.leadList.addEventListener("input", (event) => {
+  const reason = event.target.closest("[data-waha-no-match-reason]");
+  if (!reason) return;
+  const unmatchedId = numberOrNull(reason.dataset.wahaNoMatchReason);
+  if (!unmatchedId) return;
+  state.wahaNoMatchDrafts.set(unmatchedId, reason.value);
 });
 
-await refresh({ manual: true });
+elements.leadList.addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const row = event.target.closest("[data-open-lead]");
+  if (!row || event.target.closest("button")) return;
+  event.preventDefault();
+  await openLead(row.dataset.openLead);
+});
+
+elements.searchResults.addEventListener("click", async (event) => {
+  const item = event.target.closest("[data-open-lead]");
+  if (!item) return;
+  await openLead(item.dataset.openLead);
+});
+
+elements.commandPreview.addEventListener("click", async (event) => {
+  const item = event.target.closest("[data-open-lead]");
+  if (!item) return;
+  await openLead(item.dataset.openLead);
+});
+
+for (const detailRoot of [elements.detailBody, elements.leadDetail]) {
+  detailRoot.addEventListener("click", async (event) => {
+    const copyButton = event.target.closest("[data-detail-copy-message]");
+    if (copyButton) {
+      await copyText(state.currentLead?.message || "");
+      showToast("Mensagem copiada.");
+      return;
+    }
+
+    const actionButton = event.target.closest("[data-select-action]");
+    if (actionButton) {
+      selectAction(actionButton.dataset.selectAction);
+      return;
+    }
+
+    const submitButton = event.target.closest("[data-submit-action]");
+    if (submitButton) {
+      await submitSelectedAction();
+      return;
+    }
+
+    const retryPaperclipButton = event.target.closest("[data-retry-paperclip]");
+    if (retryPaperclipButton) {
+      await retryPaperclipRefresh();
+      return;
+    }
+
+    const reloadButton = event.target.closest("[data-reload-open-lead]");
+    if (reloadButton) {
+      await reloadOpenLead();
+    }
+  });
+
+  detailRoot.addEventListener("input", (event) => {
+    if (
+      event.target.id === "action-message" ||
+      event.target.id === "action-reason" ||
+      event.target.id === "action-confirm"
+    ) {
+      updateActionSubmitState();
+    }
+  });
+}
+
+await refresh({ manual: true, force: true });
 state.refreshTimer = setInterval(() => {
-  if (!isBusy() && !state.modalOpen) {
+  if (!isBusy()) {
     refresh();
   }
 }, 30000);
 
 async function refresh({ manual = false, force = false } = {}) {
-  if ((isBusy() && !force) || state.modalOpen) {
-    if (manual) showToast("Atualizacao pausada.");
+  if (isBusy() && !force) {
+    if (manual) showToast("Atualizacao em andamento.");
     return;
   }
 
@@ -152,12 +279,19 @@ async function refresh({ manual = false, force = false } = {}) {
       fetchJson("/api/waha"),
     ]);
 
+    state.kanban = annotateChangedCards(leadsBody.kanban);
+    state.waha = wahaBody.waha ?? {};
+    reconcileSelection();
     renderSummary(summaryBody.summary);
-    renderKanban(annotateChangedCards(leadsBody.kanban));
-    renderWaha(wahaBody.waha);
+    renderOperations();
+    renderWaha(state.waha);
     setHealth("green", "SQLite OK");
     elements.lastRefresh.textContent = `Atualizado ${new Date().toLocaleTimeString("pt-BR")}`;
     hideError();
+
+    if (state.selectedLeadId && state.currentLead?.leadId !== state.selectedLeadId) {
+      await loadLeadDetail(state.selectedLeadId, { manageBusy: false });
+    }
   } catch (error) {
     setHealth("red", "SQLite erro");
     showError(error.message);
@@ -175,11 +309,12 @@ function renderSummary(summary = {}) {
     ["Validacao", summary.pendingValidation, summary.pendingValidation ? "amber" : "neutral"],
     ["QA", summary.pendingQa, summary.pendingQa ? "amber" : "neutral"],
     ["Handoffs", summary.openHandoffs, summary.openHandoffs ? "amber" : "neutral"],
+    ["WAHA sem ID", waha.unmatchedOpen, waha.unmatchedOpen ? "amber" : "neutral"],
     ["WAHA ambiguas", waha.dispatchAmbiguous, waha.dispatchAmbiguous ? "red" : "neutral"],
   ];
 
   const nextStep = summary.nextStep
-    ? `<article class="metric"><span class="badge blue">Proximo passo</span><span>${escapeHtml(summary.nextStep)}</span></article>`
+    ? `<article class="metric next-step"><span class="badge blue">Proximo passo</span><span>${escapeHtml(summary.nextStep)}</span></article>`
     : "";
 
   elements.scorebar.innerHTML = `${items.map(renderMetric).join("")}${nextStep}`;
@@ -194,182 +329,305 @@ function renderMetric([label, value, color]) {
   `;
 }
 
-function renderKanban(kanban = {}) {
-  elements.kanban.innerHTML = columns
+function renderOperations() {
+  renderModeTabs();
+  renderLeadList();
+  renderSelectedDetail();
+}
+
+function renderModeTabs() {
+  elements.modeTabs.innerHTML = modes
     .map(([key, label]) => {
-      const cards = Array.isArray(kanban[key]) ? kanban[key] : [];
+      const count = getModeCount(key);
+      const active = key === state.activeMode;
       return `
-        <section class="column" aria-labelledby="column-${escapeAttr(key)}">
-          <div class="column-header">
-            <h2 id="column-${escapeAttr(key)}" class="column-title">${escapeHtml(label)}</h2>
-            <span class="badge neutral">${cards.length}</span>
-          </div>
-          ${cards.length ? cards.map(renderCard).join("") : '<p class="empty-state">Nenhum item.</p>'}
-        </section>
+        <button class="mode-tab${active ? " active" : ""}" type="button" data-mode="${escapeAttr(key)}" aria-pressed="${active ? "true" : "false"}">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(formatNumber(count))}</strong>
+        </button>
       `;
     })
     .join("");
 }
 
-function renderCard(card = {}) {
-  const kind = card.cardKind || "lead";
-  const leadId = numberOrNull(card.leadId);
-  const statusTone = toneForStatus(card.status || card.commercialStage || kind);
-  const location = compactJoin([card.category, card.area, card.city], " - ");
-  const contact = compactJoin([card.contact, card.instagram], " | ");
-  const updated = formatDateTime(card.updatedAt || card.createdAt);
-  const title = card.canonicalName || card.title || "Item sem nome";
-  const blocker = card.validationBlocker || card.dispatchError || card.guardianReason || "";
-  const message = card.message || card.requiredAction || "";
+function renderLeadList() {
+  const mode = modeByKey.get(state.activeMode) ?? modeByKey.get("enviarAgora");
+  if (mode.key === "waha") {
+    renderWahaModeList(mode);
+    return;
+  }
 
+  const cards = getCardsForMode(mode.key);
+  elements.queueTitle.textContent = mode.key === "enviarAgora" ? "Enviar hoje" : mode.label;
+  elements.queueSubtitle.textContent = mode.description;
+  elements.modeCount.textContent = formatNumber(cards.length);
+
+  if (!cards.length) {
+    elements.leadList.innerHTML = renderModeEmptyState(mode.key);
+    return;
+  }
+
+  elements.leadList.innerHTML = cards.map(renderLeadRow).join("");
+}
+
+function renderModeEmptyState(modeKey) {
+  if (modeKey === "waha") {
+    return `
+      <section class="empty-panel">
+        <h3>Sem gargalo WAHA na fila</h3>
+        <p class="muted">Use o resumo lateral para acompanhar mensagens sem identidade, ACK pendente, ambiguas e ACK forte.</p>
+      </section>
+    `;
+  }
   return `
-    <article class="lead-card" tabindex="0">
-      <div class="card-body">
-        <h3>${escapeHtml(title)}</h3>
-        <div class="meta-line">
-          <span class="badge ${escapeAttr(statusTone)}">${escapeHtml(labelForKind(kind))}</span>
-          <span class="badge neutral">${escapeHtml(card.status || "-")}</span>
-          ${card.commercialStage ? `<span class="badge blue">${escapeHtml(card.commercialStage)}</span>` : ""}
-          ${card.externallyChanged ? '<span class="badge amber">Mudou agora</span>' : ""}
-        </div>
-        ${location ? `<div class="muted card-note">${escapeHtml(location)}</div>` : ""}
-        ${contact ? `<div class="muted card-note">${escapeHtml(contact)}</div>` : ""}
-        ${card.targetAgentName ? `<div class="muted card-note">${escapeHtml(card.targetAgentName)}</div>` : ""}
-        ${card.outboxId ? `<div class="badge amber">Outbox ${escapeHtml(card.outboxId)}</div>` : ""}
-        ${blocker ? `<div class="badge amber">${escapeHtml(blocker)}</div>` : ""}
-        ${message ? `<div class="message-preview">${escapeHtml(message)}</div>` : ""}
-        ${updated ? `<div class="muted">Atualizado ${escapeHtml(updated)}</div>` : ""}
+    <section class="empty-panel">
+      <h3>Nenhum item neste modo</h3>
+      <p class="muted">Os leads podem mudar de modo automaticamente conforme agentes e WAHA atualizam o CRM.</p>
+    </section>
+  `;
+}
+
+function renderWahaModeList(mode) {
+  const blockers = getCardsForMode("waha");
+  const unmatched = Array.isArray(state.waha.unmatched) ? state.waha.unmatched : [];
+  elements.queueTitle.textContent = "WAHA";
+  elements.queueSubtitle.textContent = mode.description;
+  elements.modeCount.textContent = formatNumber(blockers.length + unmatched.length);
+
+  if (!blockers.length && !unmatched.length) {
+    elements.leadList.innerHTML = renderModeEmptyState("waha");
+    return;
+  }
+
+  elements.leadList.innerHTML = `
+    <section class="waha-unmatched-section">
+      <div class="section-title-row">
+        <h3>Mensagens sem identidade</h3>
+        <span class="badge ${unmatched.length ? "amber" : "neutral"}">${escapeHtml(formatNumber(unmatched.length))}</span>
       </div>
       ${
-        leadId
-          ? `<button class="button secondary" type="button" data-open-lead="${escapeAttr(leadId)}" data-busy-control>Abrir lead</button>`
-          : '<span class="empty-state">Sem lead vinculado.</span>'
+        unmatched.length
+          ? unmatched.map(renderWahaUnmatchedRow).join("")
+          : '<p class="empty-state">Nenhuma mensagem sem identidade.</p>'
+      }
+    </section>
+    <section class="waha-unmatched-section">
+      <div class="section-title-row">
+        <h3>Gargalos WAHA</h3>
+        <span class="badge ${blockers.length ? "red" : "neutral"}">${escapeHtml(formatNumber(blockers.length))}</span>
+      </div>
+      ${blockers.length ? blockers.map(renderLeadRow).join("") : '<p class="empty-state">Nenhum gargalo WAHA.</p>'}
+    </section>
+  `;
+}
+
+function renderWahaUnmatchedRow(item = {}) {
+  const unmatchedId = numberOrNull(item.id);
+  const draft = wahaDraft(unmatchedId);
+  const selectedLeadId = numberOrNull(draft.leadId);
+  const confirmed = Boolean(draft.confirmed);
+  const canReconcile = Boolean(unmatchedId && selectedLeadId && confirmed);
+  const noMatchOpen = state.wahaNoMatchOpenId === unmatchedId;
+  const reason = state.wahaNoMatchDrafts.get(unmatchedId) || "";
+  const sender = item.senderName || item.senderPhone || item.chatId || "Remetente desconhecido";
+  const candidates = Array.isArray(state.waha.recentCandidates) ? state.waha.recentCandidates : [];
+
+  return `
+    <article class="waha-unmatched-card">
+      <div class="waha-unmatched-head">
+        <div>
+          <h3>${escapeHtml(sender)}</h3>
+          <p class="row-meta">${escapeHtml(compactJoin([item.chatId, item.classification, formatDateTime(item.receivedAt)], " | "))}</p>
+        </div>
+        <span class="badge amber">sem identidade</span>
+      </div>
+      <p class="row-note">${escapeHtml(item.matchReason || "Lead nao identificado pelo gateway.")}</p>
+      <pre class="code-block compact">${escapeHtml(item.body || "")}</pre>
+
+      <div class="waha-reconcile-grid">
+        <label>
+          <span>Lead correto</span>
+          <select data-waha-lead-select="${escapeAttr(unmatchedId || "")}" data-busy-control>
+            <option value="">Selecione o lead</option>
+            ${candidates.map((lead) => renderWahaCandidateOption(lead, selectedLeadId)).join("")}
+          </select>
+        </label>
+        <label class="confirm-line compact-confirm">
+          <input type="checkbox" data-waha-confirm="${escapeAttr(unmatchedId || "")}" ${confirmed ? "checked" : ""} data-busy-control>
+          <span>Confirmo que este LID pertence ao lead selecionado.</span>
+        </label>
+      </div>
+
+      <div class="action-row">
+        <button class="button small" type="button" data-waha-reconcile="${escapeAttr(unmatchedId || "")}" data-waha-reconcile-ready="${canReconcile ? "true" : "false"}" ${canReconcile ? "" : "disabled"} data-busy-control>
+          Conciliar + acordar agente
+        </button>
+        <button class="button ghost small" type="button" data-waha-no-match="${escapeAttr(unmatchedId || "")}" data-busy-control>
+          Marcar no-match
+        </button>
+      </div>
+
+      ${
+        noMatchOpen
+          ? `
+            <div class="inline-confirm vertical">
+              <label>
+                <span>Motivo do no-match</span>
+                <textarea data-waha-no-match-reason="${escapeAttr(unmatchedId || "")}" placeholder="Ex.: conversa pessoal sem lead comercial">${escapeHtml(reason)}</textarea>
+              </label>
+              <div class="action-row">
+                <button class="button danger small" type="button" data-waha-submit-no-match="${escapeAttr(unmatchedId || "")}" data-busy-control>Confirmar no-match</button>
+                <button class="button ghost small" type="button" data-waha-cancel-no-match data-busy-control>Cancelar</button>
+              </div>
+            </div>
+          `
+          : ""
       }
     </article>
   `;
 }
 
-function renderWaha(waha = {}) {
-  const items = [
-    ["Aprovadas", waha.approved, "green", "Prontas no outbox"],
-    ["ACK pendente", waha.deliveryPending, waha.deliveryPending ? "amber" : "neutral", "Nao entregue"],
-    ["Ambiguas", waha.dispatchAmbiguous, waha.dispatchAmbiguous ? "red" : "neutral", "Gargalo"],
-    ["ACK forte", waha.sentStrongAck, "green", "Entrega confirmada"],
-  ];
-
-  elements.wahaSummary.innerHTML = items
-    .map(
-      ([label, value, color, note]) => `
-        <article class="metric">
-          <span class="badge ${escapeAttr(color)}">${escapeHtml(label)}</span>
-          <strong>${escapeHtml(formatNumber(value))}</strong>
-          <span class="muted">${escapeHtml(note)}</span>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-async function searchLeads() {
-  const q = elements.searchInput.value.trim();
-  if (state.searchController) state.searchController.abort();
-
-  if (!q) {
-    elements.searchState.textContent = "Todos os status";
-    elements.searchResults.innerHTML = "";
-    return;
-  }
-
-  state.searchController = new AbortController();
-  elements.searchState.textContent = "Buscando";
-  startRequest();
-  try {
-    const body = await fetchJson(`/api/leads?q=${encodeURIComponent(q)}`, { signal: state.searchController.signal });
-    const leads = Array.isArray(body.leads) ? body.leads : [];
-    elements.searchState.textContent = `${leads.length} resultado${leads.length === 1 ? "" : "s"}`;
-    elements.searchResults.innerHTML = leads.length
-      ? leads.map(renderSearchResult).join("")
-      : '<p class="empty-state">Nenhum resultado.</p>';
-  } catch (error) {
-    if (error.name !== "AbortError") {
-      elements.searchState.textContent = "Falha";
-      showError(error.message);
-    }
-  } finally {
-    endRequest();
-  }
-}
-
-function renderSearchResult(lead = {}) {
+function renderWahaCandidateOption(lead = {}, selectedLeadId = null) {
   const leadId = numberOrNull(lead.leadId);
-  const title = lead.canonicalName || "Lead";
-  const meta = compactJoin([lead.status, lead.commercialStage, lead.city, lead.area], " | ");
-  const attrs = leadId ? `data-open-lead="${escapeAttr(leadId)}" data-busy-control` : "disabled";
+  if (!leadId) return "";
+  const meta = compactJoin([lead.status, lead.category, lead.area, lead.city, lead.contactedAt], " - ");
   return `
-    <button class="search-item" type="button" ${attrs}>
-      <strong>${escapeHtml(title)}</strong>
-      <span class="muted">${escapeHtml(meta || "-")}</span>
-    </button>
+    <option value="${escapeAttr(leadId)}" ${leadId === selectedLeadId ? "selected" : ""}>
+      ${escapeHtml(`${lead.canonicalName || "Lead"}${meta ? ` | ${meta}` : ""}`)}
+    </option>
   `;
 }
 
-async function openLead(leadId) {
-  const parsedLeadId = numberOrNull(leadId);
-  if (!parsedLeadId) return;
+function renderLeadRow(card = {}) {
+  const leadId = numberOrNull(card.leadId);
+  const selected = leadId && leadId === state.selectedLeadId;
+  const title = card.canonicalName || card.title || "Item sem nome";
+  const meta = compactJoin([card.category, card.area, card.city], " - ");
+  const channel = inferChannel(card);
+  const qa = qaLabel(card);
+  const risk = riskLabel(card);
+  const updated = formatDateTime(card.updatedAt || card.createdAt);
+  const note = rowNote(card);
+  const canQuickSend = state.activeMode === "enviarAgora" && leadId && card.commercialStage === "ready_lead_card";
+  const confirming = canQuickSend && state.inlineConfirmLeadId === leadId;
+  const attrs = leadId ? `data-open-lead="${escapeAttr(leadId)}"` : "";
 
-  startRequest();
-  try {
-    const body = await fetchJson(`/api/leads/${encodeURIComponent(parsedLeadId)}`);
-    state.currentLead = body.lead;
-    state.modalSnapshot = leadSnapshot(body.lead);
-    state.modalStale = false;
-    state.paperclipRecoveryOnly = false;
-    state.paperclipRecoveryResult = null;
-    state.selectedAction = null;
-    state.modalOpen = true;
-    renderLeadModal(body.lead);
-    elements.modal.classList.remove("hidden");
-    startLeadWatch();
-    elements.modalClose.focus();
-  } catch (error) {
-    showError(error.message);
-  } finally {
-    endRequest();
+  return `
+    <article class="lead-row${selected ? " selected" : ""}${card.externallyChanged ? " changed" : ""}" tabindex="${leadId ? "0" : "-1"}" ${attrs}>
+      <div class="lead-row-main">
+        <div class="lead-row-title">
+          <h3>${escapeHtml(title)}</h3>
+          ${card.externallyChanged ? '<span class="badge amber">Mudou agora</span>' : ""}
+        </div>
+        ${meta ? `<p class="row-meta">${escapeHtml(meta)}</p>` : '<p class="row-meta">Sem nicho/local no CRM</p>'}
+        ${note ? `<p class="row-note">${escapeHtml(note)}</p>` : ""}
+      </div>
+
+      <div class="lead-row-signals" aria-label="Sinais do lead">
+        <span class="badge blue">${escapeHtml(channel)}</span>
+        <span class="badge ${escapeAttr(qa.tone)}">${escapeHtml(qa.label)}</span>
+        <span class="badge ${escapeAttr(risk.tone)}">${escapeHtml(risk.label)}</span>
+        ${updated ? `<span class="updated-time">${escapeHtml(updated)}</span>` : ""}
+      </div>
+
+      <div class="lead-row-actions">
+        ${renderMessageShortcut(card, { leadId })}
+        ${
+          canQuickSend
+            ? `<button class="button small" type="button" data-confirm-send="${escapeAttr(leadId)}" data-busy-control data-action-control>Marcar enviado</button>`
+            : ""
+        }
+      </div>
+
+      ${
+        confirming
+          ? `
+            <div class="inline-confirm" role="group" aria-label="Confirmar envio manual">
+              <span>Confirmar que voce enviou manualmente?</span>
+              <button class="button small" type="button" data-submit-send="${escapeAttr(leadId)}" data-busy-control data-action-control>Confirmar</button>
+              <button class="button ghost small" type="button" data-cancel-send data-busy-control>Cancelar</button>
+            </div>
+          `
+          : ""
+      }
+    </article>
+  `;
+}
+
+function renderSelectedDetail() {
+  if (!state.selectedLeadId) {
+    elements.detailEmpty.classList.remove("hidden");
+    elements.detailBody.classList.add("hidden");
+    elements.detailBody.innerHTML = "";
+    return;
+  }
+
+  if (!state.currentLead || state.currentLead.leadId !== state.selectedLeadId) {
+    elements.detailEmpty.classList.add("hidden");
+    elements.detailBody.classList.remove("hidden");
+    elements.detailBody.innerHTML = `
+      <section class="detail-band">
+        <h2>Carregando lead</h2>
+        <p class="empty-state">Buscando dados completos.</p>
+      </section>
+    `;
+    return;
+  }
+
+  elements.detailEmpty.classList.add("hidden");
+  elements.detailBody.classList.remove("hidden");
+  elements.detailBody.innerHTML = renderLeadDetailContent(state.currentLead);
+  if (state.paperclipRecoveryOnly) {
+    enterPaperclipRecoveryMode(state.paperclipRecoveryResult ?? {});
   }
 }
 
-function renderLeadModal(lead = {}) {
-  elements.modalKind.textContent = lead.cardKind === "waha_blocker" ? "WAHA" : "Lead";
-  elements.modalTitle.textContent = lead.canonicalName || "Lead";
-
+function renderLeadDetailContent(lead = {}) {
   const actionButtons = Array.isArray(lead.availableActions) && lead.availableActions.length
     ? `<div class="action-list">${lead.availableActions.map(renderActionButton).join("")}</div>`
     : '<p class="empty-state">Sem acoes disponiveis.</p>';
+  const location = compactJoin([lead.area, lead.city], " - ");
+  const blocker = lead.validationBlocker || lead.dispatchError || lead.guardianReason || "";
 
-  elements.leadDetail.innerHTML = `
+  return `
+    <section class="detail-hero">
+      <p class="eyebrow">${escapeHtml(lead.cardKind === "waha_blocker" ? "WAHA" : "Lead")}</p>
+      <h2>${escapeHtml(lead.canonicalName || "Lead")}</h2>
+      <div class="meta-line">
+        <span class="badge ${escapeAttr(toneForStatus(lead.status))}">${escapeHtml(lead.status || "-")}</span>
+        <span class="badge blue">${escapeHtml(lead.commercialStage || "-")}</span>
+        <span class="badge neutral">${escapeHtml(inferChannel(lead))}</span>
+      </div>
+    </section>
+
     <section class="detail-band">
       <h3>Estado</h3>
       <dl class="detail-grid">
-        ${detailItem("Status", lead.status)}
         ${detailItem("Stage", lead.commercialStage)}
+        ${detailItem("QA", lead.qaStatus)}
         ${detailItem("Oferta", lead.recommendedOffer)}
         ${detailItem("Categoria", lead.category)}
-        ${detailItem("Local", compactJoin([lead.area, lead.city], " - "))}
+        ${detailItem("Local", location)}
         ${detailItem("Contato", lead.contact)}
         ${detailItem("Instagram", lead.instagram)}
-        ${detailItem("QA", lead.qaStatus)}
         ${detailItem("Atualizado", formatDateTime(lead.updatedAt))}
       </dl>
     </section>
+
     ${
-      lead.validationBlocker
-        ? `<section class="detail-band"><h3>Bloqueio</h3><p class="error-text">${escapeHtml(lead.validationBlocker)}</p></section>`
+      blocker
+        ? `<section class="detail-band alert-band"><h3>Observacao</h3><p class="error-text">${escapeHtml(blocker)}</p></section>`
         : ""
     }
+
     <section class="detail-band">
-      <h3>Mensagem</h3>
+      <div class="detail-section-header">
+        <h3>Mensagem</h3>
+        ${renderMessageShortcut(lead, { detail: true, leadId: lead.leadId })}
+      </div>
       <pre class="code-block">${escapeHtml(lead.message || "Sem mensagem pronta.")}</pre>
     </section>
+
     <section class="detail-band">
       <h3>Acoes</h3>
       <div id="action-list-slot">${actionButtons}</div>
@@ -377,6 +635,7 @@ function renderLeadModal(lead = {}) {
       <div id="action-form-slot"></div>
       <div id="paperclip-recovery-slot"></div>
     </section>
+
     <section class="detail-band">
       <h3>Outbox</h3>
       ${renderOutbox(lead.outbox)}
@@ -384,17 +643,14 @@ function renderLeadModal(lead = {}) {
   `;
 }
 
-function detailItem(label, value) {
-  return `
-    <div>
-      <dt>${escapeHtml(label)}</dt>
-      <dd>${escapeHtml(value || "-")}</dd>
-    </div>
-  `;
+function renderLeadModal(lead = {}) {
+  elements.modalKind.textContent = lead.cardKind === "waha_blocker" ? "WAHA" : "Lead";
+  elements.modalTitle.textContent = lead.canonicalName || "Lead";
+  elements.leadDetail.innerHTML = renderLeadDetailContent(lead);
 }
 
 function renderActionButton(action) {
-  const tone = ["perdido", "descartar"].includes(action) ? "danger" : "";
+  const tone = ["perdido", "descartar"].includes(action) ? "danger" : "secondary";
   return `
     <button class="button ${escapeAttr(tone)}" type="button" data-select-action="${escapeAttr(action)}" data-busy-control data-action-control>
       ${escapeHtml(labelForAction(action))}
@@ -432,7 +688,277 @@ function renderOutboxRow(row = {}) {
   `;
 }
 
+function renderWaha(waha = {}) {
+  const items = [
+    ["Sem identidade", waha.unmatchedOpen, waha.unmatchedOpen ? "amber" : "neutral", "Conciliar LID"],
+    ["Aprovadas", waha.approved, "green", "Outbox pronto"],
+    ["ACK pendente", waha.deliveryPending, waha.deliveryPending ? "amber" : "neutral", "Aguardar confirmacao"],
+    ["Ambiguas", waha.dispatchAmbiguous, waha.dispatchAmbiguous ? "red" : "neutral", "Handoff operacional"],
+    ["ACK forte", waha.sentStrongAck, "green", "Entrega confirmada"],
+  ];
+
+  elements.wahaSummary.innerHTML = items
+    .map(
+      ([label, value, color, note]) => `
+        <article class="waha-metric">
+          <span class="badge ${escapeAttr(color)}">${escapeHtml(label)}</span>
+          <strong>${escapeHtml(formatNumber(value))}</strong>
+          <span class="muted">${escapeHtml(note)}</span>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+async function activateMode(modeKey) {
+  if (!modeByKey.has(modeKey)) return;
+  state.activeMode = modeKey;
+  state.inlineConfirmLeadId = null;
+  reconcileSelection({ preferFirstInMode: true });
+  renderOperations();
+  if (state.selectedLeadId) {
+    await loadLeadDetail(state.selectedLeadId);
+  }
+}
+
+function reconcileSelection({ preferFirstInMode = false } = {}) {
+  const activeCards = getCardsForMode(state.activeMode);
+  const selectedInActiveMode = activeCards.some((card) => numberOrNull(card.leadId) === state.selectedLeadId);
+  const selectedExists = findCardByLeadId(state.selectedLeadId);
+  const nextLeadId = numberOrNull(activeCards.find((card) => numberOrNull(card.leadId))?.leadId);
+
+  if (preferFirstInMode || !state.selectedLeadId || !selectedExists || !selectedInActiveMode) {
+    state.selectedLeadId = nextLeadId;
+    state.currentLead = state.currentLead?.leadId === nextLeadId ? state.currentLead : null;
+    state.modalSnapshot = state.currentLead ? leadSnapshot(state.currentLead) : null;
+    state.modalStale = false;
+    state.paperclipRecoveryOnly = false;
+    state.paperclipRecoveryResult = null;
+    state.selectedAction = null;
+    stopLeadWatch();
+  }
+}
+
+async function openLead(leadId) {
+  const parsedLeadId = numberOrNull(leadId);
+  if (!parsedLeadId) return;
+  state.selectedLeadId = parsedLeadId;
+  state.inlineConfirmLeadId = null;
+  state.currentLead = state.currentLead?.leadId === parsedLeadId ? state.currentLead : null;
+  state.modalStale = false;
+  state.paperclipRecoveryOnly = false;
+  state.paperclipRecoveryResult = null;
+  state.selectedAction = null;
+  renderOperations();
+  await loadLeadDetail(parsedLeadId);
+}
+
+async function loadLeadDetail(leadId, { manageBusy = true, preserveRecovery = false } = {}) {
+  const parsedLeadId = numberOrNull(leadId);
+  if (!parsedLeadId) return;
+
+  if (manageBusy) startRequest();
+  try {
+    const recoveryOnly = preserveRecovery ? state.paperclipRecoveryOnly : false;
+    const recoveryResult = preserveRecovery ? state.paperclipRecoveryResult : null;
+    const body = await fetchJson(`/api/leads/${encodeURIComponent(parsedLeadId)}`);
+    state.currentLead = body.lead;
+    state.selectedLeadId = body.lead.leadId;
+    state.modalSnapshot = leadSnapshot(body.lead);
+    state.modalStale = false;
+    state.selectedAction = null;
+    state.paperclipRecoveryOnly = recoveryOnly;
+    state.paperclipRecoveryResult = recoveryResult;
+    renderOperations();
+    if (recoveryOnly) {
+      enterPaperclipRecoveryMode(recoveryResult ?? {});
+    }
+    startLeadWatch();
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    if (manageBusy) endRequest();
+  }
+}
+
+async function copyLeadMessage(leadId) {
+  const parsedLeadId = numberOrNull(leadId);
+  const card = findCardByLeadId(parsedLeadId);
+  if (!card?.message) {
+    showError("Lead sem mensagem pronta.");
+    return;
+  }
+  await copyText(card.message);
+  showToast("Mensagem copiada.");
+}
+
+function renderMessageShortcut(item = {}, { leadId = null, detail = false } = {}) {
+  const whatsappUrl = buildWhatsAppUrl(item);
+  if (whatsappUrl) {
+    return `
+      <a class="button whatsapp small" href="${escapeAttr(whatsappUrl)}" target="_blank" rel="noopener noreferrer" data-open-whatsapp="${escapeAttr(leadId || "")}">
+        WhatsApp
+      </a>
+    `;
+  }
+
+  const copyAttr = detail ? "data-detail-copy-message" : `data-copy-message="${escapeAttr(leadId || "")}"`;
+  return `
+    <button class="button ghost small" type="button" ${copyAttr} ${item.message && leadId ? "" : "disabled"} data-busy-control>
+      Copiar mensagem
+    </button>
+  `;
+}
+
+function buildWhatsAppUrl(item = {}) {
+  const phone = normalizedWhatsAppPhone(item.phoneNormalized);
+  const message = String(item.message ?? "").trim();
+  if (!phone || !message) return "";
+  return `https://wa.me/${encodeURIComponent(phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function normalizedWhatsAppPhone(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return digits.length >= 12 ? digits : "";
+}
+
+async function submitQuickSend(leadId) {
+  const parsedLeadId = numberOrNull(leadId);
+  const card = findCardByLeadId(parsedLeadId);
+  if (!parsedLeadId || !card) return;
+  if (card.commercialStage !== "ready_lead_card") {
+    showError("Lead mudou de etapa.");
+    await refresh({ manual: true, force: true });
+    return;
+  }
+
+  startRequest();
+  try {
+    const body = await fetchJson("/api/actions/enviado", {
+      method: "POST",
+      body: JSON.stringify({
+        leadId: parsedLeadId,
+        expectedStage: card.commercialStage,
+        payload: {},
+      }),
+    });
+    const result = body.result ?? {};
+
+    if (isPaperclipPartialFailure(result)) {
+      state.selectedLeadId = parsedLeadId;
+      state.paperclipRecoveryOnly = true;
+      state.paperclipRecoveryResult = result;
+      await loadLeadDetail(parsedLeadId, { manageBusy: false, preserveRecovery: true });
+      showError("CRM atualizado. Publicacao Paperclip pendente.");
+      return;
+    }
+
+    if (!body.ok || result.ok === false) {
+      showActionError(result);
+      if (result.reason === "lead_stage_changed" || result.nextRefreshRecommended) {
+        await refresh({ manual: true, force: true });
+      }
+      return;
+    }
+
+    state.inlineConfirmLeadId = null;
+    showToast("Envio manual registrado.");
+    await refresh({ manual: true, force: true });
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    endRequest();
+  }
+}
+
+async function submitWahaReconcile(unmatchedId) {
+  const parsedUnmatchedId = numberOrNull(unmatchedId);
+  const item = findWahaUnmatched(parsedUnmatchedId);
+  const draft = wahaDraft(parsedUnmatchedId);
+  const leadId = numberOrNull(draft.leadId);
+  if (!parsedUnmatchedId || !item || !leadId || !draft.confirmed) {
+    showError("Selecione o lead e confirme o vinculo.");
+    return;
+  }
+
+  startRequest();
+  try {
+    const body = await fetchJson("/api/waha/unmatched/reconcile", {
+      method: "POST",
+      body: JSON.stringify({
+        unmatchedId: parsedUnmatchedId,
+        leadId,
+        expectedUpdatedAt: item.updatedAt,
+        confirmed: true,
+      }),
+    });
+    const result = body.result ?? {};
+    if (!body.ok || result.ok === false) {
+      showActionError(result);
+      if (result.nextRefreshRecommended) await refresh({ manual: true, force: true });
+      return;
+    }
+
+    state.wahaReconcileDrafts.delete(parsedUnmatchedId);
+    state.wahaNoMatchDrafts.delete(parsedUnmatchedId);
+    state.wahaNoMatchOpenId = null;
+    showToast(`Conciliado. Eventos acordados: ${formatNumber(result.eventsWoken || 0)}.`);
+    await refresh({ manual: true, force: true });
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    endRequest();
+  }
+}
+
+async function submitWahaNoMatch(unmatchedId) {
+  const parsedUnmatchedId = numberOrNull(unmatchedId);
+  const item = findWahaUnmatched(parsedUnmatchedId);
+  const reason = String(state.wahaNoMatchDrafts.get(parsedUnmatchedId) || "").trim();
+  if (!parsedUnmatchedId || !item) return;
+  if (!reason) {
+    showError("Motivo obrigatorio para no-match.");
+    return;
+  }
+
+  startRequest();
+  try {
+    const body = await fetchJson("/api/waha/unmatched/no-match", {
+      method: "POST",
+      body: JSON.stringify({
+        unmatchedId: parsedUnmatchedId,
+        expectedUpdatedAt: item.updatedAt,
+        reason,
+      }),
+    });
+    const result = body.result ?? {};
+    if (!body.ok || result.ok === false) {
+      showActionError(result);
+      if (result.nextRefreshRecommended) await refresh({ manual: true, force: true });
+      return;
+    }
+
+    state.wahaNoMatchDrafts.delete(parsedUnmatchedId);
+    state.wahaReconcileDrafts.delete(parsedUnmatchedId);
+    state.wahaNoMatchOpenId = null;
+    showToast(`No-match registrado: ${formatNumber(result.marked || 0)} evento(s).`);
+    await refresh({ manual: true, force: true });
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    endRequest();
+  }
+}
+
 function selectAction(action) {
+  if (!action) {
+    state.selectedAction = null;
+    const slot = document.getElementById("action-form-slot");
+    if (slot) slot.innerHTML = "";
+    return;
+  }
+
   if (state.paperclipRecoveryOnly) {
     showError("Publicacao Paperclip pendente.");
     return;
@@ -483,12 +1009,6 @@ function selectAction(action) {
       </div>
     </form>
   `;
-
-  if (!action) {
-    slot.innerHTML = "";
-    state.selectedAction = null;
-    return;
-  }
 
   updateActionSubmitState();
   const textarea = document.getElementById(textareaId);
@@ -558,14 +1078,13 @@ async function submitSelectedAction() {
     if (!body.ok || result.ok === false) {
       showActionError(result);
       if (result.nextRefreshRecommended) {
-        closeModal();
         await refresh({ manual: true, force: true });
       }
       return;
     }
 
     showToast("Acao registrada.");
-    closeModal();
+    state.currentLead = null;
     await refresh({ manual: true, force: true });
   } catch (error) {
     showError(error.message);
@@ -585,7 +1104,8 @@ async function retryPaperclipRefresh() {
     }
 
     showToast("Paperclip atualizado.");
-    closeModal();
+    state.paperclipRecoveryOnly = false;
+    state.paperclipRecoveryResult = null;
     await refresh({ manual: true, force: true });
   } catch (error) {
     enterPaperclipRecoveryMode({ reason: "paperclip_sync_failed", errors: [error.message] });
@@ -661,6 +1181,49 @@ function renderPreviewMatch(lead = {}) {
   `;
 }
 
+async function searchLeads() {
+  const q = elements.searchInput.value.trim();
+  if (state.searchController) state.searchController.abort();
+
+  if (!q) {
+    elements.searchState.textContent = "Todos os status";
+    elements.searchResults.innerHTML = "";
+    return;
+  }
+
+  state.searchController = new AbortController();
+  elements.searchState.textContent = "Buscando";
+  startRequest();
+  try {
+    const body = await fetchJson(`/api/leads?q=${encodeURIComponent(q)}`, { signal: state.searchController.signal });
+    const leads = Array.isArray(body.leads) ? body.leads : [];
+    elements.searchState.textContent = `${leads.length} resultado${leads.length === 1 ? "" : "s"}`;
+    elements.searchResults.innerHTML = leads.length
+      ? leads.map(renderSearchResult).join("")
+      : '<p class="empty-state">Nenhum resultado.</p>';
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      elements.searchState.textContent = "Falha";
+      showError(error.message);
+    }
+  } finally {
+    endRequest();
+  }
+}
+
+function renderSearchResult(lead = {}) {
+  const leadId = numberOrNull(lead.leadId);
+  const title = lead.canonicalName || "Lead";
+  const meta = compactJoin([lead.status, lead.commercialStage, lead.city, lead.area], " | ");
+  const attrs = leadId ? `data-open-lead="${escapeAttr(leadId)}" data-busy-control` : "disabled";
+  return `
+    <button class="search-item" type="button" ${attrs}>
+      <strong>${escapeHtml(title)}</strong>
+      <span class="muted">${escapeHtml(meta || "-")}</span>
+    </button>
+  `;
+}
+
 async function fetchJson(path, options = {}) {
   const headers = new Headers(options.headers ?? {});
   if (options.body && !headers.has("Content-Type")) {
@@ -676,14 +1239,7 @@ async function fetchJson(path, options = {}) {
 }
 
 function closeModal() {
-  stopLeadWatch();
   state.modalOpen = false;
-  state.modalStale = false;
-  state.paperclipRecoveryOnly = false;
-  state.paperclipRecoveryResult = null;
-  state.currentLead = null;
-  state.modalSnapshot = null;
-  state.selectedAction = null;
   elements.modal.classList.add("hidden");
   elements.leadDetail.innerHTML = "";
   syncBusyState();
@@ -706,13 +1262,16 @@ function isBusy() {
 function syncBusyState() {
   const busy = isBusy();
   elements.app.setAttribute("aria-busy", busy ? "true" : "false");
-  elements.refreshButton.disabled = busy || state.modalOpen;
+  elements.refreshButton.disabled = busy;
   elements.previewButton.disabled = busy;
   for (const button of document.querySelectorAll("[data-busy-control]")) {
     button.disabled = busy;
   }
   for (const button of document.querySelectorAll("[data-action-control]")) {
     button.disabled = busy || state.modalStale || state.paperclipRecoveryOnly;
+  }
+  for (const button of document.querySelectorAll("[data-waha-reconcile]")) {
+    button.disabled = busy || button.dataset.wahaReconcileReady !== "true";
   }
   updateActionSubmitState();
 }
@@ -778,33 +1337,21 @@ function showPaperclipRecovery(result = {}) {
 }
 
 async function reloadOpenLead() {
-  const leadId = numberOrNull(state.currentLead?.leadId);
+  const leadId = numberOrNull(state.selectedLeadId || state.currentLead?.leadId);
   if (!leadId) return;
 
-  startRequest();
-  try {
-    const keepRecoveryOnly = state.paperclipRecoveryOnly;
-    const recoveryResult = state.paperclipRecoveryResult;
-    const body = await fetchJson(`/api/leads/${encodeURIComponent(leadId)}`);
-    state.currentLead = body.lead;
-    state.modalSnapshot = leadSnapshot(body.lead);
-    state.modalStale = false;
-    state.selectedAction = null;
-    renderLeadModal(body.lead);
-    if (keepRecoveryOnly) {
-      enterPaperclipRecoveryMode(recoveryResult);
-    }
-    startLeadWatch();
-    showToast("Lead atualizado.");
-  } catch (error) {
-    showError(error.message);
-  } finally {
-    endRequest();
+  const keepRecoveryOnly = state.paperclipRecoveryOnly;
+  const recoveryResult = state.paperclipRecoveryResult;
+  await loadLeadDetail(leadId, { preserveRecovery: keepRecoveryOnly });
+  if (keepRecoveryOnly) {
+    enterPaperclipRecoveryMode(recoveryResult ?? {});
   }
+  showToast("Lead atualizado.");
 }
 
 function startLeadWatch() {
   stopLeadWatch();
+  if (!state.selectedLeadId) return;
   state.leadWatchTimer = setInterval(() => {
     pollOpenLead();
   }, 10000);
@@ -823,8 +1370,8 @@ function stopLeadWatch() {
 }
 
 async function pollOpenLead() {
-  const leadId = numberOrNull(state.currentLead?.leadId);
-  if (!state.modalOpen || state.modalStale || state.leadWatchBusy || isBusy() || !leadId) return;
+  const leadId = numberOrNull(state.selectedLeadId);
+  if (state.modalStale || state.leadWatchBusy || isBusy() || !leadId || !state.modalSnapshot) return;
 
   state.leadWatchBusy = true;
   state.leadWatchController = new AbortController();
@@ -882,7 +1429,7 @@ function leadSnapshot(lead = {}) {
 function annotateChangedCards(kanban = {}) {
   const nextSnapshots = new Map();
   const annotated = {};
-  for (const [columnKey, cards] of Object.entries(kanban)) {
+  for (const [columnKey, cards] of Object.entries(kanban ?? {})) {
     annotated[columnKey] = Array.isArray(cards)
       ? cards.map((card) => annotateChangedCard(card, nextSnapshots))
       : [];
@@ -926,6 +1473,126 @@ function boardCardChanged(previous, next) {
   );
 }
 
+function getCardsForMode(modeKey) {
+  if (modeKey === "waha") {
+    return (state.kanban.bloqueados ?? []).filter((card) => card.cardKind === "waha_blocker");
+  }
+  return Array.isArray(state.kanban[modeKey]) ? state.kanban[modeKey] : [];
+}
+
+function getModeCount(modeKey) {
+  const base = getCardsForMode(modeKey).length;
+  if (modeKey === "waha") return base + Number(state.waha.unmatchedOpen || 0);
+  return base;
+}
+
+function wahaDraft(unmatchedId) {
+  const key = numberOrNull(unmatchedId);
+  if (!key) return {};
+  if (!state.wahaReconcileDrafts.has(key)) {
+    state.wahaReconcileDrafts.set(key, { leadId: null, confirmed: false });
+  }
+  return state.wahaReconcileDrafts.get(key);
+}
+
+function findWahaUnmatched(unmatchedId) {
+  const key = numberOrNull(unmatchedId);
+  if (!key || !Array.isArray(state.waha.unmatched)) return null;
+  return state.waha.unmatched.find((item) => numberOrNull(item.id) === key) || null;
+}
+
+function findCardByLeadId(leadId) {
+  const parsedLeadId = numberOrNull(leadId);
+  if (!parsedLeadId) return null;
+  for (const cards of Object.values(state.kanban)) {
+    const found = Array.isArray(cards) ? cards.find((card) => numberOrNull(card.leadId) === parsedLeadId) : null;
+    if (found) return found;
+  }
+  return null;
+}
+
+function detailItem(label, value) {
+  return `
+    <div>
+      <dt>${escapeHtml(label)}</dt>
+      <dd>${escapeHtml(value || "-")}</dd>
+    </div>
+  `;
+}
+
+function inferChannel(card = {}) {
+  const contact = String(card.contact ?? "").toLowerCase();
+  const instagram = String(card.instagram ?? "").trim();
+  const targetChat = String(card.targetChatId ?? "").toLowerCase();
+  if (targetChat.includes("@")) return "WAHA";
+  if (/whatsapp|\+55|\(\d{2}\)|\d{8,}/i.test(contact)) return "WhatsApp";
+  if (instagram || contact.includes("instagram") || contact.includes("/")) return "Instagram";
+  if (contact.includes("direct")) return "Direct";
+  if (contact) return "Contato";
+  return "Canal pendente";
+}
+
+function qaLabel(card = {}) {
+  const value = card.qaStatus || card.cardStatus || card.bioGateStatus || card.status || "";
+  const normalized = String(value).toLowerCase();
+  if (!value) return { label: "QA pendente", tone: "neutral" };
+  if (/(aprov|ready|ok|sent|novo)/.test(normalized)) return { label: "QA ok", tone: "green" };
+  if (/(not_ok|bloque|erro|failed|ambiguous)/.test(normalized)) return { label: "QA alerta", tone: "red" };
+  return { label: shortLabel(value, 18), tone: toneForStatus(value) };
+}
+
+function riskLabel(card = {}) {
+  const blocker = card.validationBlocker || card.dispatchError || card.guardianReason || "";
+  if (blocker) return { label: shortLabel(blocker, 22), tone: "amber" };
+  if (card.cardKind === "waha_blocker") return { label: "WAHA", tone: "red" };
+  if (card.externallyChanged) return { label: "Atualizado", tone: "amber" };
+  return { label: "Sem alerta", tone: "neutral" };
+}
+
+function rowNote(card = {}) {
+  return firstFilled(
+    card.validationBlocker,
+    card.dispatchError,
+    card.guardianReason,
+    card.requiredAction,
+    card.message ? shortLabel(card.message, 108) : "",
+    card.contact,
+  );
+}
+
+function firstFilled(...values) {
+  return values.map((value) => String(value ?? "").trim()).find(Boolean) || "";
+}
+
+function shortLabel(value, maxLength) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
+}
+
+async function copyText(text) {
+  const value = String(text ?? "");
+  if (!value) {
+    showError("Nada para copiar.");
+    return;
+  }
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
 function isPaperclipPartialFailure(result = {}) {
   return result.reason === "paperclip_sync_failed" || (result.crmUpdated === true && result.paperclipUpdated === false);
 }
@@ -958,19 +1625,11 @@ function labelForAction(action) {
   return actionLabels[action] || action || "-";
 }
 
-function labelForKind(kind) {
-  return {
-    worker_handoff: "Worker",
-    waha_blocker: "WAHA bloqueio",
-    lead: "Lead",
-  }[kind] || "Lead";
-}
-
 function toneForStatus(status) {
   const normalized = String(status ?? "").toLowerCase();
   if (/(bloque|ambiguous|failed|erro|perdido|descart)/.test(normalized)) return "red";
   if (/(pending|pendente|aguard|qa|validation|validacao|delivery)/.test(normalized)) return "amber";
-  if (/(ready|aprov|sent|device|read|lead_quente|interessado)/.test(normalized)) return "green";
+  if (/(ready|aprov|sent|device|read|lead_quente|interessado|novo)/.test(normalized)) return "green";
   return "neutral";
 }
 
@@ -990,6 +1649,16 @@ function reasonLabel(reason) {
       crm_write_failed: "Falha ao gravar no CRM.",
       paperclip_sync_failed: "CRM atualizado; Paperclip pendente.",
       unsupported_action: "Acao nao suportada.",
+      confirmation_required: "Confirmacao obrigatoria.",
+      invalid_unmatched_id: "Mensagem WAHA invalida.",
+      unmatched_not_found: "Mensagem WAHA nao encontrada.",
+      unmatched_changed: "Mensagem WAHA mudou desde que voce abriu.",
+      invalid_lead_id: "Lead invalido.",
+      identity_link_failed: "Falha ao vincular identidade.",
+      unmatched_reconcile_failed: "Falha ao conciliar mensagem.",
+      wake_failed: "Falha ao acordar agente.",
+      no_match_reason_required: "Motivo obrigatorio.",
+      no_match_failed: "Falha ao marcar no-match.",
     }[reason] || reason || "Falha"
   );
 }
