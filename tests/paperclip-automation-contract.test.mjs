@@ -396,6 +396,7 @@ test("Kit visual de demos declara assets seguros e reutilizaveis", () => {
 
   assert.equal(manifest.version, 1);
   assert.deepEqual(Object.keys(manifest.niches).sort(), [
+    "beleza-unhas",
     "estetica-beleza",
     "laboratorio-saude",
     "odontologia",
@@ -429,6 +430,24 @@ test("Kit visual de demos declara assets seguros e reutilizaveis", () => {
       assert.match(image.alt, /sem rosto|sem pessoas|sem paciente|sem ambiente real/i, image.path);
     }
   }
+});
+
+test("Demo da Vanessa usa foto gerada do kit visual, nao ilustracao CSS", () => {
+  const html = read("demos/espaco-de-beleza-vanessa-malosto/index.html");
+  const styles = read("demos/espaco-de-beleza-vanessa-malosto/styles.css");
+  const readme = read("demos/espaco-de-beleza-vanessa-malosto/README.md");
+  const manifest = demoKitManifest();
+  const nailImage = manifest.niches["beleza-unhas"]?.defaultImage;
+
+  assert.equal(nailImage, "assets/demo-kit/niches/beleza-unhas/unhas-bancada-hero.jpg");
+  assert.equal(existsSync(join(rootDir, nailImage)), true, nailImage);
+  assert.match(html, /\.\.\/\.\.\/assets\/demo-kit\/niches\/beleza-unhas\/unhas-bancada-hero\.jpg/i);
+  assert.match(html, /<img[^>]+unhas-bancada-hero\.jpg/i);
+  assert.match(html, /Imagem neutra.*unhas.*sem rosto.*sem pessoas/i);
+  assert.doesNotMatch(html, /visual-board|polish|appointment-note|Ilustracao neutra/i);
+  assert.doesNotMatch(styles, /\.visual-board|\.polish|\.appointment-note/i);
+  assert.match(readme, /beleza-unhas\/unhas-bancada-hero\.jpg/i);
+  assert.match(readme, /imagem segura do kit visual/i);
 });
 
 test("Deploy automatico para cPanel usa GitHub Actions sem segredos no repo", () => {

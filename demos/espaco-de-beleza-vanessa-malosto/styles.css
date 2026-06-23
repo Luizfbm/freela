@@ -277,97 +277,14 @@ svg {
   font-size: 0.92rem;
 }
 
-.visual-board {
-  position: relative;
-  min-height: 420px;
-  overflow: hidden;
-  border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(155, 64, 89, 0.12), rgba(47, 118, 111, 0.12)),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.44) 0 1px, transparent 1px 56px),
-    #f7ece6;
-}
-
-.visual-board::before {
-  content: "";
-  position: absolute;
-  inset: 34px;
-  border: 1px solid rgba(155, 64, 89, 0.2);
-  border-radius: 8px;
-  background: rgba(255, 253, 249, 0.38);
-}
-
-.polish {
-  position: absolute;
-  bottom: 92px;
-  width: 76px;
-  height: 176px;
-  border-radius: 28px 28px 18px 18px;
-  background: var(--primary);
-  box-shadow: 0 18px 36px rgba(45, 34, 32, 0.16);
-}
-
-.polish::before {
-  content: "";
-  position: absolute;
-  top: -42px;
-  left: 18px;
-  width: 40px;
-  height: 54px;
-  border-radius: 14px 14px 6px 6px;
-  background: #352b2b;
-}
-
-.polish::after {
-  content: "";
-  position: absolute;
-  inset: 18px 18px auto;
-  height: 72px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.24);
-}
-
-.bottle-one {
-  left: 42px;
-  background: #9b4059;
-  transform: rotate(-8deg);
-}
-
-.bottle-two {
-  left: 146px;
-  bottom: 70px;
-  background: #d88975;
-}
-
-.bottle-three {
-  right: 58px;
-  background: #2f766f;
-  transform: rotate(7deg);
-}
-
-.appointment-note {
-  position: absolute;
-  right: 28px;
-  top: 30px;
-  width: min(230px, 52%);
-  padding: 18px;
-  border-radius: 8px;
-  background: rgba(255, 253, 249, 0.92);
-  border: 1px solid rgba(155, 64, 89, 0.18);
-}
-
-.appointment-note small,
-.appointment-note span {
+.hero-card img {
   display: block;
-  color: var(--muted);
-}
-
-.appointment-note strong {
-  display: block;
-  margin: 6px 0;
-  font-family: "Figtree", Arial, sans-serif;
-  font-size: 1.18rem;
-  line-height: 1.12;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border: 1px solid rgba(155, 64, 89, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 18px 38px rgba(45, 34, 32, 0.14);
 }
 
 .section {
@@ -684,33 +601,6 @@ svg {
   .service-grid,
   .confirm-grid {
     grid-template-columns: 1fr;
-  }
-
-  .visual-board {
-    min-height: 330px;
-  }
-
-  .polish {
-    width: 58px;
-    height: 134px;
-  }
-
-  .bottle-one {
-    left: 28px;
-  }
-
-  .bottle-two {
-    left: 102px;
-  }
-
-  .bottle-three {
-    right: 26px;
-  }
-
-  .appointment-note {
-    right: 16px;
-    top: 18px;
-    width: min(210px, 62%);
   }
 
   .service-card {

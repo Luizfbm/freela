@@ -22,6 +22,22 @@
     }
   },
   "niches": {
+    "beleza-unhas": {
+      "label": "Beleza e unhas",
+      "defaultImage": "assets/demo-kit/niches/beleza-unhas/unhas-bancada-hero.jpg",
+      "safety": {
+        "facesAllowed": false,
+        "identifiablePeopleAllowed": false,
+        "realClientEnvironmentAllowed": false
+      },
+      "images": [
+        {
+          "path": "assets/demo-kit/niches/beleza-unhas/unhas-bancada-hero.jpg",
+          "alt": "Imagem neutra de bancada de manicure e unhas, sem rosto, sem pessoas e sem ambiente real do cliente",
+          "source": "AI-generated neutral concept image"
+        }
+      ]
+    },
     "estetica-beleza": {
       "label": "Estetica e beleza",
       "defaultImage": "assets/demo-kit/niches/estetica-beleza/estetica-bancada-hero.jpg",

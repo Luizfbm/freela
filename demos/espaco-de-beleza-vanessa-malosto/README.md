@@ -34,6 +34,7 @@ Mostrar como uma presenca local simples pode organizar apresentacao, servicos pr
 
 - Conceito visual nao oficial.
 - Sem fotos copiadas de Instagram, Google ou WhatsApp.
+- Imagem segura do kit visual: `../../assets/demo-kit/niches/beleza-unhas/unhas-bancada-hero.jpg`.
 - Sem precos, promessas de resultado, depoimentos ou antes/depois.
 - Textos, dados e imagens precisam ser confirmados antes de qualquer publicacao oficial.
 
