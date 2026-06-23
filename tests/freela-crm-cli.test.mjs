@@ -2760,6 +2760,9 @@ test("guardian review auto-wakes Jhon once for repairable WhatsApp block", async
     assert.match(paperclip.requests[0].body.title, /reparar Outbox bloqueada/i);
     assert.match(paperclip.requests[0].body.description, /criar nova Outbox/i);
     assert.match(paperclip.requests[0].body.description, /Nao envie WhatsApp/i);
+    assert.match(paperclip.requests[0].body.description, /whatsapp guardian review --outbox-id \[id\]/i);
+    assert.match(paperclip.requests[0].body.description, /--auto-dispatch true/i);
+    assert.doesNotMatch(paperclip.requests[0].body.description, /Nao chame Gateway/i);
     assert.match(paperclip.requests[0].body.description, /uma tentativa/i);
 
     const repeat = await runAsync(root, [
