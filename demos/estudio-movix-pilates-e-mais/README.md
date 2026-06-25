@@ -36,6 +36,12 @@ Mostrar como uma pagina simples pode reunir apresentacao, servicos principais, e
 
 Esta pagina e um conceito visual nao oficial. Ela nao usa fotos reais do negocio, nao promete resultado, nao inclui depoimentos, nao apresenta precos e nao substitui revisao do Estudio Movix antes de qualquer publicacao oficial.
 
+## Asset visual seguro
+
+- Imagem segura do kit visual: `assets/demo-kit/niches/pilates-fisioterapia/pilates-studio-hero.jpg`.
+- Asset registrado em `assets/demo-kit/manifest.json` para o nicho `pilates-fisioterapia`.
+- Imagem neutra gerada, sem rosto, sem pessoas identificaveis, sem paciente e sem representar o ambiente real da Movix.
+
 ## Arquivos criados
 
 - `index.html`
