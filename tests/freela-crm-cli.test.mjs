@@ -3603,6 +3603,194 @@ test("whatsapp guardian aprova resposta segura e bloqueia preco/enxuta", () => {
   assert.match(rows[1].guardian_reason, /preco|enxuta|397/i);
 });
 
+test("whatsapp guardian allows first contextual message with distinctive terms", () => {
+  const root = makeWhatsAppLeadRoot("wa-context-recap-first-001", "Pode sim");
+
+  const review = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Vi que voces comunicam pilates, fisioterapia e treino funcional. Posso te mandar os pontos por aqui.",
+  );
+
+  assert.match(review.stdout, /aprovado/i);
+});
+
+test("whatsapp guardian blocks repeated distinctive context from previous outbound", () => {
+  const root = makeWhatsAppLeadRoot("wa-context-recap-block-001", "Pode sim");
+  const first = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Vi que voces comunicam pilates, fisioterapia e treino funcional. Posso te mandar os pontos por aqui.",
+  );
+  assert.match(first.stdout, /aprovado/i);
+
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-context-recap-block-002",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Certo",
+    received_at: "2026-06-21T10:03:00-03:00",
+  });
+
+  const second = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "A ideia e organizar pilates, fisioterapia, treino funcional, endereco e WhatsApp em uma pagina.",
+  );
+
+  assert.match(second.stdout, /bloqueado/i);
+  const database = db(root);
+  const outbox = database.prepare("select * from whatsapp_outbox order by id desc limit 1").get();
+  database.close();
+  assert.match(outbox.guardian_reason, /mensagem recapitula contexto ja usado/i);
+});
+
+test("whatsapp guardian allows short references instead of recapping previous context", () => {
+  const root = makeWhatsAppLeadRoot("wa-context-recap-reference-001", "Pode sim");
+  const first = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Vi que voces comunicam pilates, fisioterapia e treino funcional. Posso te mandar os pontos por aqui.",
+  );
+  assert.match(first.stdout, /aprovado/i);
+
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-context-recap-reference-002",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Certo",
+    received_at: "2026-06-21T10:04:00-03:00",
+  });
+
+  const second = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "A ideia e deixar esse caminho mais claro em uma pagina curta, com endereco e botao direto para WhatsApp.",
+  );
+
+  assert.match(second.stdout, /aprovado/i);
+});
+
+test("whatsapp guardian allows repeated terms when latest inbound mentioned them", () => {
+  const root = makeWhatsAppLeadRoot("wa-context-recap-inbound-001", "Pode sim");
+  const first = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Vi que voces comunicam pilates, fisioterapia e treino funcional. Posso te mandar os pontos por aqui.",
+  );
+  assert.match(first.stdout, /aprovado/i);
+
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-context-recap-inbound-002",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Seria para pilates e fisioterapia mesmo",
+    received_at: "2026-06-21T10:05:00-03:00",
+  });
+
+  const second = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito. Nesse caso, pilates e fisioterapia podem aparecer como parte do mesmo caminho de contato.",
+  );
+
+  assert.match(second.stdout, /aprovado/i);
+});
+
+test("whatsapp guardian ignores generic operational words for context recap", () => {
+  const root = makeWhatsAppLeadRoot("wa-context-recap-generic-001", "Pode sim");
+  const first = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "A pagina pode organizar Instagram, WhatsApp, endereco, contato e servicos.",
+  );
+  assert.match(first.stdout, /aprovado/i);
+
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-context-recap-generic-002",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Entendi",
+    received_at: "2026-06-21T10:06:00-03:00",
+  });
+
+  const second = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Sim. A pagina deixa Instagram, WhatsApp, endereco, contato e servicos em um caminho mais facil.",
+  );
+
+  assert.match(second.stdout, /aprovado/i);
+});
+
+test("context recap guardian block auto-wakes Jhon for repair", async () => {
+  const root = makeWhatsAppLeadRoot("wa-context-recap-repair-001", "Pode sim");
+  const first = proposeAndReviewSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Vi que voces comunicam pilates, fisioterapia e treino funcional. Posso te mandar os pontos por aqui.",
+  );
+  assert.match(first.stdout, /aprovado/i);
+
+  ingestWhatsApp(root, {
+    bridge_message_id: "wa-context-recap-repair-002",
+    chat_id: "5527999990000@s.whatsapp.net",
+    sender_name: "Aghata Massoterapia",
+    sender_phone: "+55 27 99999-0000",
+    body: "Certo",
+    received_at: "2026-06-21T10:07:00-03:00",
+  });
+
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "A ideia e organizar pilates, fisioterapia, treino funcional, endereco e WhatsApp em uma pagina.",
+  );
+
+  const paperclip = await withPaperclipServer((req, res) => {
+    assert.equal(req.method, "POST");
+    assert.equal(req.url, "/api/companies/company-test/issues");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ id: "issue-jhon-context", identifier: "FRE-JHON-CONTEXT" }));
+  });
+
+  try {
+    const review = await runAsync(root, [
+      "whatsapp",
+      "guardian",
+      "review",
+      "--outbox-id",
+      String(outbox.id),
+      "--auto-wake",
+      "true",
+      "--paperclip-api-base",
+      paperclip.baseUrl,
+      "--paperclip-company-id",
+      "company-test",
+      "--closer-agent-id",
+      "agent-jhon-test",
+    ]);
+
+    assert.equal(review.status, 0, review.stderr);
+    assert.match(review.stdout, /Guardiao: bloqueado/i);
+    assert.match(review.stdout, /Wake Paperclip: created/i);
+    assert.equal(paperclip.requests.length, 1);
+    assert.equal(paperclip.requests[0].body.assigneeAgentId, "agent-jhon-test");
+    assert.match(paperclip.requests[0].body.description, /mensagem recapitula contexto ja usado/i);
+
+    const database = db(root);
+    const wake = database.prepare("select * from whatsapp_worker_wakes order by id desc limit 1").get();
+    database.close();
+    assert.equal(wake.wake_type, "whatsapp_guardian_repair");
+  } finally {
+    await paperclip.close();
+  }
+});
+
 test("whatsapp guardian blocks outbox without humanizer and context proof", () => {
   const root = makeRoot();
   assert.equal(runNode([crm, "--root", root, "init"]).status, 0);
