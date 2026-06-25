@@ -3727,6 +3727,47 @@ test("whatsapp guardian ignores generic operational words for context recap", ()
   assert.match(second.stdout, /aprovado/i);
 });
 
+test("whatsapp guardian ignores future outbound interaction for context recap", () => {
+  const root = makeWhatsAppLeadRoot("wa-context-recap-future-outbound-001", "Pode sim");
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Posso seguir com um caminho simples para pilates e fisioterapia por aqui.",
+  );
+
+  const database = db(root);
+  database
+    .prepare(
+      `insert into interactions (
+         lead_id, direction, channel, body, occurred_at, classification, created_at
+       ) values (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      outbox.lead_id,
+      "outbound",
+      "whatsapp",
+      "Mais tarde eu falaria de pilates e fisioterapia em outro contexto.",
+      "2099-06-21T10:00:00-03:00",
+      "manual_future_test",
+      "2099-06-21T10:00:00-03:00",
+    );
+  database.close();
+
+  const review = runNode([
+    crm,
+    "--root",
+    root,
+    "whatsapp",
+    "guardian",
+    "review",
+    "--outbox-id",
+    String(outbox.id),
+  ]);
+
+  assert.equal(review.status, 0, review.stderr);
+  assert.match(review.stdout, /aprovado/i);
+});
+
 test("context recap guardian block auto-wakes Jhon for repair", async () => {
   const root = makeWhatsAppLeadRoot("wa-context-recap-repair-001", "Pode sim");
   const first = proposeAndReviewSafeWhatsApp(

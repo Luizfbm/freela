@@ -3981,6 +3981,7 @@ function contextRecapRepeatedTerms(database, outbox) {
 }
 
 function latestPreviousOutboundForContext(database, outbox) {
+  const cutoffAt = clean(outbox.sent_at || outbox.delivered_at || outbox.approved_at || outbox.created_at);
   return database
     .prepare(
       `select body
@@ -3991,6 +3992,7 @@ function latestPreviousOutboundForContext(database, outbox) {
            and direction = 'outbound'
            and channel = 'whatsapp'
            and trim(coalesce(body, '')) != ''
+           and datetime(occurred_at) < datetime(?)
          union all
          select body, coalesce(sent_at, delivered_at, approved_at, created_at) as sort_at, id as sort_id
          from whatsapp_outbox
@@ -4000,10 +4002,10 @@ function latestPreviousOutboundForContext(database, outbox) {
            and status in ('approved', 'sent', 'delivery_pending', 'dispatch_ambiguous')
            and trim(coalesce(body, '')) != ''
        )
-       order by sort_at desc, sort_id desc
+       order by datetime(sort_at) desc, sort_id desc
        limit 1`,
     )
-    .get(outbox.lead_id, outbox.lead_id, outbox.id, outbox.id);
+    .get(outbox.lead_id, cutoffAt, outbox.lead_id, outbox.id, outbox.id);
 }
 
 function latestInboundTermsForOutbox(database, outbox) {
