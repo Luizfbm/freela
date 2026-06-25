@@ -3361,6 +3361,36 @@ test("whatsapp outbox list-dispatchable exposes explicit ids for Gateway dispatc
   assert.match(list.stdout, /dispatch-approved-outbox --provider waha --outbox-id/i);
 });
 
+test("whatsapp outbox list-dispatchable hides approved outboxes while outbound is paused", () => {
+  const root = makeWhatsAppLeadRoot("wa-list-dispatchable-paused-001", "Pode sim");
+
+  const outbox = proposeSafeWhatsApp(
+    root,
+    "Aghata Massoterapia",
+    "Perfeito, posso te mandar os 3 pontos por aqui.",
+  );
+  const review = run(root, ["whatsapp", "guardian", "review", "--outbox-id", String(outbox.id)]);
+  assert.equal(review.status, 0, review.stderr);
+  mkdirSync(join(root, ".scratch", "whatsapp"), { recursive: true });
+  writeFileSync(
+    join(root, ".scratch", "whatsapp", "outbound-paused.json"),
+    JSON.stringify({
+      reason: "whatsapp_ban_24h",
+      paused_at: "2026-06-25T14:10:00.000Z",
+    }),
+  );
+
+  const status = run(root, ["whatsapp", "outbox", "status", "--outbox-id", String(outbox.id)]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.match(status.stdout, /Pode despachar: nao/i);
+  assert.match(status.stdout, /outbound WhatsApp pausado/i);
+
+  const list = run(root, ["whatsapp", "outbox", "list-dispatchable"]);
+  assert.equal(list.status, 0, list.stderr);
+  assert.match(list.stdout, /Nenhuma Outbox aprovada e despachavel/i);
+  assert.doesNotMatch(list.stdout, new RegExp(`Outbox ${outbox.id}`));
+});
+
 test("guardian review auto-dispatches approved WhatsApp outbox through Gateway with explicit id", () => {
   const root = makeWhatsAppLeadRoot("wa-guardian-auto-dispatch-001", "Pode sim");
   const gateway = writeFakeGateway(root);

@@ -102,6 +102,7 @@ const WHATSAPP_CONVERSATION_STATES = new Set([
   "bloqueado_guardiao",
   "encerrado",
 ]);
+const WHATSAPP_OUTBOUND_PAUSE_FILE = join(".scratch", "whatsapp", "outbound-paused.json");
 const HANDOFF_STATUSES = new Set([
   "pending_issue",
   "issue_created",
@@ -3326,7 +3327,7 @@ function whatsappOutboxStatus(database, outboxId, root) {
     .get(outboxId);
   if (!row) throw usageError(`Outbox nao encontrada: ${outboxId}`);
 
-  const dispatchCheck = whatsappOutboxDispatchCheck(row);
+  const dispatchCheck = whatsappOutboxDispatchCheck(row, { root });
   return {
     ...row,
     can_dispatch: dispatchCheck.canDispatch,
@@ -3355,7 +3356,7 @@ function listDispatchableWhatsAppOutboxes(database, root) {
        order by o.id asc`,
     )
     .all()
-    .filter((row) => whatsappOutboxDispatchCheck(row).canDispatch);
+    .filter((row) => whatsappOutboxDispatchCheck(row, { root }).canDispatch);
 
   if (!rows.length) {
     console.log("Nenhuma Outbox aprovada e despachavel.");
@@ -3370,7 +3371,7 @@ function listDispatchableWhatsAppOutboxes(database, root) {
   }
 }
 
-function whatsappOutboxDispatchCheck(outbox) {
+function whatsappOutboxDispatchCheck(outbox, options = {}) {
   const blockers = [];
   if (!["approved", "failed"].includes(outbox.status)) blockers.push(`status ${outbox.status}`);
   if (outbox.guardian_decision !== "enviar") blockers.push("guardiao nao aprovou envio");
@@ -3383,7 +3384,24 @@ function whatsappOutboxDispatchCheck(outbox) {
     blockers.push(`estado ${outbox.whatsapp_state}`);
   }
   if (isWhatsAppLid(outbox.target_chat_id)) blockers.push("destino direto @lid");
+  const pause = options.root ? readWhatsAppOutboundPause(options.root) : null;
+  if (pause) blockers.push(`outbound WhatsApp pausado: ${pause.reason}`);
   return { canDispatch: blockers.length === 0, blockers };
+}
+
+function readWhatsAppOutboundPause(root) {
+  const file = join(root, WHATSAPP_OUTBOUND_PAUSE_FILE);
+  if (!existsSync(file)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    return {
+      file,
+      reason: clean(parsed.reason) || "pausa operacional",
+      pausedAt: clean(parsed.paused_at || parsed.pausedAt),
+    };
+  } catch {
+    return { file, reason: "pausa operacional", pausedAt: "" };
+  }
 }
 
 function buildGuardianAutoDispatchOptions(flags, root) {

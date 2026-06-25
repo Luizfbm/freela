@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -530,6 +530,47 @@ test("gateway dry-runs approved whatsapp outbox without sending", () => {
   const outbox = readLatestOutbox(root);
   assert.equal(outbox.status, "approved");
   assert.equal(outbox.sent_at, null);
+});
+
+test("gateway refuses real dispatch when WhatsApp outbound is paused", async () => {
+  const root = makeRoot();
+  const outboxId = seedApprovedOutbox(root);
+  const pauseDir = join(root, ".scratch", "whatsapp");
+  mkdirSync(pauseDir, { recursive: true });
+  writeFileSync(
+    join(pauseDir, "outbound-paused.json"),
+    JSON.stringify({
+      reason: "whatsapp_ban_24h",
+      paused_at: "2026-06-25T14:10:00.000Z",
+    }),
+  );
+
+  const bridge = await withBridgeServer((_req, res) => {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, message: "paused dispatch must not send" }));
+  });
+  try {
+    const result = await runNodeAsync([
+      gateway,
+      "--root",
+      root,
+      "dispatch-approved-outbox",
+      "--outbox-id",
+      String(outboxId),
+      "--bridge-api-base",
+      bridge.baseUrl,
+    ]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /outbound WhatsApp pausado/i);
+    assert.equal(bridge.requests.length, 0);
+    const outbox = readLatestOutbox(root);
+    assert.equal(outbox.status, "approved");
+    assert.equal(outbox.attempts, 0);
+    assert.equal(outbox.dispatch_locked_at, null);
+  } finally {
+    await bridge.close();
+  }
 });
 
 test("gateway migrates legacy CRM schema before dry-run dispatch", async () => {

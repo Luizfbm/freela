@@ -346,6 +346,8 @@ Estado confirmado em 2026-06-21: a Outbox 6 do contato de teste foi enviada por 
 
 Modo alvo: automacao controlada depois do "Pode!". O Gateway importa inbound do webhook WAHA, workers escrevem resposta candidata, Humanizer limpa o texto, Guardiao aprova, e somente `scripts/whatsapp-local-gateway.mjs dispatch-approved-outbox --provider waha --outbox-id [id]` chama o motor de envio autorizado.
 
+Pausa global de outbound: em ban, cooldown, credencial insegura ou risco operacional, crie `.scratch/whatsapp/outbound-paused.json` com `reason` e `paused_at`. Enquanto esse arquivo existir, CRM `whatsapp outbox status` / `list-dispatchable` tratam Outboxes aprovadas como nao despachaveis, e o Gateway recusa dispatch real antes de chamar WAHA/Bridge. Remova somente depois de revisao manual do cooldown, sessao WAHA, Outboxes pendentes e risco da conta.
+
 ### Outbox-first WAHA mode
 
 Quando WAHA estiver saudavel, respostas seguras pos-consentimento deixam de ir para lead-cards por padrao. O caminho alvo e:

@@ -413,6 +413,12 @@ whatsapp_outbox pending_guardian
 -> CRM marks strong delivery
 ```
 
+Global outbound pause:
+
+- During WhatsApp bans, cooldowns, credential incidents, or any unsafe sending window, create `.scratch/whatsapp/outbound-paused.json` with `reason` and `paused_at`.
+- While this file exists, CRM `whatsapp outbox status` / `list-dispatchable` must report approved Outboxes as not dispatchable, and the Gateway must refuse real `dispatch-approved-outbox` before calling WAHA/Bridge.
+- Do not remove the pause file until Luiz or the operator manually reviews the cooldown, WAHA session, pending Outboxes, and account risk.
+
 Strong ACK:
 
 - `DEVICE`

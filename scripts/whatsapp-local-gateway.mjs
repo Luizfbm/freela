@@ -13,6 +13,7 @@ const WHATSAPP_ATENDIMENTO_WAKE_TYPE = "atendimento_whatsapp";
 const WHATSAPP_CLOSER_WAKE_TYPE = "whatsapp_closer";
 const WHATSAPP_NO_INTEREST_WAKE_TYPE = "whatsapp_no_interest";
 const WHATSAPP_AUTO_WAKE_BURST_DEDUPE_MS = 30_000;
+const WHATSAPP_OUTBOUND_PAUSE_FILE = join(".scratch", "whatsapp", "outbound-paused.json");
 
 function main() {
   const { root, command, flags } = parseArgs(process.argv.slice(2));
@@ -42,6 +43,7 @@ function main() {
     const result = dispatchApprovedOutbox(root, flags);
     if (parseBooleanFlag(flags["dry-run"])) {
       console.log(`Dry-run dispatchaveis: ${result.dispatchable}`);
+      if (result.pause) console.log(formatWhatsAppOutboundPauseError(result.pause));
       for (const item of result.items) {
         console.log(`- ${item.lead_name}: outbox ${item.id}`);
       }
@@ -808,6 +810,13 @@ function dispatchApprovedOutbox(root, flags) {
   if (!existsSync(crmDbPath)) {
     throw new Error(`CRM SQLite nao encontrado: ${crmDbPath}`);
   }
+  const pause = readWhatsAppOutboundPause(root);
+  if (pause) {
+    if (dryRun) {
+      return { dispatchable: 0, items: [], sent: 0, pending: 0, failed: 0, skipped: 0, pause };
+    }
+    throw new Error(formatWhatsAppOutboundPauseError(pause));
+  }
   const database = new DatabaseSync(crmDbPath);
   try {
     const items = readDispatchableOutbox(database, { limit, outboxId });
@@ -816,6 +825,26 @@ function dispatchApprovedOutbox(root, flags) {
   } finally {
     database.close();
   }
+}
+
+function readWhatsAppOutboundPause(root) {
+  const file = join(root, WHATSAPP_OUTBOUND_PAUSE_FILE);
+  if (!existsSync(file)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    return {
+      file,
+      reason: clean(parsed.reason) || "pausa operacional",
+      pausedAt: clean(parsed.paused_at || parsed.pausedAt),
+    };
+  } catch {
+    return { file, reason: "pausa operacional", pausedAt: "" };
+  }
+}
+
+function formatWhatsAppOutboundPauseError(pause) {
+  const when = pause.pausedAt ? ` desde ${pause.pausedAt}` : "";
+  return `outbound WhatsApp pausado${when}: ${pause.reason}. Remova ${pause.file} somente apos liberar a operacao.`;
 }
 
 function readDispatchableOutbox(database, { limit, outboxId = null }) {

@@ -51,6 +51,8 @@ Continuam manuais: primeira abordagem fria, preco, desconto, proposta, pagamento
 
 Workers nunca chamam `/api/sendText` diretamente.
 
+Pausa global de outbound: em ban, cooldown, credencial insegura ou risco operacional, crie `.scratch/whatsapp/outbound-paused.json` com `reason` e `paused_at`. Enquanto esse arquivo existir, o CRM mostra Outboxes aprovadas como nao despachaveis e o Gateway recusa dispatch real antes de chamar WAHA/Bridge. Remova somente depois de revisao manual do cooldown, sessao WAHA, Outboxes pendentes e risco da conta.
+
 ## Fronteira
 
 Somente `scripts/whatsapp-local-gateway.mjs` pode chamar WAHA.
@@ -247,6 +249,8 @@ node scripts/whatsapp-local-gateway.mjs \
 ```
 
 Regra operacional: em fluxo de worker, sempre usar `--outbox-id`. O modo sem `--outbox-id` fica reservado para operacao assistida em lote, quando o operador explicitamente quiser despachar todos os aprovados elegiveis. Lote real exige `--confirm-batch true`; dry-run em lote continua permitido para auditoria.
+
+Se `.scratch/whatsapp/outbound-paused.json` existir, nenhum dispatch real deve sair. `whatsapp outbox status` deve mostrar `Pode despachar: nao` com bloqueio de outbound pausado, e o Gateway deve falhar antes de qualquer chamada externa.
 
 O Gateway recebe telefone real da Outbox e usa `GET /api/contacts/check-exists` antes de enviar. `@lid` continua sendo identidade de leitura no CRM/Outbox, mas o WAHA pode resolver um telefone real para um `chatId` `@lid`; nesse caso o Gateway pode usar esse `chatId` resolvido pela propria WAHA para entregar a mensagem.
 
