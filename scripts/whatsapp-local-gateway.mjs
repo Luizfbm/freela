@@ -627,6 +627,7 @@ function buildAtendimentoWakePayload(inbound, atendimentoAgentId) {
       "",
       "- Escrever resposta candidata curta, contextual e humanizada na Outbox WhatsApp.",
       "- Usar contexto real do lead no CRM antes de propor a resposta.",
+      "- Nao recapitule o diagnostico anterior; responda ao ultimo inbound e avance uma etapa.",
       "- Nao envie WhatsApp. Nao chame bridge.",
       "- Depois da proposta, o Guardiao de Envio WhatsApp deve revisar antes de qualquer dispatch.",
     ].join("\n"),
@@ -683,6 +684,7 @@ function buildCloserWakePayload(inbound, closerAgentId) {
       "",
       "- Assumir como Atendimento e Fechamento quando houver preco, objeção, lead quente, bloqueio de guardiao ou handoff.",
       "- Preparar resposta comercial curta, contextual e segura; se precisar falar preco/proposta, manter criterio comercial.",
+      "- Nao recapitule o diagnostico anterior; responda ao ultimo inbound e avance uma etapa.",
       "- Registrar a resposta ou proxima acao no CRM/Paperclip.",
       "- Nao envie WhatsApp. Nao chame bridge.",
     ].join("\n"),
@@ -717,6 +719,7 @@ function workLinesForWhatsAppWake(route) {
     return [
       "- Assumir como Atendimento e Fechamento quando houver preco, objeção, lead quente, bloqueio de guardiao ou handoff.",
       "- Preparar resposta comercial curta, contextual e segura; se precisar falar preco/proposta, manter criterio comercial.",
+      "- Nao recapitule o diagnostico anterior; responda ao ultimo inbound e avance uma etapa.",
       "- Registrar a resposta ou proxima acao no CRM/Paperclip.",
     ];
   }
@@ -732,6 +735,7 @@ function workLinesForWhatsAppWake(route) {
   return [
     "- Escrever resposta candidata curta, contextual e humanizada na Outbox WhatsApp.",
     "- Usar contexto real do lead no CRM antes de propor a resposta.",
+    "- Nao recapitule o diagnostico anterior; responda ao ultimo inbound e avance uma etapa.",
     "- Depois da proposta, o Guardiao de Envio WhatsApp deve revisar antes de qualquer dispatch.",
   ];
 }

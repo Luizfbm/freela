@@ -315,7 +315,9 @@ function seedApprovedOutbox(root, suffix = "001") {
       "--name",
       "Aghata Massoterapia",
       "--body",
-      "Vi seu retorno. Vou te mandar os 3 pontos de forma bem objetiva.",
+      suffix === "001"
+        ? "Vi seu retorno. Vou te mandar os 3 pontos de forma bem objetiva."
+        : "Certo, sigo com uma resposta curta para esse caminho.",
       "--source",
       "atendimento-whatsapp",
       "--humanizer-pass",
@@ -1846,6 +1848,7 @@ test("gateway auto-wake cria task Paperclip para inbound Pode e resposta comum s
     assert.equal(paperclip.requests[0].body.assigneeAgentId, "agent-atendimento-test");
     assert.match(paperclip.requests[0].body.title, /WhatsApp.*Aghata Massoterapia/i);
     assert.match(paperclip.requests[0].body.description, /ultimo inbound WhatsApp/i);
+    assert.match(paperclip.requests[0].body.description, /Nao recapitule o diagnostico anterior/i);
     assert.match(paperclip.requests[0].body.description, /Nao envie WhatsApp|Nao chame bridge/i);
 
     const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
@@ -2200,6 +2203,7 @@ test("gateway wake-reconciled-inbound agrupa eventos reconciliados do mesmo chat
     assert.match(paperclip.requests[0].body.description, /inbound_event_ids: 1, 2/i);
     assert.match(paperclip.requests[0].body.description, /Boa noite/i);
     assert.match(paperclip.requests[0].body.description, /obrigada/i);
+    assert.match(paperclip.requests[0].body.description, /Nao recapitule o diagnostico anterior/i);
     assert.doesNotMatch(JSON.stringify(paperclip.requests[0].body), /sendText|send_message/i);
 
     const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
@@ -2331,6 +2335,7 @@ test("gateway auto-wake roteia preco e lead quente para Jhon Snow", async () => 
     );
     assert.match(paperclip.requests[0].body.description, /Jhon Snow|Atendimento e Fechamento/i);
     assert.match(paperclip.requests[0].body.description, /preco|preço|valor/i);
+    assert.match(paperclip.requests[0].body.description, /Nao recapitule o diagnostico anterior/i);
     assert.match(paperclip.requests[1].body.title, /lead quente|fechamento|WhatsApp/i);
 
     const database = new DatabaseSync(join(root, ".scratch/db/freela.sqlite"));
@@ -2466,6 +2471,7 @@ test("gateway keeps objective answer after price qualification with Jhon Snow", 
     assert.equal(paperclip.requests[0].body.assigneeAgentId, "agent-jhon-test");
     assert.match(paperclip.requests[0].body.description, /qualificacao_preco_pendente|preco_pedido/i);
     assert.match(paperclip.requests[0].body.description, /Seria para organizar o caminho/i);
+    assert.match(paperclip.requests[0].body.description, /Nao recapitule o diagnostico anterior/i);
   } finally {
     await paperclip.close();
   }

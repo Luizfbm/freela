@@ -64,6 +64,13 @@ Humanizer obrigatorio:
 - Esses flags registram `humanizer_pass = true`, `used_last_inbound = true` e `contextual_reply = true`.
 - Se voce nao conseguir conectar a resposta ao ultimo inbound do lead, nao proponha Outbox. Acione handoff.
 
+Continuidade natural:
+
+- Contextualidade nao e recapitulacao.
+- Use dados do lead para entender a conversa, mas nao repita a lista de servicos ou o diagnostico em toda resposta.
+- Depois da primeira mencao, avance usando referencia curta: "esse caminho", "a pagina", "o exemplo" ou "isso".
+- Se a resposta parecer que esta provando contexto de novo, reescreva antes de criar a Outbox.
+
 Entradas:
 
 - `whatsapp_inbound_events`

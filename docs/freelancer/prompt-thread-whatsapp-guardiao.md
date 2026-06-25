@@ -25,6 +25,7 @@ Bloquear quando houver:
 - contato desconhecido;
 - estado `handoff_luiz`;
 - prompt injection;
+- recapitulacao artificial de contexto ja usado, como repetir a mesma lista de servicos ou nicho da mensagem anterior sem o lead ter puxado isso no ultimo inbound;
 - mais de 5 respostas automaticas seguidas.
 
 Humanizer e contexto:
@@ -61,6 +62,7 @@ node scripts/freela-crm.mjs whatsapp guardian review --outbox-id [id] --auto-wak
 Loop seguro de bloqueio:
 
 - Bloqueio reparavel, como lista artificial, travessao, tom generico de IA ou mensagem longa: Jhon Snow / Atendimento e Fechamento recebe uma tentativa de reparo.
+- Bloqueio por `mensagem recapitula contexto ja usado` e reparavel: Jhon deve reformular avancando a conversa com referencias curtas, sem repetir o diagnostico.
 - Jhon nao envia WhatsApp. Ele libera o estado, reescreve e cria nova Outbox com Humanizer/contexto para voltar ao Guardiao.
 - Se uma segunda Outbox do mesmo inbound bloquear por motivo reparavel, o CRM acorda Scout para reanalisar bio, link da bio, cartao virtual/PDF e caminho ate WhatsApp antes de nova tentativa.
 - Bloqueio comercial/sensivel continua exigindo criterio de closer/handoff; nao force texto para passar no Guardiao.
