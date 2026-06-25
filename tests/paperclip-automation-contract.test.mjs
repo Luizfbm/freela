@@ -861,11 +861,16 @@ test("WhatsApp workers exigem Humanizer antes de qualquer Outbox automatica", ()
   const atendimentoWa = read("docs/freelancer/prompt-thread-whatsapp-atendimento.md");
   const guardiaoWa = read("docs/freelancer/prompt-thread-whatsapp-guardiao.md");
   const guide = read("docs/freelancer/paperclip/whatsapp-waha-local.md");
+  const atendimentoWaAgent = agentConfig("agent-whatsapp-atendimento.json");
 
   assert.match(atendimentoWa, /humanizer/i);
   assert.match(atendimentoWa, /humanizer_pass\s*=\s*true/i);
   assert.match(atendimentoWa, /used_last_inbound\s*=\s*true/i);
   assert.match(atendimentoWa, /contextual_reply\s*=\s*true/i);
+  assert.match(atendimentoWa, /guardian review --outbox-id \[id\] --auto-wake true --auto-dispatch true/i);
+  assert.match(atendimentoWa, /pending_guardian/i);
+  assert.match(atendimentoWaAgent.capabilities, /--auto-wake true --auto-dispatch true/i);
+  assert.match(atendimentoWaAgent.capabilities, /pending_guardian/i);
   assert.match(guardiaoWa, /humanizer_pass\s*=\s*true/i);
   assert.match(guardiaoWa, /5 respostas automaticas|5 respostas automáticas/i);
   assert.match(guide, /dispatch-approved-outbox/i);
