@@ -3465,6 +3465,45 @@ function formatWhatsAppOutboxStatus(report) {
 
 const WHATSAPP_AUTO_REPLY_LIMIT_REASON = "limite de 5 respostas automaticas atingido";
 const WHATSAPP_PRICE_QUALIFICATION_HANDOFF_REASON = "qualificacao de preco ja enviada; handoff Luiz";
+const WHATSAPP_CONTEXT_RECAP_REASON = "mensagem recapitula contexto ja usado";
+const CONTEXT_RECAP_MIN_REPEATED_TERMS = 2;
+const CONTEXT_RECAP_MIN_TERM_LENGTH = 5;
+const CONTEXT_RECAP_STOPWORDS = new Set([
+  "agora",
+  "ainda",
+  "antes",
+  "aqui",
+  "assim",
+  "botao",
+  "caminho",
+  "claro",
+  "cliente",
+  "contato",
+  "deixar",
+  "direto",
+  "endereco",
+  "entendi",
+  "exemplo",
+  "ficar",
+  "ficaria",
+  "ideia",
+  "instagram",
+  "melhor",
+  "mensagem",
+  "pagina",
+  "perfil",
+  "pessoa",
+  "pontos",
+  "primeiro",
+  "servico",
+  "servicos",
+  "simples",
+  "sobre",
+  "trabalho",
+  "voce",
+  "voces",
+  "whatsapp",
+]);
 const NEUTRAL_PRICE_QUALIFICATION_REPLY = [
   "Depende um pouco do que precisa aparecer na pagina e do objetivo principal.",
   "",
@@ -3485,7 +3524,7 @@ function reviewWhatsAppOutbox(database, outboxId) {
   const state = database
     .prepare("select * from lead_conversation_state where lead_id = ?")
     .get(outbox.lead_id);
-  const rules = guardianRules({ outbox, lead, state });
+  const rules = guardianRules({ database, outbox, lead, state });
   const decision = rules.length ? "bloquear" : "enviar";
   const status = decision === "enviar" ? "approved" : "blocked";
   const reason = rules.length ? rules.join("; ") : "mensagem dentro da zona segura";
@@ -3709,6 +3748,7 @@ function hasRepairableGuardianRule(rules) {
       "mensagem contem travessao ou marcador artificial",
       "mensagem generica com cara de IA",
       "mensagem longa demais",
+      WHATSAPP_CONTEXT_RECAP_REASON,
     ].includes(rule),
   );
 }
@@ -3850,7 +3890,7 @@ function paperclipJsonHeaders({ apiKey, runId }) {
   return headers;
 }
 
-function guardianRules({ outbox, state }) {
+function guardianRules({ database, outbox, state }) {
   const body = normalizeName(outbox.body);
   const rules = [];
 
@@ -3881,6 +3921,9 @@ function guardianRules({ outbox, state }) {
   }
   if (/\botima pergunta\b|\bcom certeza\b|\bfico a disposicao\b|\bentendi perfeitamente\b/.test(body)) {
     rules.push("mensagem generica com cara de IA");
+  }
+  if (contextRecapRepeatedTerms(database, outbox).length >= CONTEXT_RECAP_MIN_REPEATED_TERMS) {
+    rules.push(WHATSAPP_CONTEXT_RECAP_REASON);
   }
   if (/—|–|--/.test(outbox.body)) rules.push("mensagem contem travessao ou marcador artificial");
   if (/^\s*(?:[-*]|\d+[.)]|\d+\s*[-])\s+\S/m.test(outbox.body)) {
@@ -3918,6 +3961,67 @@ function containsPromptInjection(body) {
 
 function isNeutralPriceQualificationReply(body) {
   return normalizeWhatsAppReplyText(body) === normalizeWhatsAppReplyText(NEUTRAL_PRICE_QUALIFICATION_REPLY);
+}
+
+function contextRecapRepeatedTerms(database, outbox) {
+  const previous = latestPreviousOutboundForContext(database, outbox);
+  if (!previous?.body) return [];
+
+  const previousTerms = extractContextRecapTerms(previous.body);
+  if (previousTerms.size < CONTEXT_RECAP_MIN_REPEATED_TERMS) return [];
+
+  const currentTerms = extractContextRecapTerms(outbox.body);
+  if (currentTerms.size < CONTEXT_RECAP_MIN_REPEATED_TERMS) return [];
+
+  const inboundTerms = latestInboundTermsForOutbox(database, outbox);
+  return [...currentTerms]
+    .filter((term) => previousTerms.has(term))
+    .filter((term) => !inboundTerms.has(term))
+    .sort();
+}
+
+function latestPreviousOutboundForContext(database, outbox) {
+  return database
+    .prepare(
+      `select body
+       from (
+         select body, occurred_at as sort_at, id as sort_id
+         from interactions
+         where lead_id = ?
+           and direction = 'outbound'
+           and channel = 'whatsapp'
+           and trim(coalesce(body, '')) != ''
+         union all
+         select body, coalesce(sent_at, delivered_at, approved_at, created_at) as sort_at, id as sort_id
+         from whatsapp_outbox
+         where lead_id = ?
+           and id != ?
+           and id < ?
+           and status in ('approved', 'sent', 'delivery_pending', 'dispatch_ambiguous')
+           and trim(coalesce(body, '')) != ''
+       )
+       order by sort_at desc, sort_id desc
+       limit 1`,
+    )
+    .get(outbox.lead_id, outbox.lead_id, outbox.id, outbox.id);
+}
+
+function latestInboundTermsForOutbox(database, outbox) {
+  if (!outbox.inbound_event_id) return new Set();
+  const inbound = database
+    .prepare("select body from whatsapp_inbound_events where id = ?")
+    .get(outbox.inbound_event_id);
+  return extractContextRecapTerms(inbound?.body || "");
+}
+
+function extractContextRecapTerms(value) {
+  return new Set(
+    normalizeName(value)
+      .split(/\s+/)
+      .map(clean)
+      .filter((term) => term.length >= CONTEXT_RECAP_MIN_TERM_LENGTH)
+      .filter((term) => !CONTEXT_RECAP_STOPWORDS.has(term)),
+  );
 }
 
 function normalizeWhatsAppReplyText(value) {
